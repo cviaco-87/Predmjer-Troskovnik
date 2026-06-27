@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react"
 import AIAsistent from "./AIAsistent.jsx"
-import * as XLSX from "xlsx"
 import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
@@ -349,7 +348,9 @@ export default function App() {
 
 
   // ── EXCEL EXPORT ──
-  const exportExcel = () => {
+  const exportExcel = async () => {
+    // Dinamicki ucitaj xlsx biblioteku
+    const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
     if (!aktivnaFaza || pozicije.length === 0) { alert('Nema podataka za export.'); return }
     const wb = XLSX.utils.book_new()
     const proj = aktivniProjekat || {}
