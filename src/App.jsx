@@ -310,7 +310,7 @@ export default function App() {
 
   // ── EXCEL EXPORT ──
   const exportExcel = async () => {
-    if (!aktivnaFaza || pozicije.length === 0) { alert('Nema podataka za export.'); return }
+    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export. Odaberite projekat sa fazama.'); return }
     
     let XLSX
     try {
@@ -319,163 +319,250 @@ export default function App() {
     } catch(e) {
       alert('Greška pri učitavanju Excel biblioteke. Provjerite internet vezu.'); return
     }
-    
-    const proj = aktivniProjekat || {}
-    const fmtN = n => (n||0).toFixed(2)
-    
+
+    // Ucitaj pozicije za SVE faze
+    const svePozicije = {}
+    for (const f of faze) {
+      const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+      svePozicije[f.id] = data || []
+    }
+
+    const proj = aktivniProjekat
     const wb = XLSX.utils.book_new()
-    
+
     // ── SHEET 1: Rekapitulacija ──
     const recapRows = [
-      ['PREDMJER I PREDRAČUN', '', '', ''],
-      ['', '', '', ''],
+      ['PREDMJER I PREDRAČUN'],
+      [],
       ['Projekat:', proj.naziv || '', 'Investitor:', proj.klijent || ''],
       ['Lokacija:', proj.adresa || '', 'Datum:', proj.datum || ''],
-      ['', '', '', ''],
-      ['REKAPITULACIJA', '', '', ''],
-      ['Faza', 'Ukupno (EUR)', '', ''],
+      [],
+      ['REKAPITULACIJA'],
+      ['Faza', 'Ukupno (EUR)'],
     ]
-    
-    const fazaTotal = pozicije.reduce((s,p) => s + calcRow(p), 0)
-    recapRows.push([aktivnaFaza.naziv, {t:'n', v: fazaTotal, z:'#,##0.00'}])
-    
-    const uvec = fazaTotal * (uvR + uvM) / 100
-    const uman = fazaTotal * (umR + umM) / 100
-    const ukupno = fazaTotal + uvec - uman
-    
-    recapRows.push(['', '', '', ''])
-    if (uvec > 0) recapRows.push(['Uvećanje (' + (uvR+uvM) + '%):', {t:'n', v: uvec, z:'#,##0.00'}, '', ''])
-    if (uman > 0) recapRows.push(['Umanjenje (' + (umR+umM) + '%):', {t:'n', v: -uman, z:'#,##0.00'}, '', ''])
-    recapRows.push(['UKUPNO:', {t:'n', v: ukupno, z:'#,##0.00'}, '', ''])
-    
+
+    let grandTotal = 0
+    for (const f of faze) {
+      const fazaTotal = (svePozicije[f.id] || []).reduce((s,p) => s + calcRow(p), 0)
+      grandTotal += fazaTotal
+      recapRows.push([f.naziv, {t:'n', v: fazaTotal, z:'#,##0.00'}])
+    }
+
+    const uvec = grandTotal * (uvR + uvM) / 100
+    const uman = grandTotal * (umR + umM) / 100
+    const ukupno = grandTotal + uvec - uman
+
+    recapRows.push([])
+    recapRows.push(['Međuzbir:', {t:'n', v: grandTotal, z:'#,##0.00'}])
+    if (uvec > 0) recapRows.push(['+ Uvećanje (' + (uvR+uvM) + '%):', {t:'n', v: uvec, z:'#,##0.00'}])
+    if (uman > 0) recapRows.push(['− Umanjenje (' + (umR+umM) + '%):', {t:'n', v: -uman, z:'#,##0.00'}])
+    recapRows.push(['UKUPNO:', {t:'n', v: ukupno, z:'#,##0.00'}])
+
     const wsRecap = XLSX.utils.aoa_to_sheet(recapRows)
-    wsRecap['!cols'] = [{wch:35}, {wch:18}, {wch:20}, {wch:18}]
+    wsRecap['!cols'] = [{wch:40}, {wch:18}, {wch:20}, {wch:18}]
     XLSX.utils.book_append_sheet(wb, wsRecap, 'Rekapitulacija')
-    
-    // ── SHEET 2: Pozicije (detalj) ──
-    const detaljRows = [
-      ['PREDMJER I PREDRAČUN — ' + aktivnaFaza.naziv.toUpperCase()],
+
+    // ── SHEET 2+: Jedna sheet po fazi ──
+    for (const f of faze) {
+      const poz = svePozicije[f.id] || []
+      if (poz.length === 0) continue
+
+      const detaljRows = [
+        ['PREDMJER I PREDRAČUN — ' + f.naziv.toUpperCase()],
+        [],
+        ['Projekat:', proj.naziv || '', '', 'Investitor:', proj.klijent || ''],
+        ['Lokacija:', proj.adresa || '', '', 'Datum:', proj.datum || ''],
+        [],
+        ['R.br.', 'Opis pozicije', 'J.mj.', 'Jed. cijena (EUR)', 'Količina', 'Rabat (%)', 'Ukupno (EUR)']
+      ]
+
+      const byK = {}
+      for (const p of poz) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
+
+      let rb = 1
+      for (const [k, pz] of Object.entries(byK)) {
+        detaljRows.push(['', k.toUpperCase()])
+        for (const p of pz) {
+          detaljRows.push([
+            rb++, p.naziv, p.jedinica,
+            {t:'n', v: parseFloat(p.cijena)||0, z:'#,##0.00'},
+            parseFloat(p.kolicina) || '',
+            parseFloat(p.rabat) || '',
+            {t:'n', v: calcRow(p), z:'#,##0.00'}
+          ])
+        }
+        detaljRows.push([])
+      }
+
+      const fazaTotal = poz.reduce((s,p) => s + calcRow(p), 0)
+      detaljRows.push(['', '', '', '', '', 'UKUPNO FAZA:', {t:'n', v: fazaTotal, z:'#,##0.00'}])
+
+      const ws = XLSX.utils.aoa_to_sheet(detaljRows)
+      ws['!cols'] = [{wch:5}, {wch:70}, {wch:10}, {wch:16}, {wch:12}, {wch:12}, {wch:16}]
+      const sheetName = f.naziv.slice(0,31).replace(/[:\/?*[\]]/g, '_')
+      XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    }
+
+    // ── SHEET POSLJEDNJI: Sve pozicije zajedno ──
+    const sveRows = [
+      ['KOMPLETAN PREDMJER — ' + proj.naziv],
       [],
       ['Projekat:', proj.naziv || '', '', 'Investitor:', proj.klijent || ''],
       ['Lokacija:', proj.adresa || '', '', 'Datum:', proj.datum || ''],
       [],
-      ['R.br.', 'Opis pozicije', 'J.mj.', 'Jed. cijena (EUR)', 'Količina', 'Rabat (%)', 'Ukupno (EUR)']
+      ['R.br.', 'Faza', 'Opis pozicije', 'J.mj.', 'Jed. cijena (EUR)', 'Količina', 'Rabat (%)', 'Ukupno (EUR)']
     ]
-    
-    // Grupisano po kategorijama
-    const byK = {}
-    for (const p of pozicije) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
-    
-    let rb = 1
-    for (const [k, pz] of Object.entries(byK)) {
-      detaljRows.push(['', k.toUpperCase(), '', '', '', '', ''])
-      for (const p of pz) {
-        detaljRows.push([
-          rb++,
-          p.naziv,
-          p.jedinica,
+
+    let rb2 = 1
+    for (const f of faze) {
+      const poz = svePozicije[f.id] || []
+      if (poz.length === 0) continue
+      sveRows.push(['', f.naziv.toUpperCase()])
+      for (const p of poz) {
+        sveRows.push([
+          rb2++, f.naziv, p.naziv, p.jedinica,
           {t:'n', v: parseFloat(p.cijena)||0, z:'#,##0.00'},
           parseFloat(p.kolicina) || '',
           parseFloat(p.rabat) || '',
           {t:'n', v: calcRow(p), z:'#,##0.00'}
         ])
       }
-      detaljRows.push([])
+      sveRows.push([])
     }
-    
-    detaljRows.push([])
-    detaljRows.push(['', '', '', '', '', 'UKUPNO FAZA:', {t:'n', v: fazaTotal, z:'#,##0.00'}])
-    if (uvec > 0) detaljRows.push(['', '', '', '', '', '+ Uvećanje:', {t:'n', v: uvec, z:'#,##0.00'}])
-    if (uman > 0) detaljRows.push(['', '', '', '', '', '− Umanjenje:', {t:'n', v: -uman, z:'#,##0.00'}])
-    detaljRows.push(['', '', '', '', '', 'SVEUKUPNO:', {t:'n', v: ukupno, z:'#,##0.00'}])
-    
-    const wsDetalj = XLSX.utils.aoa_to_sheet(detaljRows)
-    wsDetalj['!cols'] = [{wch:5}, {wch:70}, {wch:10}, {wch:16}, {wch:12}, {wch:12}, {wch:16}]
-    XLSX.utils.book_append_sheet(wb, wsDetalj, aktivnaFaza.naziv.slice(0,31))
-    
-    // Snimi fajl
+    sveRows.push(['', '', '', '', '', '', 'UKUPNO:', {t:'n', v: grandTotal, z:'#,##0.00'}])
+    if (uvec > 0) sveRows.push(['', '', '', '', '', '', '+ Uvećanje:', {t:'n', v: uvec, z:'#,##0.00'}])
+    if (uman > 0) sveRows.push(['', '', '', '', '', '', '− Umanjenje:', {t:'n', v: -uman, z:'#,##0.00'}])
+    sveRows.push(['', '', '', '', '', '', 'SVEUKUPNO:', {t:'n', v: ukupno, z:'#,##0.00'}])
+
+    const wsSve = XLSX.utils.aoa_to_sheet(sveRows)
+    wsSve['!cols'] = [{wch:5}, {wch:20}, {wch:65}, {wch:10}, {wch:16}, {wch:12}, {wch:12}, {wch:16}]
+    XLSX.utils.book_append_sheet(wb, wsSve, 'Sve pozicije')
+
     const ime = (proj.naziv || 'Predmjer').replace(/[:\/?*[\]]/g, '_')
-    const faza = aktivnaFaza.naziv.replace(/[:\/?*[\]]/g, '_')
-    XLSX.writeFile(wb, `${ime}_${faza}_${proj.datum || ''}.xlsx`)
+    XLSX.writeFile(wb, `${ime}_${proj.datum || new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   // ── PDF PRINT ──
-  const exportPDF = () => {
-    if (!aktivnaFaza || pozicije.length === 0) { alert('Nema podataka za štampu.'); return }
-    const proj = aktivniProjekat || {}
-    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2,maximumFractionDigits:2})
-    
-    // Grupisi po kategorijama
-    const byK = {}
-    for (const p of pozicije) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
-    
-    let rows = ''
-    let rb = 1
-    for (const [k, pz] of Object.entries(byK)) {
-      rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
-      for (const p of pz) {
-        const u = calcRow(p)
-        const rabat = parseFloat(p.rabat) || 0
-        rows += `<tr>
-          <td class="c">${rb++}</td>
-          <td class="opis">${p.naziv || ''}</td>
-          <td class="c">${p.jedinica || ''}</td>
-          <td class="r">${p.cijena > 0 ? fmtN(p.cijena) : '—'}</td>
-          <td class="r">${parseFloat(p.kolicina) > 0 ? p.kolicina : '—'}</td>
-          <td class="r">${rabat > 0 ? rabat + '%' : '—'}</td>
-          <td class="r bold">${u > 0 ? fmtN(u) + ' €' : '—'}</td>
-        </tr>`
-      }
+  const exportPDF = async () => {
+    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za štampu.'); return }
+
+    // Ucitaj pozicije za SVE faze
+    const svePozicije = {}
+    for (const f of faze) {
+      const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+      svePozicije[f.id] = data || []
     }
-    
-    const fazaTotal = pozicije.reduce((s,p) => s + calcRow(p), 0)
-    const uvec = fazaTotal * (uvR + uvM) / 100
-    const uman = fazaTotal * (umR + umM) / 100
-    const ukupno = fazaTotal + uvec - uman
-    
-    rows += `<tr class="total">
-      <td colspan="6" style="text-align:right;padding:8px">UKUPNO FAZA:</td>
-      <td class="r bold">${fmtN(fazaTotal)} €</td>
-    </tr>`
-    
-    if (uvec > 0) rows += `<tr class="sub"><td colspan="6" style="text-align:right;padding:4px 8px">+ Uvećanje:</td><td class="r">${fmtN(uvec)} €</td></tr>`
-    if (uman > 0) rows += `<tr class="sub red"><td colspan="6" style="text-align:right;padding:4px 8px">− Umanjenje:</td><td class="r red">${fmtN(uman)} €</td></tr>`
-    if (uvec > 0 || uman > 0) rows += `<tr class="total"><td colspan="6" style="text-align:right;padding:8px">SVEUKUPNO:</td><td class="r bold">${fmtN(ukupno)} €</td></tr>`
-    
+
+    const proj = aktivniProjekat
+    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2,maximumFractionDigits:2})
+
+    let sviFazeSadrzaj = ''
+    let grandTotal = 0
+
+    for (const f of faze) {
+      const poz = svePozicije[f.id] || []
+      if (poz.length === 0) continue
+
+      const byK = {}
+      for (const p of poz) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
+
+      let rows = ''
+      let rb = 1
+      for (const [k, pz] of Object.entries(byK)) {
+        rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
+        for (const p of pz) {
+          const u = calcRow(p)
+          rows += `<tr>
+            <td class="c">${rb++}</td>
+            <td class="opis">${p.naziv || ''}</td>
+            <td class="c">${p.jedinica || ''}</td>
+            <td class="r">${p.cijena > 0 ? fmtN(p.cijena) : '—'}</td>
+            <td class="r">${parseFloat(p.kolicina) > 0 ? p.kolicina : '—'}</td>
+            <td class="r">${parseFloat(p.rabat) > 0 ? p.rabat + '%' : '—'}</td>
+            <td class="r bold">${u > 0 ? fmtN(u) + ' €' : '—'}</td>
+          </tr>`
+        }
+      }
+
+      const fazaTotal = poz.reduce((s,p) => s + calcRow(p), 0)
+      grandTotal += fazaTotal
+      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(fazaTotal)} €</td></tr>`
+
+      sviFazeSadrzaj += `
+        <div class="faza-header">
+          <h2>${f.naziv.toUpperCase()}</h2>
+        </div>
+        <table>
+          <thead><tr>
+            <th class="c" style="width:30px">R.br.</th>
+            <th>Opis pozicije</th>
+            <th class="c" style="width:45px">J.mj.</th>
+            <th class="r" style="width:75px">Jed. cijena (€)</th>
+            <th class="r" style="width:65px">Količina</th>
+            <th class="r" style="width:50px">Rabat</th>
+            <th class="r" style="width:80px">Ukupno (€)</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-bottom:20px"></div>`
+    }
+
+    const uvec = grandTotal * (uvR + uvM) / 100
+    const uman = grandTotal * (umR + umM) / 100
+    const ukupno = grandTotal + uvec - uman
+
+    // Rekapitulacija na kraju
+    let rekapRows = faze.map(f => {
+      const t = (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p), 0)
+      return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} €</td></tr>`
+    }).join('')
+
+    const rekapHTML = `
+      <div class="page-break"></div>
+      <h2 style="color:#1B4332;margin-bottom:10px">REKAPITULACIJA</h2>
+      <table style="width:400px">
+        <thead><tr><th>Faza</th><th class="r">Ukupno (€)</th></tr></thead>
+        <tbody>
+          ${rekapRows}
+          <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} €</td></tr>
+          ${uvec > 0 ? `<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} €</td></tr>` : ''}
+          ${uman > 0 ? `<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} €</td></tr>` : ''}
+          <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:13pt">${fmtN(ukupno)} €</td></tr>
+        </tbody>
+      </table>`
+
     const html = `<!DOCTYPE html>
 <html lang="bs">
 <head>
 <meta charset="UTF-8">
-<title>Predmjer — ${proj.naziv || ''} — ${aktivnaFaza.naziv}</title>
+<title>Predmjer — ${proj.naziv || ''}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; }
-  .header { margin-bottom: 16px; }
-  .header h1 { font-size: 14pt; color: #1B4332; margin-bottom: 6px; }
-  .header h2 { font-size: 11pt; color: #1B4332; margin-bottom: 10px; }
-  .info { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 9pt; margin-bottom: 14px; }
+  .header { margin-bottom: 20px; border-bottom: 2px solid #1B4332; padding-bottom: 10px; }
+  .header h1 { font-size: 15pt; color: #1B4332; margin-bottom: 6px; }
+  .info { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 9pt; margin-top: 8px; }
   .info span { color: #555; }
-  table { width: 100%; border-collapse: collapse; }
-  th { background: #1B4332; color: #fff; padding: 6px 6px; text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; }
+  .faza-header h2 { font-size: 11pt; color: #1B4332; margin: 16px 0 6px; padding: 4px 0; border-bottom: 1px solid #4A7C65; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  th { background: #1B4332; color: #fff; padding: 5px 6px; text-align: left; font-size: 8pt; text-transform: uppercase; }
   th.r { text-align: right; }
-  td { padding: 5px 6px; border-bottom: 1px solid #E5E5E0; vertical-align: top; font-size: 9.5pt; }
+  td { padding: 4px 6px; border-bottom: 1px solid #E5E5E0; vertical-align: top; font-size: 9pt; }
   tr:nth-child(even) td { background: #F9F9F7; }
-  tr.kat td { background: #EEF3F1; font-weight: 700; font-size: 8.5pt; color: #1B4332; text-transform: uppercase; letter-spacing: .04em; padding: 5px 6px; }
+  tr.kat td { background: #EEF3F1; font-weight: 700; font-size: 8.5pt; color: #1B4332; text-transform: uppercase; }
   tr.total td { background: #EEF3F1; font-weight: 700; border-top: 2px solid #1B4332; }
-  tr.sub td { background: #F5F5F3; }
-  .c { text-align: center; width: 30px; }
+  .c { text-align: center; }
   .r { text-align: right; }
   .opis { line-height: 1.4; }
   .bold { font-weight: 700; color: #1B4332; }
-  .red { color: #C0392B; }
-  @page { margin: 14mm 12mm; }
+  .page-break { page-break-before: always; margin-top: 20px; }
+  @page { margin: 12mm; }
   @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
 </style>
 </head>
 <body>
 <div class="header">
   <h1>PREDMJER I PREDRAČUN</h1>
-  <h2>${aktivnaFaza.naziv.toUpperCase()}</h2>
   <div class="info">
     <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
     <div><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
@@ -483,28 +570,16 @@ export default function App() {
     <div><span>Datum: </span>${proj.datum||'—'}</div>
   </div>
 </div>
-<table>
-  <thead>
-    <tr>
-      <th class="c">R.br.</th>
-      <th style="min-width:300px">Opis pozicije</th>
-      <th style="width:45px;text-align:center">J.mj.</th>
-      <th class="r" style="width:75px">Jed. cijena (€)</th>
-      <th class="r" style="width:65px">Količina</th>
-      <th class="r" style="width:50px">Rabat</th>
-      <th class="r" style="width:80px">Ukupno (€)</th>
-    </tr>
-  </thead>
-  <tbody>${rows}</tbody>
-</table>
+${sviFazeSadrzaj}
+${rekapHTML}
 </body>
 </html>`
-    
-    const w = window.open('', '_blank', 'width=900,height=700')
+
+    const w = window.open('', '_blank', 'width=1000,height=750')
     w.document.write(html)
     w.document.close()
     w.focus()
-    setTimeout(() => w.print(), 800)
+    setTimeout(() => w.print(), 1000)
   }
 
 
