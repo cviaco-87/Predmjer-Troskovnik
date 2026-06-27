@@ -172,7 +172,7 @@ export default function App() {
 
   // UI stanja
   const [noviProjekat, setNoviProjekat] = useState('')
-  const [showAI, setShowAI] = useState(false)
+  const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
