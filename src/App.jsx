@@ -175,7 +175,6 @@ export default function App() {
   const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [showAI, setShowAI] = useState(false)
   const [uvR, setUvR] = useState(0)
   const [uvM, setUvM] = useState(0)
 
