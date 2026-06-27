@@ -676,11 +676,12 @@ export default function App() {
                                 onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
                                 onMouseLeave={e => e.currentTarget.style.background = ''}>
                                 <td style={{ padding: '6px 8px', color: '#888', width: 28 }}>{i + 1}</td>
-                                <td style={{ padding: '6px 8px', lineHeight: 1.5, verticalAlign: 'top' }}>
-                                  <input type="text" defaultValue={p.naziv} onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
-                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', wordBreak: 'break-word' }}
+                                <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
+                                  <textarea defaultValue={p.naziv} onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
+                                    rows={Math.max(2, Math.ceil(p.naziv.length / 60))}
+                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.5, overflow: 'hidden', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                                     onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
-                                    onBlurCapture={e => e.target.style.border = '1px solid transparent'} />
+                                    onBlur={e => e.target.style.border = '1px solid transparent'} />
                                 </td>
                                 <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap' }}>
                                   <input type="text" defaultValue={p.jedinica} onBlur={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
