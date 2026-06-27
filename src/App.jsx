@@ -112,47 +112,6 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
           </>
         )}
       </div>
-      {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
-      <button
-        onClick={() => setShowAI(prev => !prev)}
-        title="AI Asistent za predmjer"
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 299,
-          width: 56, height: 56, borderRadius: '50%',
-          background: showAI ? '#14362A' : 'linear-gradient(135deg, #1B4332, #2D6A4F)',
-          color: '#fff', border: 'none', cursor: 'pointer',
-          fontSize: 24, boxShadow: '0 4px 20px rgba(27,67,50,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s', transform: showAI ? 'rotate(45deg)' : 'none'
-        }}
-        onMouseEnter={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
-        onMouseLeave={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg)' : 'none'}
-      >
-        {showAI ? '✕' : '✨'}
-      </button>
-
-      {/* Tooltip */}
-      {!showAI && (
-        <div style={{
-          position: 'fixed', bottom: 86, right: 18, zIndex: 299,
-          background: '#1B4332', color: '#fff', borderRadius: 8,
-          padding: '5px 10px', fontSize: 11, fontWeight: 600,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
-          whiteSpace: 'nowrap'
-        }}>
-          AI Asistent ✨
-        </div>
-      )}
-
-      {/* AI ASISTENT PANEL */}
-      {showAI && (
-        <AIAsistent
-          aktivnaFaza={aktivnaFaza}
-          onDodajStavku={dodajStavkuIzAI}
-          onClose={() => setShowAI(false)}
-        />
-      )}
-
     </div>
   )
 }
@@ -175,6 +134,7 @@ export default function App() {
   const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showAI, setShowAI] = useState(false)
   const [uvR, setUvR] = useState(0)
   const [uvM, setUvM] = useState(0)
 
