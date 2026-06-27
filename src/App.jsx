@@ -734,7 +734,7 @@ export default function App() {
                                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 3px', borderRadius: 3, opacity: 0.6 }}
                                       onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                       onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
-                                      title="Sačuvaj u Moju bazu">⭐</button>
+>⭐</button>
                                     <button onClick={() => obrisiPoziciju(p.id)}
                                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, lineHeight: 1, padding: '2px 4px', borderRadius: 3 }}
                                       onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
