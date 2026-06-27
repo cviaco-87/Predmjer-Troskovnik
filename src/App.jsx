@@ -707,7 +707,8 @@ export default function App() {
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B4332', '1px solid #4A7C65')}>+ Vlastita stavka</button>
-                <button onClick={() => window.print()} style={B('#1B4332')}>🖨 Print/PDF</button>
+                <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
+                <button onClick={exportPDF} style={B('#1B4332')}>🖨 Print/PDF</button>
               </div>
 
               {/* Baza pretraga */}
