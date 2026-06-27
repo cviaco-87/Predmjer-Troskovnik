@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react"
+import AIAsistent from "./AIAsistent.jsx"
+import * as XLSX from "xlsx"
 import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
@@ -111,6 +113,47 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
           </>
         )}
       </div>
+      {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
+      <button
+        onClick={() => setShowAI(prev => !prev)}
+        title="AI Asistent za predmjer"
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 299,
+          width: 56, height: 56, borderRadius: '50%',
+          background: showAI ? '#14362A' : 'linear-gradient(135deg, #1B4332, #2D6A4F)',
+          color: '#fff', border: 'none', cursor: 'pointer',
+          fontSize: 24, boxShadow: '0 4px 20px rgba(27,67,50,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s', transform: showAI ? 'rotate(45deg)' : 'none'
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg)' : 'none'}
+      >
+        {showAI ? '✕' : '✨'}
+      </button>
+
+      {/* Tooltip */}
+      {!showAI && (
+        <div style={{
+          position: 'fixed', bottom: 86, right: 18, zIndex: 299,
+          background: '#1B4332', color: '#fff', borderRadius: 8,
+          padding: '5px 10px', fontSize: 11, fontWeight: 600,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
+          whiteSpace: 'nowrap'
+        }}>
+          AI Asistent ✨
+        </div>
+      )}
+
+      {/* AI ASISTENT PANEL */}
+      {showAI && (
+        <AIAsistent
+          aktivnaFaza={aktivnaFaza}
+          onDodajStavku={dodajStavkuIzAI}
+          onClose={() => setShowAI(false)}
+        />
+      )}
+
     </div>
   )
 }
@@ -133,6 +176,7 @@ export default function App() {
   const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showAI, setShowAI] = useState(false)
   const [uvR, setUvR] = useState(0)
   const [uvM, setUvM] = useState(0)
 
@@ -302,6 +346,149 @@ export default function App() {
     if (aktivnaFaza) t[aktivnaFaza.id] = pozicije.reduce((s, p) => s + calcRow(p), 0)
     return t
   }, [pozicije, aktivnaFaza])
+
+
+  // ── EXCEL EXPORT ──
+  const exportExcel = () => {
+    if (!aktivnaFaza || pozicije.length === 0) { alert('Nema podataka za export.'); return }
+    const wb = XLSX.utils.book_new()
+    const proj = aktivniProjekat || {}
+    
+    // Rekapitulacija sheet
+    const recapData = [
+      ['PREDMJER I PREDRAČUN'],
+      [],
+      ['Projekat:', proj.naziv || ''],
+      ['Investitor:', proj.klijent || ''],
+      ['Lokacija:', proj.adresa || ''],
+      ['Datum:', proj.datum || ''],
+      [],
+      ['REKAPITULACIJA'],
+      ['Faza', 'Ukupno (EUR)'],
+      [aktivnaFaza.naziv, { t: 'n', v: pozicije.reduce((s,p) => s + calcRow(p), 0), z: '#,##0.00' }],
+      [],
+      ['UKUPNO:', { t: 'n', v: pozicije.reduce((s,p) => s + calcRow(p), 0), z: '#,##0.00' }]
+    ]
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(recapData), 'Rekapitulacija')
+
+    // Faza sheet
+    const hdr = [
+      ['PREDMJER I PREDRAČUN — ' + aktivnaFaza.naziv.toUpperCase()],
+      [],
+      ['Projekat:', proj.naziv || '', '', 'Investitor:', proj.klijent || ''],
+      ['Lokacija:', proj.adresa || '', '', 'Datum:', proj.datum || ''],
+      [],
+      ['R.br.', 'Opis pozicije', 'J.mj.', 'Jed. cijena (EUR)', 'Količina', 'Rabat (%)', 'Ukupno (EUR)']
+    ]
+    let rb = 1
+    const prows = []
+    const byK = {}
+    for (const p of pozicije) { const k = p.kategorija || 'Ostalo'; if (!byK[k]) byK[k] = []; byK[k].push(p) }
+    for (const [k, pz] of Object.entries(byK)) {
+      prows.push(['', k.toUpperCase()])
+      for (const p of pz) {
+        prows.push([rb++, p.naziv, p.jedinica,
+          { t: 'n', v: parseFloat(p.cijena) || 0, z: '#,##0.00' },
+          parseFloat(p.kolicina) || '',
+          parseFloat(p.rabat) || '',
+          { t: 'n', v: calcRow(p), z: '#,##0.00' }
+        ])
+      }
+    }
+    const total = pozicije.reduce((s,p) => s + calcRow(p), 0)
+    prows.push([], [], ['', '', '', '', '', 'UKUPNO:', { t: 'n', v: total, z: '#,##0.00' }])
+    const ws = XLSX.utils.aoa_to_sheet([...hdr, ...prows])
+    ws['!cols'] = [{wch:5},{wch:65},{wch:10},{wch:16},{wch:10},{wch:10},{wch:16}]
+    XLSX.utils.book_append_sheet(wb, ws, aktivnaFaza.naziv.slice(0,31))
+    XLSX.writeFile(wb, `Predmjer_${(proj.naziv||'').replace(/\s+/g,'_')}_${aktivnaFaza.naziv.replace(/\s+/g,'_')}.xlsx`)
+  }
+
+  // ── PDF PRINT ──
+  const exportPDF = () => {
+    if (!aktivnaFaza || pozicije.length === 0) { alert('Nema podataka za štampu.'); return }
+    const proj = aktivniProjekat || {}
+    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2,maximumFractionDigits:2})
+    const byK = {}
+    for (const p of pozicije) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
+    let rows = ''
+    let rb = 1
+    for (const [k, pz] of Object.entries(byK)) {
+      rows += `<tr style="background:#EEF3F1"><td colspan="6" style="padding:5px 8px;font-weight:700;font-size:10px;color:#1B4332;text-transform:uppercase;letter-spacing:.05em">${k}</td></tr>`
+      for (const p of pz) {
+        const u = calcRow(p)
+        rows += `<tr><td style="padding:4px 8px;color:#666;font-size:10px">${rb++}</td>
+          <td style="padding:4px 8px;font-size:11px;line-height:1.4">${p.naziv}</td>
+          <td style="padding:4px 8px;text-align:center;color:#666;font-size:10px">${p.jedinica}</td>
+          <td style="padding:4px 8px;text-align:right;font-size:11px">${p.cijena > 0 ? fmtN(p.cijena) : '—'}</td>
+          <td style="padding:4px 8px;text-align:right;font-size:11px">${p.kolicina > 0 ? p.kolicina : '—'}</td>
+          <td style="padding:4px 8px;text-align:right;font-weight:700;color:#1B4332;font-size:11px">${u > 0 ? fmtN(u) + ' €' : '—'}</td>
+        </tr>`
+      }
+    }
+    const total = pozicije.reduce((s,p) => s + calcRow(p), 0)
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>Predmjer — ${proj.naziv || ''}</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0;padding:15mm}
+        h1{font-size:16px;margin-bottom:4px;color:#1B4332}
+        h2{font-size:13px;margin:16px 0 6px;padding-bottom:3px;border-bottom:2px solid #1B4332;color:#1B4332}
+        .info{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;margin-bottom:14px;font-size:11px}
+        .info span{color:#555}
+        table{width:100%;border-collapse:collapse;margin-bottom:10px}
+        thead tr{background:#1B4332;color:#fff}
+        th{padding:6px 8px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+        th.r{text-align:right}
+        td{border-bottom:1px solid #E5E5E0}
+        tr:nth-child(even) td{background:#F8F8F6}
+        .total td{font-weight:700;background:#EEF3F1}
+        @page{margin:15mm}
+      </style></head><body>
+      <h1>📐 PREDMJER I PREDRAČUN</h1>
+      <div class="info">
+        <div><span>Projekat:</span> <strong>${proj.naziv||'—'}</strong></div>
+        <div><span>Investitor:</span> <strong>${proj.klijent||'—'}</strong></div>
+        <div><span>Lokacija:</span> ${proj.adresa||'—'}</div>
+        <div><span>Datum:</span> ${proj.datum||'—'}</div>
+      </div>
+      <h2>${aktivnaFaza.naziv}</h2>
+      <table>
+        <thead><tr>
+          <th style="width:28px">R.br.</th>
+          <th>Opis pozicije</th>
+          <th style="width:40px;text-align:center">J.mj.</th>
+          <th class="r" style="width:70px">Jed.cijena €</th>
+          <th class="r" style="width:55px">Kol.</th>
+          <th class="r" style="width:75px">Ukupno €</th>
+        </tr></thead>
+        <tbody>${rows}
+          <tr class="total">
+            <td colspan="5" style="text-align:right;padding:8px;color:#1B4332;font-size:12px">UKUPNO FAZA:</td>
+            <td style="text-align:right;padding:8px;font-size:13px;color:#1B4332">${fmtN(total)} €</td>
+          </tr>
+        </tbody>
+      </table>
+      </body></html>`
+    const w = window.open('', '_blank')
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => w.print(), 600)
+  }
+
+
+  // ── AI ASISTENT - dodaj stavku ──
+  const dodajStavkuIzAI = async (stavka) => {
+    if (!aktivnaFaza) return
+    const { data } = await supabase.from('pozicije').insert({
+      faza_id: aktivnaFaza.id,
+      naziv: stavka.naziv,
+      jedinica: stavka.jedinica,
+      cijena: parseFloat(stavka.cijena) || 0,
+      kategorija: stavka.kategorija || 'Ostalo',
+      redoslijed: pozicije.length
+    }).select().single()
+    if (data) setPozicije(prev => [...prev, data])
+  }
 
   const odjava = () => supabase.auth.signOut()
 
@@ -580,6 +767,49 @@ export default function App() {
           onDodaj={item => { dodajIzMojeBaze({ n: item.naziv, c: item.cijena, m: item.jedinica, k: item.kategorija }); setShowMojaBaza(false) }}
         />
       )}
+      {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
+      <button
+        onClick={() => setShowAI(prev => !prev)}
+        title="AI Asistent za predmjer"
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 299,
+          width: 56, height: 56, borderRadius: '50%',
+          background: showAI ? '#14362A' : 'linear-gradient(135deg, #1B4332, #2D6A4F)',
+          color: '#fff', border: 'none', cursor: 'pointer',
+          fontSize: 24, boxShadow: '0 4px 20px rgba(27,67,50,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s', transform: showAI ? 'rotate(45deg)' : 'none'
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg)' : 'none'}
+      >
+        {showAI ? '✕' : '✨'}
+      </button>
+
+      {/* Tooltip */}
+      {!showAI && (
+        <div style={{
+          position: 'fixed', bottom: 86, right: 18, zIndex: 299,
+          background: '#1B4332', color: '#fff', borderRadius: 8,
+          padding: '5px 10px', fontSize: 11, fontWeight: 600,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
+          whiteSpace: 'nowrap'
+        }}>
+          AI Asistent ✨
+        </div>
+      )}
+
+      {/* AI ASISTENT PANEL */}
+      {showAI && (
+        <AIAsistent
+          aktivnaFaza={aktivnaFaza}
+          onDodajStavku={dodajStavkuIzAI}
+          onClose={() => setShowAI(false)}
+        />
+      )}
+
     </div>
   )
 }
+
+// ── EXPORT FUNKCIJE - dodati na kraj fajla prije zadnje zagrade
