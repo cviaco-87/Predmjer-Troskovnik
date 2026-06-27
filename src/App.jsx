@@ -137,6 +137,8 @@ export default function App() {
   const [showAI, setShowAI] = useState(false)
   const [uvR, setUvR] = useState(0)
   const [uvM, setUvM] = useState(0)
+  const [umR, setUmR] = useState(0)
+  const [umM, setUmM] = useState(0)
 
   // Auth listener
   useEffect(() => {
@@ -465,7 +467,9 @@ export default function App() {
     cursor: 'pointer', fontFamily: 'inherit', background: bg, color, whiteSpace: 'nowrap'
   })
 
-  const uvecanje = (Object.values(fazaTotali).reduce((a, b) => a + b, 0)) * (uvR + uvM) / 100
+  const medjuzbir = Object.values(fazaTotali).reduce((a, b) => a + b, 0)
+  const uvecanje = medjuzbir * (uvR + uvM) / 100
+  const umanjenje = medjuzbir * (umR + umM) / 100
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', fontSize: 13, background: '#F5F4F0', color: '#1A1A18' }}>
@@ -561,8 +565,8 @@ export default function App() {
           </>}
 
           {/* Uvećanje */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Uvećanje</div>
-          {[['Na radove', uvR, setUvR, 'uv_radovi'], ['Na materijal', uvM, setUvM, 'uv_materijal']].map(([lbl, val, setter, db]) => (
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Uvećanje / Umanjenje</div>
+          {[['Uvećanje radovi', uvR, setUvR, 'uv_radovi'], ['Uvećanje materijal', uvM, setUvM, 'uv_materijal']].map(([lbl, val, setter, db]) => (
             <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
               <span style={{ flex: 1, fontSize: 12, color: '#666' }}>{lbl} (%)</span>
               <input type="number" value={val} min="0" step="0.5"
@@ -570,6 +574,16 @@ export default function App() {
                 style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
             </div>
           ))}
+          <div style={{ borderTop: '1px solid #E8E5DC', marginTop: 8, paddingTop: 8 }}>
+          {[['Umanjenje radovi', umR, setUmR, 'um_radovi'], ['Umanjenje materijal', umM, setUmM, 'um_materijal']].map(([lbl, val, setter, db]) => (
+            <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+              <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>{lbl} (%)</span>
+              <input type="number" value={val} min="0" max="100" step="0.5"
+                onChange={e => { const v = parseFloat(e.target.value) || 0; setter(v); azurirajProjekat(db, v) }}
+                style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
+            </div>
+          ))}
+          </div>
 
           {/* Moja baza dugme */}
           <div style={{ marginTop: 14 }}>
@@ -591,11 +605,12 @@ export default function App() {
                   </td>
                 </tr>
                 <tr><td colSpan={2} style={{ borderTop: '1px solid #D8D5CC', paddingTop: 5 }}></td></tr>
-                {uvecanje > 0 && <tr><td style={{ color: '#666' }}>Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(uvecanje)} €</td></tr>}
+                {uvecanje > 0 && <tr><td style={{ color: '#1B4332' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} €</td></tr>}
+                {umanjenje > 0 && <tr><td style={{ color: '#C0392B' }}>− Umanjenje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#C0392B', fontVariantNumeric: 'tabular-nums' }}>−{fmt(umanjenje)} €</td></tr>}
                 <tr>
                   <td style={{ fontWeight: 800, fontSize: 14 }}>UKUPNO</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje)} €
+                    {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje - umanjenje)} €
                   </td>
                 </tr>
               </tbody>
@@ -661,9 +676,9 @@ export default function App() {
                                 onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
                                 onMouseLeave={e => e.currentTarget.style.background = ''}>
                                 <td style={{ padding: '6px 8px', color: '#888', width: 28 }}>{i + 1}</td>
-                                <td style={{ padding: '6px 8px', maxWidth: 320, lineHeight: 1.4 }}>
+                                <td style={{ padding: '6px 8px', lineHeight: 1.5, verticalAlign: 'top' }}>
                                   <input type="text" defaultValue={p.naziv} onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
-                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 12, fontFamily: 'inherit', background: 'transparent' }}
+                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', wordBreak: 'break-word' }}
                                     onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                     onBlurCapture={e => e.target.style.border = '1px solid transparent'} />
                                 </td>
