@@ -151,8 +151,16 @@ Kako mogu pomoći? Opišite šta vam treba — npr:
         })
       })
 
-      const data = await response.json()
-      const odgovorTekst = data.content?.[0]?.text || 'Greška u odgovoru.'
+      let data
+      try {
+        data = await response.json()
+      } catch(parseErr) {
+        throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')')
+      }
+      if (!response.ok) {
+        throw new Error('API greška ' + response.status + ': ' + (data?.error || JSON.stringify(data)))
+      }
+      const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
 
       // Pokušaj parsirati stavku
       const stavka = parseStavka(odgovorTekst)
@@ -172,7 +180,7 @@ Kako mogu pomoći? Opišite šta vam treba — npr:
     } catch (e) {
       setPoruke(prev => [...prev, {
         uloga: 'asistent',
-        tekst: 'Greška u komunikaciji sa AI servisom. Pokušajte ponovo.',
+        tekst: 'Greška: ' + (e.message || JSON.stringify(e)),
         stavka: null
       }])
     }
