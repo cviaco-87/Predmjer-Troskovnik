@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react"
+import React, { useState, useMemo, useCallback, useEffect } from "react"
 import AIAsistent from "./AIAsistent.jsx"
 import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
@@ -691,7 +691,7 @@ export default function App() {
                     </thead>
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
-                        <>
+                        <React.Fragment key={kat}>
                           <tr key={'k' + kat} style={{ background: '#EEF3F1' }}>
                             <td colSpan={8} style={{ padding: '5px 8px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.04em' }}>{kat}</td>
                           </tr>
@@ -745,7 +745,7 @@ export default function App() {
                               </tr>
                             )
                           })}
-                        </>
+                        </React.Fragment>
                       ))}
                       <tr style={{ background: '#EEF3F1' }}>
                         <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO FAZA:</td>
