@@ -449,7 +449,7 @@ export default function App() {
           if (imadjece) {
             p.djeca.forEach((d, di) => {
               const du = calcRowSimple(d)
-              const dNaziv = (d.naziv||'Podstavka '+(di+1)).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+              const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
               redovi += `<tr class="pod-row">
                 <td class="rb" style="color:#aaa;font-size:9pt">${rb-1}.${di+1}</td>
                 <td class="pod-opis">↳ ${dNaziv}</td>
@@ -586,7 +586,7 @@ export default function App() {
           if (imadjece) {
             p.djeca.forEach((d, di) => {
               const du = calcRowSimple(d)
-              const dNaziv = (d.naziv||'Podstavka '+(di+1)).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+              const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
               rows += `<tr class="pod">
                 <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
                 <td class="pod-opis">↳ ${dNaziv}</td>
@@ -1065,15 +1065,23 @@ ${sviFazeSadrzaj}
                                           <span style={{ color: '#4A7C65', fontSize: 14, flexShrink: 0 }}>└</span>
                                           <textarea
                                             defaultValue={d.naziv}
-                                            onBlur={e => azurirajPoziciju(d.id, 'naziv', e.target.value)}
+                                            onChange={e => {
+                                              // Azuriraj lokalni state odmah
+                                              setPozicije(prev => prev.map(pz => pz.id === d.id ? {...pz, naziv: e.target.value} : pz))
+                                            }}
+                                            onBlur={e => {
+                                              // Snimi u bazu i azuriraj stil
+                                              azurirajPoziciju(d.id, 'naziv', e.target.value)
+                                              e.target.style.border = '1px solid transparent'
+                                              e.target.style.background = 'transparent'
+                                            }}
                                             rows={1}
-                                            placeholder="Npr: Prizemlje, Sprat 1..."
+                                            placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.4, color: '#444' }}
                                             onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F0F5F2' }}
-                                            onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
                                           />
-                                        </div>
-                                      </td>
+                                         </div>
+                                       </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
                                         <input type="text" defaultValue={d.jedinica} onBlur={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
                                           style={{ width: 45, border: '1px solid transparent', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', textAlign: 'center' }}
