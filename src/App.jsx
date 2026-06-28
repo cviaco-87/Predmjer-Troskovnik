@@ -147,8 +147,9 @@ export default function App() {
   const [uvM, setUvM] = useState(0)
   const [umR, setUmR] = useState(0)
   const [umM, setUmM] = useState(0)
-  const [editPoz, setEditPoz] = useState(null) // {id, naziv, jedinica, cijena, kolicina, rabat, kategorija}
+  const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
+  const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
 
   // Auth listener
   useEffect(() => {
@@ -290,9 +291,14 @@ export default function App() {
 
   const dodajVlastitupoziciju = async () => {
     if (!aktivnaFaza) return
+    // Koristi zadnju kategoriju iz aktivne faze, ili prvu ako nema
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const zadnjaKat = roditelji.length > 0 
+      ? roditelji[roditelji.length - 1].kategorija 
+      : 'Ostalo'
     const { data } = await supabase.from('pozicije').insert({
-      faza_id: aktivnaFaza.id, naziv: 'Nova stavka', jedinica: 'kom',
-      cijena: 0, kategorija: 'Ostalo', redoslijed: pozicije.length
+      faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
+      cijena: 0, kategorija: zadnjaKat, redoslijed: pozicije.length
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
   }
@@ -452,7 +458,7 @@ export default function App() {
               const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
               redovi += `<tr class="pod-row">
                 <td class="rb" style="color:#aaa;font-size:9pt">${rb-1}.${di+1}</td>
-                <td class="pod-opis">↳ ${dNaziv}</td>
+                <td class="pod-opis">${dNaziv}</td>
                 <td class="jmj" style="font-size:9pt">${d.jedinica||''}</td>
                 <td class="broj" style="font-size:9pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                 <td class="broj" style="font-size:9pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
@@ -463,7 +469,7 @@ export default function App() {
             const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
             redovi += `<tr class="pod-sum">
               <td></td>
-              <td colspan="5">Ukupno ${p.djeca.length} zona/spratova — ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td colspan="5">Ukupno: ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
               <td style="text-align:right;font-weight:bold;color:#1B4332">${fmtN(u)} €</td>
             </tr>`
           }
@@ -589,7 +595,7 @@ export default function App() {
               const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
               rows += `<tr class="pod">
                 <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
-                <td class="pod-opis">↳ ${dNaziv}</td>
+                <td class="pod-opis">${dNaziv}</td>
                 <td class="c" style="font-size:8.5pt">${d.jedinica||''}</td>
                 <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                 <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
@@ -600,7 +606,7 @@ export default function App() {
             const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
             rows += `<tr class="pod-sum">
               <td></td>
-              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno ${p.djeca.length} zona/spratova — ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
               <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} €</td>
             </tr>`
           }
@@ -682,11 +688,25 @@ ${sviFazeSadrzaj}
 </table>
 </body></html>`
 
-    const w = window.open('', '_blank', 'width=1000,height=750')
-    w.document.write(html)
-    w.document.close()
-    w.focus()
-    setTimeout(() => w.print(), 800)
+    // Otvori u novom tabu
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const printWin = window.open(url, '_blank')
+    if (printWin) {
+      printWin.onload = () => {
+        setTimeout(() => {
+          printWin.print()
+          URL.revokeObjectURL(url)
+        }, 500)
+      }
+    } else {
+      // Fallback ako popup blokiran
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    }
   }
 
 
@@ -737,28 +757,53 @@ ${sviFazeSadrzaj}
 
         if (!novaFaza) continue
 
-        // Ucitaj pozicije ove faze i kopiraj ih
+        // Ucitaj pozicije ove faze i kopiraj ih sa parent_id vezama
         const { data: originalPoz } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
         
         if (originalPoz && originalPoz.length > 0) {
-          const novePoz = originalPoz.map(p => ({
-            faza_id: novaFaza.id,
-            naziv: p.naziv,
-            jedinica: p.jedinica,
-            cijena: p.cijena,
-            kolicina: p.kolicina,
-            rabat: p.rabat,
-            kategorija: p.kategorija,
-            redoslijed: p.redoslijed
-          }))
-          await supabase.from('pozicije').insert(novePoz)
+          // Prvo ubaci roditelje (bez parent_id)
+          const roditelji = originalPoz.filter(p => !p.parent_id)
+          const idMapa = {} // stari_id -> novi_id
+
+          for (const p of roditelji) {
+            const { data: novaPoz } = await supabase.from('pozicije').insert({
+              faza_id: novaFaza.id,
+              naziv: p.naziv,
+              jedinica: p.jedinica,
+              cijena: p.cijena,
+              kolicina: p.kolicina,
+              rabat: p.rabat,
+              kategorija: p.kategorija,
+              redoslijed: p.redoslijed,
+              parent_id: null
+            }).select().single()
+            if (novaPoz) idMapa[p.id] = novaPoz.id
+          }
+
+          // Zatim ubaci podstavke sa mapiranim parent_id
+          const djeca = originalPoz.filter(p => p.parent_id)
+          for (const d of djeca) {
+            const noviParentId = idMapa[d.parent_id]
+            if (!noviParentId) continue
+            await supabase.from('pozicije').insert({
+              faza_id: novaFaza.id,
+              naziv: d.naziv,
+              jedinica: d.jedinica,
+              cijena: d.cijena,
+              kolicina: d.kolicina,
+              rabat: d.rabat,
+              kategorija: d.kategorija,
+              redoslijed: d.redoslijed,
+              parent_id: noviParentId
+            })
+          }
         }
       }
 
       // Ucitaj projekte i odaberi novi
       await ucitajProjekte()
       setAktivniProjekat(noviProj)
-      alert(`Projekat "${noviProj.naziv}" je uspješno kreiran!`)
+      setEditNazivProjId(noviProj.id) // Odmah omogući promjenu naziva
     } catch(e) {
       alert('Greška pri kloniranju: ' + e.message)
     }
@@ -815,9 +860,36 @@ ${sviFazeSadrzaj}
                 border: p.id === aktivniProjekat?.id ? '1px solid #4A7C65' : '1px solid transparent' }}
               onMouseEnter={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '#F0F5F2' }}
               onMouseLeave={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '' }}>
-              <span style={{ flex: 1, fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.naziv}</span>
-              <button onClick={e => { e.stopPropagation(); setAktivniProjekat(p); klonirajProjekat() }}
-                title="Kloniraj projekat"
+              {editNazivProjId === p.id ? (
+                <input
+                  type="text"
+                  defaultValue={p.naziv}
+                  autoFocus
+                  onBlur={async e => {
+                    const noviNaziv = e.target.value.trim() || p.naziv
+                    await azurirajProjekat('naziv', noviNaziv)
+                    setEditNazivProjId(null)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') e.target.blur()
+                    if (e.key === 'Escape') setEditNazivProjId(null)
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ flex: 1, border: '1px solid #4A7C65', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500, background: '#fff' }}
+                />
+              ) : (
+                <span
+                  style={{ flex: 1, fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text' }}
+                  onDoubleClick={e => { e.stopPropagation(); setAktivniProjekat(p); setEditNazivProjId(p.id) }}
+                  title="Dvoklick za promjenu naziva"
+                >{p.naziv}</span>
+              )}
+              <button onClick={async e => { 
+                  e.stopPropagation()
+                  setAktivniProjekat(p)
+                  await klonirajProjekat()
+                }}
+                title="Kloniraj projekat (⧉)"
                 style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#1B4332'}
                 onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>⧉</button>
@@ -1062,7 +1134,7 @@ ${sviFazeSadrzaj}
                                       <td style={{ padding: '4px 8px', color: '#aaa', textAlign: 'right', fontSize: 11 }}>{i+1}.{di+1}</td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                          <span style={{ color: '#4A7C65', fontSize: 14, flexShrink: 0 }}>└</span>
+                                          
                                           <textarea
                                             defaultValue={d.naziv}
                                             onChange={e => {
@@ -1120,7 +1192,7 @@ ${sviFazeSadrzaj}
                                   <tr style={{ borderBottom: '1px solid #EEECEA', background: '#F5F8F6' }}>
                                     <td></td>
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
-                                      Ukupno {djeca.length} zona/spratova — {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {p.jedinica}
+                                      Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {p.jedinica}
                                     </td>
                                     <td></td>
                                     <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
