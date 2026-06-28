@@ -361,8 +361,32 @@ export default function App() {
     const proj = aktivniProjekat
     const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
 
+    // Pomocna: grupisanje sa podstavkama
+    const grupirajPozicije = (poz) => {
+      const roditelji = poz.filter(p => !p.parent_id)
+      const djecaMap = {}
+      for (const p of poz) {
+        if (p.parent_id) {
+          if (!djecaMap[p.parent_id]) djecaMap[p.parent_id] = []
+          djecaMap[p.parent_id].push(p)
+        }
+      }
+      const byK = {}
+      for (const p of roditelji) {
+        const k = p.kategorija || 'Ostalo'
+        if (!byK[k]) byK[k] = []
+        byK[k].push({ ...p, djeca: djecaMap[p.id] || [] })
+      }
+      return byK
+    }
+
     let grandTotal = 0
-    for (const f of faze) grandTotal += (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p, pozicije), 0)
+    for (const f of faze) {
+      const poz = svePozicije[f.id] || []
+      for (const p of poz.filter(x => !x.parent_id)) {
+        grandTotal += calcRow(p, poz)
+      }
+    }
     const uvec = grandTotal * (uvR + uvM) / 100
     const uman = grandTotal * (umR + umM) / 100
     const ukupno = grandTotal + uvec - uman
@@ -372,76 +396,95 @@ export default function App() {
       .naslov { font-size: 15pt; font-weight: bold; color: #1B4332; padding: 8px 0; border: none; }
       .faza-naslov { font-size: 11pt; font-weight: bold; color: #1B4332; padding: 12px 6px 4px; border: none; border-bottom: 2px solid #1B4332; background: white; }
       .info-red td { border: none; padding: 2px 8px; font-size: 9pt; background: white; }
-      .info-lab { color: #888; }
-      .info-val { font-weight: bold; }
+      .info-lab { color: #888; } .info-val { font-weight: bold; }
       th { background-color: #1B4332; color: white; font-weight: bold; padding: 6px 8px; text-align: left; font-size: 9pt; border: 1px solid #145229; }
-      th.r { text-align: right; }
-      th.c { text-align: center; }
+      th.r { text-align: right; } th.c { text-align: center; }
       td { padding: 5px 8px; border: 1px solid #D8D5CC; vertical-align: top; }
       .kat td { background-color: #EEF3F1; font-weight: bold; color: #1B4332; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.05em; }
       .par td { background-color: #F8FAF8; }
       .rb { text-align: center; color: #666; font-size: 9pt; width: 28px; }
       .opis { text-align: left; font-size: 9.5pt; line-height: 1.45; }
+      .opis-gl { font-weight: 600; }
       .jmj { text-align: center; color: #555; font-size: 9pt; }
       .broj { text-align: right; font-size: 9.5pt; }
       .uk { text-align: right; font-weight: bold; color: #1B4332; font-size: 9.5pt; }
+      .pod-row td { background: #FAFAF8; border-top: none; }
+      .pod-opis { padding-left: 20px; font-size: 9pt; color: #444; }
+      .pod-uk { text-align: right; font-size: 9pt; color: #4A7C65; font-weight: 600; }
+      .pod-sum td { background: #F5F8F6; font-style: italic; font-size: 8.5pt; color: #666; border-top: 1px solid #D8D5CC; }
       .total-row td { background-color: #EEF3F1; font-weight: bold; border-top: 2px solid #1B4332; }
       .total-label { text-align: right; font-size: 10pt; }
       .total-iznos { text-align: right; font-weight: bold; color: #1B4332; font-size: 10pt; }
-      .uvec-row td { color: #1B4332; }
-      .uvec-iznos { text-align: right; font-weight: bold; color: #1B4332; }
-      .uman-row td { color: #C0392B; }
-      .uman-iznos { text-align: right; font-weight: bold; color: #C0392B; }
+      .uvec-row td { color: #1B4332; } .uvec-iznos { text-align: right; font-weight: bold; color: #1B4332; }
+      .uman-row td { color: #C0392B; } .uman-iznos { text-align: right; font-weight: bold; color: #C0392B; }
       .sveu-row td { background-color: #E8F0EC; font-weight: bold; color: #1B4332; border-top: 2px solid #1B4332; border-bottom: 2px solid #1B4332; }
       .sveu-iznos { text-align: right; font-size: 12pt; color: #1B4332; font-weight: bold; }
-      .rekap th { background: #1B4332; }
       .razmak td { border: none; height: 14px; background: white; }
     `
 
-    // Detalj po fazama
     let fazeSadrzaj = ''
     for (const f of faze) {
       const poz = svePozicije[f.id] || []
       if (!poz.length) continue
-
-      const byK = {}
-      for (const p of poz) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
+      const byK = grupirajPozicije(poz)
 
       let redovi = ''
       let rb = 1; let pi = 0
-      for (const [k, pz] of Object.entries(byK)) {
+      for (const [k, stavke] of Object.entries(byK)) {
         redovi += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
-        for (const p of pz) {
-          const u = calcRow(p, pozicije)
+        for (const p of stavke) {
+          const u = calcRow(p, poz)
+          const imadjece = p.djeca.length > 0
           const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           redovi += `<tr class="${pi%2===1?'par':''}">
             <td class="rb">${rb++}</td>
-            <td class="opis">${naziv}</td>
+            <td class="opis${imadjece?' opis-gl':''}">${naziv}</td>
             <td class="jmj">${p.jedinica||''}</td>
-            <td class="broj">${(p.cijena||0)>0?fmtN(p.cijena):'—'}</td>
-            <td class="broj">${(p.kolicina||0)>0?p.kolicina:'—'}</td>
-            <td class="broj">${(p.rabat||0)>0?p.rabat+'%':'—'}</td>
+            <td class="broj">${!imadjece && (p.cijena||0)>0 ? fmtN(p.cijena) : (imadjece ? '<em style="color:#888;font-size:8.5pt">zbir</em>' : '—')}</td>
+            <td class="broj">${!imadjece && (p.kolicina||0)>0 ? p.kolicina : '—'}</td>
+            <td class="broj">${!imadjece && (p.rabat||0)>0 ? p.rabat+'%' : '—'}</td>
             <td class="uk">${u>0?fmtN(u)+' €':'—'}</td>
-          </tr>`; pi++
+          </tr>`
+          // Podstavke
+          if (imadjece) {
+            p.djeca.forEach((d, di) => {
+              const du = calcRowSimple(d)
+              const dNaziv = (d.naziv||'Podstavka '+(di+1)).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+              redovi += `<tr class="pod-row">
+                <td class="rb" style="color:#aaa;font-size:9pt">${rb-1}.${di+1}</td>
+                <td class="pod-opis">↳ ${dNaziv}</td>
+                <td class="jmj" style="font-size:9pt">${d.jedinica||''}</td>
+                <td class="broj" style="font-size:9pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
+                <td class="broj" style="font-size:9pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
+                <td class="broj" style="font-size:9pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
+                <td class="pod-uk">${du>0?fmtN(du)+' €':'—'}</td>
+              </tr>`
+            })
+            const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
+            redovi += `<tr class="pod-sum">
+              <td></td>
+              <td colspan="5">Ukupno ${p.djeca.length} zona/spratova — ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td style="text-align:right;font-weight:bold;color:#1B4332">${fmtN(u)} €</td>
+            </tr>`
+          }
+          pi++
         }
       }
-      const ft = poz.reduce((s,p) => s+calcRow(p, pozicije), 0)
+      const ft = poz.filter(p => !p.parent_id).reduce((s,p) => s+calcRow(p,poz), 0)
       redovi += `<tr class="total-row"><td colspan="6" class="total-label">UKUPNO ${f.naziv.toUpperCase()}:</td><td class="total-iznos">${fmtN(ft)} €</td></tr>`
 
       fazeSadrzaj += `
       <tr><td colspan="7" class="faza-naslov">${f.naziv.toUpperCase()}</td></tr>
-      <tr>
-        <th class="c">R.br.</th><th>Opis pozicije</th><th class="c">J.mj.</th>
+      <tr><th class="c">R.br.</th><th>Opis pozicije</th><th class="c">J.mj.</th>
         <th class="r">Jed. cijena (€)</th><th class="r">Količina</th>
-        <th class="r">Rabat</th><th class="r">Ukupno (€)</th>
-      </tr>
+        <th class="r">Rabat</th><th class="r">Ukupno (€)</th></tr>
       ${redovi}
       <tr class="razmak"><td colspan="7"></td></tr>`
     }
 
-    // Rekapitulacija
     const rekapRedovi = faze.map((f,i) => {
-      const t = (svePozicije[f.id]||[]).reduce((s,p) => s+calcRow(p, pozicije), 0)
+      const poz = svePozicije[f.id]||[]
+      const t = poz.filter(p => !p.parent_id).reduce((s,p) => s+calcRow(p,poz), 0)
       return `<tr class="${i%2===1?'par':''}"><td colspan="6">${f.naziv}</td><td class="uk">${fmtN(t)} €</td></tr>`
     }).join('')
 
@@ -460,9 +503,7 @@ export default function App() {
   <tr class="razmak"><td colspan="7"></td></tr>
   ${fazeSadrzaj}
   <tr><td colspan="7" class="faza-naslov">REKAPITULACIJA</td></tr>
-  <tr class="rekap">
-    <th colspan="6">Faza</th><th class="r">Ukupno (€)</th>
-  </tr>
+  <tr><th colspan="6">Faza</th><th class="r">Ukupno (€)</th></tr>
   ${rekapRedovi}
   <tr class="total-row"><td colspan="6" class="total-label">Međuzbir:</td><td class="total-iznos">${fmtN(grandTotal)} €</td></tr>
   ${uvec>0?`<tr class="uvec-row"><td colspan="6" class="total-label">+ Uvećanje (${uvR+uvM}%):</td><td class="uvec-iznos">${fmtN(uvec)} €</td></tr>`:''}
@@ -483,7 +524,6 @@ export default function App() {
   const exportPDF = async () => {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za štampu.'); return }
 
-    // Ucitaj pozicije za SVE faze
     const svePozicije = {}
     for (const f of faze) {
       const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
@@ -491,48 +531,89 @@ export default function App() {
     }
 
     const proj = aktivniProjekat
-    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2,maximumFractionDigits:2})
+    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
 
-    let sviFazeSadrzaj = ''
+    const grupirajPozicije = (poz) => {
+      const roditelji = poz.filter(p => !p.parent_id)
+      const djecaMap = {}
+      for (const p of poz) {
+        if (p.parent_id) {
+          if (!djecaMap[p.parent_id]) djecaMap[p.parent_id] = []
+          djecaMap[p.parent_id].push(p)
+        }
+      }
+      const byK = {}
+      for (const p of roditelji) {
+        const k = p.kategorija || 'Ostalo'
+        if (!byK[k]) byK[k] = []
+        byK[k].push({ ...p, djeca: djecaMap[p.id] || [] })
+      }
+      return byK
+    }
+
     let grandTotal = 0
-
     for (const f of faze) {
       const poz = svePozicije[f.id] || []
-      if (poz.length === 0) continue
+      grandTotal += poz.filter(p => !p.parent_id).reduce((s,p) => s+calcRow(p,poz), 0)
+    }
+    const uvec = grandTotal * (uvR + uvM) / 100
+    const uman = grandTotal * (umR + umM) / 100
+    const ukupno = grandTotal + uvec - uman
 
-      const byK = {}
-      for (const p of poz) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
+    let sviFazeSadrzaj = ''
+    for (const f of faze) {
+      const poz = svePozicije[f.id] || []
+      if (!poz.length) continue
+      const byK = grupirajPozicije(poz)
 
       let rows = ''
       let rb = 1
-      for (const [k, pz] of Object.entries(byK)) {
+      for (const [k, stavke] of Object.entries(byK)) {
         rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
-        for (const p of pz) {
-          const u = calcRow(p, pozicije)
+        for (const p of stavke) {
+          const u = calcRow(p, poz)
+          const imadjece = p.djeca.length > 0
+          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           rows += `<tr>
             <td class="c">${rb++}</td>
-            <td class="opis">${p.naziv || ''}</td>
-            <td class="c">${p.jedinica || ''}</td>
-            <td class="r">${p.cijena > 0 ? fmtN(p.cijena) : '—'}</td>
-            <td class="r">${parseFloat(p.kolicina) > 0 ? p.kolicina : '—'}</td>
-            <td class="r">${parseFloat(p.rabat) > 0 ? p.rabat + '%' : '—'}</td>
-            <td class="r bold">${u > 0 ? fmtN(u) + ' €' : '—'}</td>
+            <td class="opis${imadjece?' bold':''}">${naziv}</td>
+            <td class="c">${p.jedinica||''}</td>
+            <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
+            <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
+            <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
+            <td class="r bold">${u>0?fmtN(u)+' €':'—'}</td>
           </tr>`
+          if (imadjece) {
+            p.djeca.forEach((d, di) => {
+              const du = calcRowSimple(d)
+              const dNaziv = (d.naziv||'Podstavka '+(di+1)).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+              rows += `<tr class="pod">
+                <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
+                <td class="pod-opis">↳ ${dNaziv}</td>
+                <td class="c" style="font-size:8.5pt">${d.jedinica||''}</td>
+                <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
+                <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
+                <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
+                <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' €':'—'}</td>
+              </tr>`
+            })
+            const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
+            rows += `<tr class="pod-sum">
+              <td></td>
+              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno ${p.djeca.length} zona/spratova — ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} €</td>
+            </tr>`
+          }
         }
       }
-
-      const fazaTotal = poz.reduce((s,p) => s + calcRow(p, pozicije), 0)
-      grandTotal += fazaTotal
-      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(fazaTotal)} €</td></tr>`
+      const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
+      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(ft)} €</td></tr>`
 
       sviFazeSadrzaj += `
-        <div class="faza-header">
-          <h2>${f.naziv.toUpperCase()}</h2>
-        </div>
+        <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
         <table>
           <thead><tr>
-            <th class="c" style="width:30px">R.br.</th>
-            <th>Opis pozicije</th>
+            <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
             <th class="c" style="width:45px">J.mj.</th>
             <th class="r" style="width:75px">Jed. cijena (€)</th>
             <th class="r" style="width:65px">Količina</th>
@@ -541,62 +622,41 @@ export default function App() {
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
-        <div style="margin-bottom:20px"></div>`
+        <div style="margin-bottom:16px"></div>`
     }
 
-    const uvec = grandTotal * (uvR + uvM) / 100
-    const uman = grandTotal * (umR + umM) / 100
-    const ukupno = grandTotal + uvec - uman
-
-    // Rekapitulacija na kraju
-    let rekapRows = faze.map(f => {
-      const t = (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p, pozicije), 0)
+    const rekapRows = faze.map(f => {
+      const poz = svePozicije[f.id]||[]
+      const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
       return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} €</td></tr>`
     }).join('')
 
-    const rekapHTML = `
-      <div class="page-break"></div>
-      <h2 style="color:#1B4332;margin-bottom:10px">REKAPITULACIJA</h2>
-      <table style="width:400px">
-        <thead><tr><th>Faza</th><th class="r">Ukupno (€)</th></tr></thead>
-        <tbody>
-          ${rekapRows}
-          <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} €</td></tr>
-          ${uvec > 0 ? `<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} €</td></tr>` : ''}
-          ${uman > 0 ? `<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} €</td></tr>` : ''}
-          <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:13pt">${fmtN(ukupno)} €</td></tr>
-        </tbody>
-      </table>`
-
-    const html = `<!DOCTYPE html>
-<html lang="bs">
-<head>
-<meta charset="UTF-8">
-<title>Predmjer — ${proj.naziv || ''}</title>
+    const html = `<!DOCTYPE html><html lang="bs">
+<head><meta charset="UTF-8"><title>Predmjer — ${proj.naziv||''}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 10pt; color: #111; }
-  .header { margin-bottom: 20px; border-bottom: 2px solid #1B4332; padding-bottom: 10px; }
-  .header h1 { font-size: 15pt; color: #1B4332; margin-bottom: 6px; }
-  .info { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; font-size: 9pt; margin-top: 8px; }
-  .info span { color: #555; }
-  .faza-header h2 { font-size: 11pt; color: #1B4332; margin: 16px 0 6px; padding: 4px 0; border-bottom: 1px solid #4A7C65; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  th { background: #1B4332; color: #fff; padding: 5px 6px; text-align: left; font-size: 8pt; text-transform: uppercase; }
-  th.r { text-align: right; }
-  td { padding: 4px 6px; border-bottom: 1px solid #E5E5E0; vertical-align: top; font-size: 9pt; }
-  tr:nth-child(even) td { background: #F9F9F7; }
-  tr.kat td { background: #EEF3F1; font-weight: 700; font-size: 8.5pt; color: #1B4332; text-transform: uppercase; }
-  tr.total td { background: #EEF3F1; font-weight: 700; border-top: 2px solid #1B4332; }
-  .c { text-align: center; }
-  .r { text-align: right; }
-  .opis { line-height: 1.4; }
-  .bold { font-weight: 700; color: #1B4332; }
-  .page-break { page-break-before: always; margin-top: 20px; }
-  @page { margin: 12mm; }
-  @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
-</style>
-</head>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:Arial,sans-serif; font-size:10pt; color:#111; }
+  .header { margin-bottom:16px; border-bottom:2px solid #1B4332; padding-bottom:10px; }
+  .header h1 { font-size:15pt; color:#1B4332; margin-bottom:6px; }
+  .info { display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; font-size:9pt; margin-top:8px; }
+  .info span { color:#555; }
+  .faza-header h2 { font-size:11pt; color:#1B4332; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A7C65; }
+  table { width:100%; border-collapse:collapse; margin-bottom:4px; }
+  th { background:#1B4332; color:#fff; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
+  th.r { text-align:right; } th.c { text-align:center; }
+  td { padding:4px 6px; border-bottom:1px solid #E5E5E0; vertical-align:top; font-size:9.5pt; }
+  tr:nth-child(even) td { background:#F9F9F7; }
+  .kat td { background:#EEF3F1; font-weight:700; font-size:8.5pt; color:#1B4332; text-transform:uppercase; }
+  .pod td { background:#FAFAF8; border-bottom:none; }
+  .pod-opis { padding-left:16px; font-size:9pt; color:#444; }
+  .pod-sum td { background:#F5F8F6; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
+  .total td { background:#EEF3F1; font-weight:700; border-top:2px solid #1B4332; }
+  .c { text-align:center; } .r { text-align:right; }
+  .opis { line-height:1.4; } .bold { font-weight:700; }
+  .page-break { page-break-before:always; margin-top:16px; }
+  @page { margin:12mm; }
+  @media print { body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+</style></head>
 <body>
 <div class="header">
   <h1>PREDMJER I PREDRAČUN</h1>
@@ -608,15 +668,25 @@ export default function App() {
   </div>
 </div>
 ${sviFazeSadrzaj}
-${rekapHTML}
-</body>
-</html>`
+<div class="page-break"></div>
+<h2 style="color:#1B4332;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B4332">REKAPITULACIJA</h2>
+<table style="width:400px">
+  <thead><tr><th>Faza</th><th class="r">Ukupno (€)</th></tr></thead>
+  <tbody>
+    ${rekapRows}
+    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} €</td></tr>
+    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} €</td></tr>`:''}
+    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} €</td></tr>`:''}
+    <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} €</td></tr>
+  </tbody>
+</table>
+</body></html>`
 
     const w = window.open('', '_blank', 'width=1000,height=750')
     w.document.write(html)
     w.document.close()
     w.focus()
-    setTimeout(() => w.print(), 1000)
+    setTimeout(() => w.print(), 800)
   }
 
 
