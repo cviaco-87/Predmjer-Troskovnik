@@ -9,8 +9,16 @@ const BAZA = JSON.parse(atob(BAZA_B64))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const calcRow = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0) * (1 - (parseFloat(p.rabat) || 0) / 100)
-const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p), 0)
+const calcRow = (p, svePoz) => {
+  // Ako stavka ima podstavke, ukupno je zbir podstavki
+  if (svePoz) {
+    const djeca = svePoz.filter(d => d.parent_id === p.id)
+    if (djeca.length > 0) return djeca.reduce((s, d) => s + calcRowSimple(d), 0)
+  }
+  return calcRowSimple(p)
+}
+const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0) * (1 - (parseFloat(p.rabat) || 0) / 100)
+const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
 function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
@@ -198,6 +206,22 @@ export default function App() {
     setPozicije(data || [])
   }
 
+  const dodajPodstavku = async (roditeljPoz) => {
+    if (!aktivnaFaza) return
+    const { data } = await supabase.from('pozicije').insert({
+      faza_id: aktivnaFaza.id,
+      parent_id: roditeljPoz.id,
+      naziv: '',
+      jedinica: roditeljPoz.jedinica || 'm²',
+      cijena: roditeljPoz.cijena || 0,
+      kolicina: 0,
+      rabat: roditeljPoz.rabat || 0,
+      kategorija: roditeljPoz.kategorija || 'Ostalo',
+      redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
+    }).select().single()
+    if (data) setPozicije(prev => [...prev, data])
+  }
+
   const ucitajMojuBazu = async () => {
     const { data } = await supabase.from('moja_baza').select('*').order('kreiran_at', { ascending: false })
     setMojaBaza(data || [])
@@ -294,18 +318,32 @@ export default function App() {
   // ── KALKULACIJE ──
   const grandTotal = faze.reduce((s, f) => {
     const fazaPoz = f.id === aktivnaFaza?.id ? pozicije : []
-    return s + fazaPoz.reduce((ss, p) => ss + calcRow(p), 0)
+    return s + fazaPoz.reduce((ss, p) => ss + calcRow(p, pozicije), 0)
   }, 0)
 
   const grouped = useMemo(() => {
     const g = {}
-    for (const p of pozicije) { const k = p.kategorija || 'Ostalo'; if (!g[k]) g[k] = []; g[k].push(p) }
+    // Samo roditelji (bez parent_id) u grupama
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    for (const p of roditelji) { const k = p.kategorija || 'Ostalo'; if (!g[k]) g[k] = []; g[k].push(p) }
     return g
+  }, [pozicije])
+
+  // Podstavke po parent_id
+  const podstavke = useMemo(() => {
+    const m = {}
+    for (const p of pozicije) {
+      if (p.parent_id) {
+        if (!m[p.parent_id]) m[p.parent_id] = []
+        m[p.parent_id].push(p)
+      }
+    }
+    return m
   }, [pozicije])
 
   const fazaTotali = useMemo(() => {
     const t = {}
-    if (aktivnaFaza) t[aktivnaFaza.id] = pozicije.reduce((s, p) => s + calcRow(p), 0)
+    if (aktivnaFaza) t[aktivnaFaza.id] = pozicije.reduce((s, p) => s + calcRow(p, pozicije), 0)
     return t
   }, [pozicije, aktivnaFaza])
 
@@ -324,7 +362,7 @@ export default function App() {
     const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
 
     let grandTotal = 0
-    for (const f of faze) grandTotal += (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p), 0)
+    for (const f of faze) grandTotal += (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p, pozicije), 0)
     const uvec = grandTotal * (uvR + uvM) / 100
     const uman = grandTotal * (umR + umM) / 100
     const ukupno = grandTotal + uvec - uman
@@ -374,7 +412,7 @@ export default function App() {
       for (const [k, pz] of Object.entries(byK)) {
         redovi += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
         for (const p of pz) {
-          const u = calcRow(p)
+          const u = calcRow(p, pozicije)
           const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           redovi += `<tr class="${pi%2===1?'par':''}">
             <td class="rb">${rb++}</td>
@@ -387,7 +425,7 @@ export default function App() {
           </tr>`; pi++
         }
       }
-      const ft = poz.reduce((s,p) => s+calcRow(p), 0)
+      const ft = poz.reduce((s,p) => s+calcRow(p, pozicije), 0)
       redovi += `<tr class="total-row"><td colspan="6" class="total-label">UKUPNO ${f.naziv.toUpperCase()}:</td><td class="total-iznos">${fmtN(ft)} €</td></tr>`
 
       fazeSadrzaj += `
@@ -403,7 +441,7 @@ export default function App() {
 
     // Rekapitulacija
     const rekapRedovi = faze.map((f,i) => {
-      const t = (svePozicije[f.id]||[]).reduce((s,p) => s+calcRow(p), 0)
+      const t = (svePozicije[f.id]||[]).reduce((s,p) => s+calcRow(p, pozicije), 0)
       return `<tr class="${i%2===1?'par':''}"><td colspan="6">${f.naziv}</td><td class="uk">${fmtN(t)} €</td></tr>`
     }).join('')
 
@@ -470,7 +508,7 @@ export default function App() {
       for (const [k, pz] of Object.entries(byK)) {
         rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
         for (const p of pz) {
-          const u = calcRow(p)
+          const u = calcRow(p, pozicije)
           rows += `<tr>
             <td class="c">${rb++}</td>
             <td class="opis">${p.naziv || ''}</td>
@@ -483,7 +521,7 @@ export default function App() {
         }
       }
 
-      const fazaTotal = poz.reduce((s,p) => s + calcRow(p), 0)
+      const fazaTotal = poz.reduce((s,p) => s + calcRow(p, pozicije), 0)
       grandTotal += fazaTotal
       rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(fazaTotal)} €</td></tr>`
 
@@ -512,7 +550,7 @@ export default function App() {
 
     // Rekapitulacija na kraju
     let rekapRows = faze.map(f => {
-      const t = (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p), 0)
+      const t = (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p, pozicije), 0)
       return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} €</td></tr>`
     }).join('')
 
@@ -881,57 +919,139 @@ ${rekapHTML}
                             <td colSpan={8} style={{ padding: '5px 8px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.04em' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
-                            const u = calcRow(p)
+                            const u = calcRow(p, pozicije)
+                            const djeca = podstavke[p.id] || []
+                            const imadjece = djeca.length > 0
                             return (
-                              <tr key={p.id} style={{ borderBottom: '1px solid #EEECEA' }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
-                                onMouseLeave={e => e.currentTarget.style.background = ''}>
-                                <td style={{ padding: '6px 8px', color: '#888', width: 28 }}>{i + 1}</td>
-                                <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
-                                  <textarea
-                                    defaultValue={p.naziv}
-                                    onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
-                                    rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
-                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40 }}
-                                    onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8'; e.target.style.resize = 'vertical' }}
-                                    onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
-                                  />
-                                </td>
-                                <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap' }}>
-                                  <input type="text" defaultValue={p.jedinica} onBlur={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
-                                    style={{ width: 50, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent' }}
-                                    onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
-                                    onBlurCapture={e => e.target.style.border = '1px solid transparent'} />
-                                </td>
-                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                  <input type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
-                                    style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-                                </td>
-                                <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                  <input type="number" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parseFloat(e.target.value) || 0)}
-                                    placeholder="0" min="0" step="any"
-                                    style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-                                </td>
-                                <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                  <input type="number" defaultValue={p.rabat || ''} onBlur={e => azurirajPoziciju(p.id, 'rabat', parseFloat(e.target.value) || 0)}
-                                    placeholder="0" min="0" max="100"
-                                    style={{ width: 42, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} /> %
-                                </td>
-                                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{u > 0 ? fmt(u) + ' €' : '—'}</td>
-                                <td style={{ padding: '6px 4px' }}>
-                                  <div style={{ display: 'flex', gap: 2 }}>
-                                    <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 3px', borderRadius: 3, opacity: 0.6 }}
-                                      onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                      onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
->⭐</button>
-                                    <button onClick={() => obrisiPoziciju(p.id)}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, lineHeight: 1, padding: '2px 4px', borderRadius: 3 }}
-                                      onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
-                                      onMouseLeave={e => { e.currentTarget.style.color = '#bbb'; e.currentTarget.style.background = '' }}>×</button>
-                                  </div>
-                                </td>
-                              </tr>
+                              <React.Fragment key={p.id}>
+                                {/* GLAVNA STAVKA */}
+                                <tr style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: imadjece ? '#F0F5F2' : 'white' }}
+                                  onMouseEnter={e => { if (!imadjece) e.currentTarget.style.background = '#F8FAF8' }}
+                                  onMouseLeave={e => { if (!imadjece) e.currentTarget.style.background = 'white' }}>
+                                  <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>{i + 1}</td>
+                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
+                                    <textarea
+                                      defaultValue={p.naziv}
+                                      onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
+                                      rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, fontWeight: imadjece ? 600 : 400 }}
+                                      onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
+                                      onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                    {!imadjece && <input type="text" defaultValue={p.jedinica} onBlur={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
+                                      style={{ width: 50, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent' }}
+                                      onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
+                                      onBlurCapture={e => e.target.style.border = '1px solid transparent'} />}
+                                    {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{p.jedinica}</span>}
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
+                                    {!imadjece && <input type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                      style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
+                                    {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
+                                    {!imadjece && <input type="number" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parseFloat(e.target.value) || 0)}
+                                      placeholder="0" min="0" step="any"
+                                      style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                    {!imadjece && <><input type="number" defaultValue={p.rabat || ''} onBlur={e => azurirajPoziciju(p.id, 'rabat', parseFloat(e.target.value) || 0)}
+                                      placeholder="0" min="0" max="100"
+                                      style={{ width: 42, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} /> %</>}
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
+                                    {u > 0 ? fmt(u) + ' €' : '—'}
+                                  </td>
+                                  <td style={{ padding: '6px 4px', verticalAlign: 'top' }}>
+                                    <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
+                                      <button onClick={() => dodajPodstavku(p)} title="Dodaj podstavku (sprat/zona)"
+                                        style={{ background: '#E8F0EC', border: '1px solid #4A7C65', cursor: 'pointer', color: '#1B4332', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                        + pod
+                                      </button>
+                                      <div style={{ display: 'flex', gap: 2 }}>
+                                        <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: 0.6 }}
+                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}>⭐</button>
+                                        <button onClick={() => obrisiPoziciju(p.id)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
+                                          onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
+                                          onMouseLeave={e => { e.currentTarget.style.color = '#bbb'; e.currentTarget.style.background = '' }}>×</button>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {/* PODSTAVKE */}
+                                {djeca.map((d, di) => {
+                                  const du = calcRowSimple(d)
+                                  return (
+                                    <tr key={d.id} style={{ borderBottom: '1px solid #F0EDE8', background: '#FAFAF8' }}>
+                                      <td style={{ padding: '4px 8px', color: '#aaa', textAlign: 'right', fontSize: 11 }}>{i+1}.{di+1}</td>
+                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <span style={{ color: '#4A7C65', fontSize: 14, flexShrink: 0 }}>└</span>
+                                          <textarea
+                                            defaultValue={d.naziv}
+                                            onBlur={e => azurirajPoziciju(d.id, 'naziv', e.target.value)}
+                                            rows={1}
+                                            placeholder="Npr: Prizemlje, Sprat 1..."
+                                            style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.4, color: '#444' }}
+                                            onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F0F5F2' }}
+                                            onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
+                                          />
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
+                                        <input type="text" defaultValue={d.jedinica} onBlur={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
+                                          style={{ width: 45, border: '1px solid transparent', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', textAlign: 'center' }}
+                                          onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
+                                          onBlurCapture={e => e.target.style.border = '1px solid transparent'} />
+                                      </td>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+                                        <input type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                          style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                                      </td>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+                                        <input type="number" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parseFloat(e.target.value) || 0)}
+                                          placeholder="0" min="0" step="any"
+                                          style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                                      </td>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                        <input type="number" defaultValue={d.rabat || ''} onBlur={e => azurirajPoziciju(d.id, 'rabat', parseFloat(e.target.value) || 0)}
+                                          placeholder="0" min="0" max="100"
+                                          style={{ width: 38, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: '#F5F4F0' }} /> %
+                                      </td>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A7C65', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                                        {du > 0 ? fmt(du) + ' €' : '—'}
+                                      </td>
+                                      <td style={{ padding: '4px 4px' }}>
+                                        <button onClick={() => obrisiPoziciju(d.id)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: 16, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
+                                          onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
+                                          onMouseLeave={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = '' }}>×</button>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+
+                                {/* RED SA UKUPNO PODSTAVKI */}
+                                {imadjece && (
+                                  <tr style={{ borderBottom: '1px solid #EEECEA', background: '#F5F8F6' }}>
+                                    <td></td>
+                                    <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
+                                      Ukupno {djeca.length} zona/spratova — {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {p.jedinica}
+                                    </td>
+                                    <td></td>
+                                    <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
+                                      {fmt(u)} €
+                                    </td>
+                                    <td></td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             )
                           })}
                         </React.Fragment>
