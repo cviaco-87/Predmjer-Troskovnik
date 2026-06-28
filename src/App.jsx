@@ -139,6 +139,8 @@ export default function App() {
   const [uvM, setUvM] = useState(0)
   const [umR, setUmR] = useState(0)
   const [umM, setUmM] = useState(0)
+  const [editPoz, setEditPoz] = useState(null) // {id, naziv, jedinica, cijena, kolicina, rabat, kategorija}
+  const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
 
   // Auth listener
   useEffect(() => {
@@ -310,17 +312,8 @@ export default function App() {
 
   // ── EXCEL EXPORT ──
   const exportExcel = async () => {
-    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export. Odaberite projekat sa fazama.'); return }
+    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export.'); return }
 
-    let XLSX
-    try {
-      const mod = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs')
-      XLSX = mod.default || mod
-    } catch(e) {
-      alert('Greška pri učitavanju Excel biblioteke.'); return
-    }
-
-    // Ucitaj pozicije za SVE faze
     const svePozicije = {}
     for (const f of faze) {
       const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
@@ -328,260 +321,124 @@ export default function App() {
     }
 
     const proj = aktivniProjekat
-    const wb = XLSX.utils.book_new()
+    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
 
-    // Stilovi
-    const stilZaglavlje = { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: '1B4332' } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: { bottom: { style: 'thin', color: { rgb: '4A7C65' } } } }
-    const stilKategorija = { font: { bold: true, color: { rgb: '1B4332' }, sz: 10 }, fill: { fgColor: { rgb: 'EEF3F1' } }, alignment: { vertical: 'center' } }
-    const stilTotal = { font: { bold: true, sz: 11 }, fill: { fgColor: { rgb: 'EEF3F1' } }, border: { top: { style: 'medium', color: { rgb: '1B4332' } } } }
-    const stilTotalBroj = { font: { bold: true, color: { rgb: '1B4332' }, sz: 11 }, fill: { fgColor: { rgb: 'EEF3F1' } }, numFmt: '#,##0.00', border: { top: { style: 'medium', color: { rgb: '1B4332' } } }, alignment: { horizontal: 'right' } }
-    const stilNaslov = { font: { bold: true, color: { rgb: '1B4332' }, sz: 14 } }
-    const stilPodnaslov = { font: { bold: true, color: { rgb: '1B4332' }, sz: 11 } }
-    const stilInfo = { font: { color: { rgb: '555555' }, sz: 10 } }
-    const stilInfoVal = { font: { bold: true, sz: 10 } }
-    const stilBroj = { numFmt: '#,##0.00', alignment: { horizontal: 'right' } }
-    const stilCijena = { numFmt: '#,##0.00', alignment: { horizontal: 'right' }, font: { sz: 10 } }
-    const stilUkupno = { numFmt: '#,##0.00', alignment: { horizontal: 'right' }, font: { bold: true, color: { rgb: '1B4332' } } }
-    const stilRb = { alignment: { horizontal: 'center' }, font: { sz: 10 } }
-    const stilOpis = { alignment: { wrapText: true, vertical: 'top' }, font: { sz: 10 } }
-    const stilJmj = { alignment: { horizontal: 'center' }, font: { sz: 10 } }
-    const stilUvec = { font: { bold: true, color: { rgb: '1B4332' }, sz: 10 }, numFmt: '#,##0.00', alignment: { horizontal: 'right' } }
-    const stilUman = { font: { bold: true, color: { rgb: 'C0392B' }, sz: 10 }, numFmt: '#,##0.00', alignment: { horizontal: 'right' } }
-    const stilSveukupno = { font: { bold: true, color: { rgb: '1B4332' }, sz: 13 }, fill: { fgColor: { rgb: 'E8F0EC' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right' }, border: { top: { style: 'medium', color: { rgb: '1B4332' } }, bottom: { style: 'medium', color: { rgb: '1B4332' } } } }
-
-    const setStyle = (ws, cell, style) => {
-      if (!ws[cell]) ws[cell] = { v: ws[cell]?.v, t: ws[cell]?.t || 's' }
-      ws[cell].s = style
-    }
-
-    // Kalkulacije
     let grandTotal = 0
-    for (const f of faze) {
-      grandTotal += (svePozicije[f.id] || []).reduce((s,p) => s + calcRow(p), 0)
-    }
+    for (const f of faze) grandTotal += (svePozicije[f.id]||[]).reduce((s,p) => s + calcRow(p), 0)
     const uvec = grandTotal * (uvR + uvM) / 100
     const uman = grandTotal * (umR + umM) / 100
     const ukupno = grandTotal + uvec - uman
 
-    // ══════════════════════════════════════
-    // SHEET 1: REKAPITULACIJA
-    // ══════════════════════════════════════
-    const recapData = []
-    recapData.push([{ v: 'PREDMJER I PREDRAČUN', t: 's', s: stilNaslov }])
-    recapData.push([])
-    recapData.push([
-      { v: 'Projekat:', t: 's', s: stilInfo }, { v: proj.naziv || '', t: 's', s: stilInfoVal }, { v: '' },
-      { v: 'Investitor:', t: 's', s: stilInfo }, { v: proj.klijent || '', t: 's', s: stilInfoVal }
-    ])
-    recapData.push([
-      { v: 'Lokacija:', t: 's', s: stilInfo }, { v: proj.adresa || '', t: 's', s: stilInfoVal }, { v: '' },
-      { v: 'Datum:', t: 's', s: stilInfo }, { v: proj.datum || '', t: 's', s: stilInfoVal }
-    ])
-    recapData.push([])
-    recapData.push([{ v: 'REKAPITULACIJA', t: 's', s: stilPodnaslov }])
-    recapData.push([
-      { v: 'Faza', t: 's', s: stilZaglavlje },
-      { v: 'Ukupno (EUR)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right' } } }
-    ])
+    const css = `
+      table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 10pt; }
+      .naslov { font-size: 15pt; font-weight: bold; color: #1B4332; padding: 8px 0; border: none; }
+      .faza-naslov { font-size: 11pt; font-weight: bold; color: #1B4332; padding: 12px 6px 4px; border: none; border-bottom: 2px solid #1B4332; background: white; }
+      .info-red td { border: none; padding: 2px 8px; font-size: 9pt; background: white; }
+      .info-lab { color: #888; }
+      .info-val { font-weight: bold; }
+      th { background-color: #1B4332; color: white; font-weight: bold; padding: 6px 8px; text-align: left; font-size: 9pt; border: 1px solid #145229; }
+      th.r { text-align: right; }
+      th.c { text-align: center; }
+      td { padding: 5px 8px; border: 1px solid #D8D5CC; vertical-align: top; }
+      .kat td { background-color: #EEF3F1; font-weight: bold; color: #1B4332; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.05em; }
+      .par td { background-color: #F8FAF8; }
+      .rb { text-align: center; color: #666; font-size: 9pt; width: 28px; }
+      .opis { text-align: left; font-size: 9.5pt; line-height: 1.45; }
+      .jmj { text-align: center; color: #555; font-size: 9pt; }
+      .broj { text-align: right; font-size: 9.5pt; }
+      .uk { text-align: right; font-weight: bold; color: #1B4332; font-size: 9.5pt; }
+      .total-row td { background-color: #EEF3F1; font-weight: bold; border-top: 2px solid #1B4332; }
+      .total-label { text-align: right; font-size: 10pt; }
+      .total-iznos { text-align: right; font-weight: bold; color: #1B4332; font-size: 10pt; }
+      .uvec-row td { color: #1B4332; }
+      .uvec-iznos { text-align: right; font-weight: bold; color: #1B4332; }
+      .uman-row td { color: #C0392B; }
+      .uman-iznos { text-align: right; font-weight: bold; color: #C0392B; }
+      .sveu-row td { background-color: #E8F0EC; font-weight: bold; color: #1B4332; border-top: 2px solid #1B4332; border-bottom: 2px solid #1B4332; }
+      .sveu-iznos { text-align: right; font-size: 12pt; color: #1B4332; font-weight: bold; }
+      .rekap th { background: #1B4332; }
+      .razmak td { border: none; height: 14px; background: white; }
+    `
 
-    for (const f of faze) {
-      const t = (svePozicije[f.id] || []).reduce((s,p) => s + calcRow(p), 0)
-      recapData.push([
-        { v: f.naziv, t: 's' },
-        { v: t, t: 'n', s: stilBroj }
-      ])
-    }
-    recapData.push([])
-    recapData.push([
-      { v: 'Međuzbir', t: 's', s: stilTotal },
-      { v: grandTotal, t: 'n', s: stilTotalBroj }
-    ])
-    if (uvec > 0) recapData.push([
-      { v: '+ Uvećanje (' + (uvR+uvM) + '%)', t: 's', s: { font: { color: { rgb: '1B4332' } } } },
-      { v: uvec, t: 'n', s: stilUvec }
-    ])
-    if (uman > 0) recapData.push([
-      { v: '− Umanjenje (' + (umR+umM) + '%)', t: 's', s: { font: { color: { rgb: 'C0392B' } } } },
-      { v: -uman, t: 'n', s: stilUman }
-    ])
-    recapData.push([
-      { v: 'SVEUKUPNO', t: 's', s: { ...stilSveukupno, alignment: { horizontal: 'left' }, numFmt: undefined } },
-      { v: ukupno, t: 'n', s: stilSveukupno }
-    ])
-
-    const wsRecap = XLSX.utils.aoa_to_sheet(recapData)
-    wsRecap['!cols'] = [{wch:35}, {wch:18}, {wch:5}, {wch:18}, {wch:25}]
-    wsRecap['!rows'] = [{hpt:25}]
-    XLSX.utils.book_append_sheet(wb, wsRecap, 'Rekapitulacija')
-
-    // ══════════════════════════════════════
-    // SHEET PO FAZI
-    // ══════════════════════════════════════
+    // Detalj po fazama
+    let fazeSadrzaj = ''
     for (const f of faze) {
       const poz = svePozicije[f.id] || []
-      if (poz.length === 0) continue
-
-      const rows = []
-      rows.push([{ v: 'PREDMJER I PREDRAČUN — ' + f.naziv.toUpperCase(), t: 's', s: stilNaslov }])
-      rows.push([])
-      rows.push([
-        { v: 'Projekat:', t: 's', s: stilInfo }, { v: proj.naziv || '', t: 's', s: stilInfoVal }, { v: '' }, { v: '' },
-        { v: 'Investitor:', t: 's', s: stilInfo }, { v: proj.klijent || '', t: 's', s: stilInfoVal }
-      ])
-      rows.push([
-        { v: 'Lokacija:', t: 's', s: stilInfo }, { v: proj.adresa || '', t: 's', s: stilInfoVal }, { v: '' }, { v: '' },
-        { v: 'Datum:', t: 's', s: stilInfo }, { v: proj.datum || '', t: 's', s: stilInfoVal }
-      ])
-      rows.push([])
-      const hdrRow = [
-        { v: 'R.br.', t: 's', s: stilZaglavlje },
-        { v: 'Opis pozicije', t: 's', s: stilZaglavlje },
-        { v: 'J.mj.', t: 's', s: stilZaglavlje },
-        { v: 'Jed. cijena (EUR)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right', vertical: 'center' } } },
-        { v: 'Količina', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right', vertical: 'center' } } },
-        { v: 'Rabat (%)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right', vertical: 'center' } } },
-        { v: 'Ukupno (EUR)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right', vertical: 'center' } } },
-      ]
-      rows.push(hdrRow)
+      if (!poz.length) continue
 
       const byK = {}
       for (const p of poz) { const k = p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
 
-      let rb = 1
+      let redovi = ''
+      let rb = 1; let pi = 0
       for (const [k, pz] of Object.entries(byK)) {
-        rows.push([
-          { v: '', t: 's', s: stilKategorija },
-          { v: k.toUpperCase(), t: 's', s: stilKategorija },
-          { v: '', t: 's', s: stilKategorija },
-          { v: '', t: 's', s: stilKategorija },
-          { v: '', t: 's', s: stilKategorija },
-          { v: '', t: 's', s: stilKategorija },
-          { v: '', t: 's', s: stilKategorija },
-        ])
+        redovi += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
         for (const p of pz) {
           const u = calcRow(p)
-          rows.push([
-            { v: rb++, t: 'n', s: stilRb },
-            { v: p.naziv || '', t: 's', s: stilOpis },
-            { v: p.jedinica || '', t: 's', s: stilJmj },
-            { v: parseFloat(p.cijena)||0, t: 'n', s: stilCijena },
-            { v: parseFloat(p.kolicina)||0, t: 'n', s: { ...stilCijena, numFmt: '#,##0.##' } },
-            { v: parseFloat(p.rabat)||0, t: 'n', s: { ...stilCijena, numFmt: '0.0"%"' } },
-            { v: u, t: 'n', s: stilUkupno },
-          ])
+          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          redovi += `<tr class="${pi%2===1?'par':''}">
+            <td class="rb">${rb++}</td>
+            <td class="opis">${naziv}</td>
+            <td class="jmj">${p.jedinica||''}</td>
+            <td class="broj">${(p.cijena||0)>0?fmtN(p.cijena):'—'}</td>
+            <td class="broj">${(p.kolicina||0)>0?p.kolicina:'—'}</td>
+            <td class="broj">${(p.rabat||0)>0?p.rabat+'%':'—'}</td>
+            <td class="uk">${u>0?fmtN(u)+' €':'—'}</td>
+          </tr>`; pi++
         }
       }
+      const ft = poz.reduce((s,p) => s+calcRow(p), 0)
+      redovi += `<tr class="total-row"><td colspan="6" class="total-label">UKUPNO ${f.naziv.toUpperCase()}:</td><td class="total-iznos">${fmtN(ft)} €</td></tr>`
 
-      const fazaTotal = poz.reduce((s,p) => s + calcRow(p), 0)
-      rows.push([])
-      rows.push([
-        { v: '', t: 's', s: stilTotal },
-        { v: '', t: 's', s: stilTotal },
-        { v: '', t: 's', s: stilTotal },
-        { v: '', t: 's', s: stilTotal },
-        { v: '', t: 's', s: stilTotal },
-        { v: 'UKUPNO FAZA:', t: 's', s: { ...stilTotal, alignment: { horizontal: 'right' } } },
-        { v: fazaTotal, t: 'n', s: stilTotalBroj },
-      ])
-
-      const ws = XLSX.utils.aoa_to_sheet(rows)
-      ws['!cols'] = [{wch:6}, {wch:68}, {wch:8}, {wch:16}, {wch:12}, {wch:12}, {wch:16}]
-      ws['!freeze'] = { xSplit: 0, ySplit: 6 }
-      ws['!rows'] = new Array(rows.length).fill({hpt:15})
-      if (ws['!rows'][0]) ws['!rows'][0] = {hpt:22}
-      if (ws['!rows'][5]) ws['!rows'][5] = {hpt:30}
-
-      const sheetName = f.naziv.slice(0,31).replace(/[:\/?*[\]]/g, '_')
-      XLSX.utils.book_append_sheet(wb, ws, sheetName)
+      fazeSadrzaj += `
+      <tr><td colspan="7" class="faza-naslov">${f.naziv.toUpperCase()}</td></tr>
+      <tr>
+        <th class="c">R.br.</th><th>Opis pozicije</th><th class="c">J.mj.</th>
+        <th class="r">Jed. cijena (€)</th><th class="r">Količina</th>
+        <th class="r">Rabat</th><th class="r">Ukupno (€)</th>
+      </tr>
+      ${redovi}
+      <tr class="razmak"><td colspan="7"></td></tr>`
     }
 
-    // ══════════════════════════════════════
-    // SHEET: SVE POZICIJE
-    // ══════════════════════════════════════
-    const sveRows = []
-    sveRows.push([{ v: 'KOMPLETAN PREDMJER — ' + proj.naziv, t: 's', s: stilNaslov }])
-    sveRows.push([])
-    sveRows.push([
-      { v: 'Projekat:', t: 's', s: stilInfo }, { v: proj.naziv || '', t: 's', s: stilInfoVal }, { v: '' }, { v: '' }, { v: '' },
-      { v: 'Investitor:', t: 's', s: stilInfo }, { v: proj.klijent || '', t: 's', s: stilInfoVal }
-    ])
-    sveRows.push([
-      { v: 'Lokacija:', t: 's', s: stilInfo }, { v: proj.adresa || '', t: 's', s: stilInfoVal }, { v: '' }, { v: '' }, { v: '' },
-      { v: 'Datum:', t: 's', s: stilInfo }, { v: proj.datum || '', t: 's', s: stilInfoVal }
-    ])
-    sveRows.push([])
-    sveRows.push([
-      { v: 'R.br.', t: 's', s: stilZaglavlje },
-      { v: 'Faza', t: 's', s: stilZaglavlje },
-      { v: 'Opis pozicije', t: 's', s: stilZaglavlje },
-      { v: 'J.mj.', t: 's', s: stilZaglavlje },
-      { v: 'Jed. cijena (EUR)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right' } } },
-      { v: 'Količina', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right' } } },
-      { v: 'Rabat (%)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right' } } },
-      { v: 'Ukupno (EUR)', t: 's', s: { ...stilZaglavlje, alignment: { horizontal: 'right' } } },
-    ])
+    // Rekapitulacija
+    const rekapRedovi = faze.map((f,i) => {
+      const t = (svePozicije[f.id]||[]).reduce((s,p) => s+calcRow(p), 0)
+      return `<tr class="${i%2===1?'par':''}"><td colspan="6">${f.naziv}</td><td class="uk">${fmtN(t)} €</td></tr>`
+    }).join('')
 
-    let rb2 = 1
-    for (const f of faze) {
-      const poz = svePozicije[f.id] || []
-      if (poz.length === 0) continue
-      sveRows.push([
-        { v: '', t: 's', s: stilKategorija },
-        { v: f.naziv.toUpperCase(), t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-        { v: '', t: 's', s: stilKategorija },
-      ])
-      for (const p of poz) {
-        const u = calcRow(p)
-        sveRows.push([
-          { v: rb2++, t: 'n', s: stilRb },
-          { v: f.naziv, t: 's', s: { ...stilJmj, alignment: { horizontal: 'left' }, font: { sz: 9, italic: true } } },
-          { v: p.naziv || '', t: 's', s: stilOpis },
-          { v: p.jedinica || '', t: 's', s: stilJmj },
-          { v: parseFloat(p.cijena)||0, t: 'n', s: stilCijena },
-          { v: parseFloat(p.kolicina)||0, t: 'n', s: { ...stilCijena, numFmt: '#,##0.##' } },
-          { v: parseFloat(p.rabat)||0, t: 'n', s: { ...stilCijena, numFmt: '0.0"%"' } },
-          { v: u, t: 'n', s: stilUkupno },
-        ])
-      }
-      sveRows.push([])
-    }
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<head><meta charset="UTF-8"><style>${css}</style></head>
+<body><table>
+  <tr><td colspan="7" class="naslov">PREDMJER I PREDRAČUN</td></tr>
+  <tr class="info-red">
+    <td class="info-lab">Projekat:</td><td colspan="2" class="info-val">${proj.naziv||'—'}</td>
+    <td></td><td class="info-lab">Investitor:</td><td colspan="2" class="info-val">${proj.klijent||'—'}</td>
+  </tr>
+  <tr class="info-red">
+    <td class="info-lab">Lokacija:</td><td colspan="2" class="info-val">${proj.adresa||'—'}</td>
+    <td></td><td class="info-lab">Datum:</td><td colspan="2" class="info-val">${proj.datum||'—'}</td>
+  </tr>
+  <tr class="razmak"><td colspan="7"></td></tr>
+  ${fazeSadrzaj}
+  <tr><td colspan="7" class="faza-naslov">REKAPITULACIJA</td></tr>
+  <tr class="rekap">
+    <th colspan="6">Faza</th><th class="r">Ukupno (€)</th>
+  </tr>
+  ${rekapRedovi}
+  <tr class="total-row"><td colspan="6" class="total-label">Međuzbir:</td><td class="total-iznos">${fmtN(grandTotal)} €</td></tr>
+  ${uvec>0?`<tr class="uvec-row"><td colspan="6" class="total-label">+ Uvećanje (${uvR+uvM}%):</td><td class="uvec-iznos">${fmtN(uvec)} €</td></tr>`:''}
+  ${uman>0?`<tr class="uman-row"><td colspan="6" class="total-label">− Umanjenje (${umR+umM}%):</td><td class="uman-iznos">−${fmtN(uman)} €</td></tr>`:''}
+  <tr class="sveu-row"><td colspan="6" style="text-align:right">SVEUKUPNO:</td><td class="sveu-iznos">${fmtN(ukupno)} €</td></tr>
+</table></body></html>`
 
-    sveRows.push([])
-    sveRows.push([
-      { v: '', t: 's', s: stilTotal }, { v: '', t: 's', s: stilTotal }, { v: '', t: 's', s: stilTotal },
-      { v: '', t: 's', s: stilTotal }, { v: '', t: 's', s: stilTotal }, { v: '', t: 's', s: stilTotal },
-      { v: 'UKUPNO:', t: 's', s: { ...stilTotal, alignment: { horizontal: 'right' } } },
-      { v: grandTotal, t: 'n', s: stilTotalBroj }
-    ])
-    if (uvec > 0) sveRows.push([
-      { v: '' }, { v: '' }, { v: '' }, { v: '' }, { v: '' }, { v: '' },
-      { v: '+ Uvećanje (' + (uvR+uvM) + '%)', t: 's', s: { font: { color: { rgb: '1B4332' } }, alignment: { horizontal: 'right' } } },
-      { v: uvec, t: 'n', s: stilUvec }
-    ])
-    if (uman > 0) sveRows.push([
-      { v: '' }, { v: '' }, { v: '' }, { v: '' }, { v: '' }, { v: '' },
-      { v: '− Umanjenje (' + (umR+umM) + '%)', t: 's', s: { font: { color: { rgb: 'C0392B' } }, alignment: { horizontal: 'right' } } },
-      { v: -uman, t: 'n', s: stilUman }
-    ])
-    sveRows.push([
-      { v: '', t: 's', s: stilSveukupno }, { v: '', t: 's', s: stilSveukupno },
-      { v: '', t: 's', s: stilSveukupno }, { v: '', t: 's', s: stilSveukupno },
-      { v: '', t: 's', s: stilSveukupno }, { v: '', t: 's', s: stilSveukupno },
-      { v: 'SVEUKUPNO:', t: 's', s: { ...stilSveukupno, alignment: { horizontal: 'right' } } },
-      { v: ukupno, t: 'n', s: stilSveukupno }
-    ])
-
-    const wsSve = XLSX.utils.aoa_to_sheet(sveRows)
-    wsSve['!cols'] = [{wch:6}, {wch:20}, {wch:60}, {wch:8}, {wch:16}, {wch:12}, {wch:14}, {wch:16}]
-    XLSX.utils.book_append_sheet(wb, wsSve, 'Sve pozicije')
-
-    const ime = (proj.naziv || 'Predmjer').replace(/[:\/?*[\]]/g, '_')
-    XLSX.writeFile(wb, `${ime}_${proj.datum || new Date().toISOString().slice(0,10)}.xlsx`)
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${(proj.naziv||'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g,'_')}_${proj.datum||new Date().toISOString().slice(0,10)}.xls`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // ── PDF PRINT ──
@@ -739,6 +596,67 @@ ${rekapHTML}
     if (data) setPozicije(prev => [...prev, data])
   }
 
+
+  // ── KLONIRANJE PROJEKTA ──
+  const klonirajProjekat = async () => {
+    if (!aktivniProjekat) return
+    if (!confirm(`Klonirati projekat "${aktivniProjekat.naziv}"? Bit će kreiran novi projekat sa svim fazama i pozicijama.`)) return
+    
+    setKloniranjeLoading(true)
+    try {
+      // Kreiraj novi projekat
+      const { data: noviProj } = await supabase.from('projekti').insert({
+        naziv: aktivniProjekat.naziv + ' — KOPIJA',
+        klijent: aktivniProjekat.klijent,
+        adresa: aktivniProjekat.adresa,
+        datum: aktivniProjekat.datum,
+        uv_radovi: aktivniProjekat.uv_radovi,
+        uv_materijal: aktivniProjekat.uv_materijal
+      }).select().single()
+
+      if (!noviProj) throw new Error('Greška pri kreiranju projekta')
+
+      // Ucitaj sve faze originalnog projekta
+      const { data: originalFaze } = await supabase.from('faze').select('*').eq('projekat_id', aktivniProjekat.id).order('redoslijed')
+      
+      // Za svaku fazu kreiraj kopiju
+      for (const f of (originalFaze || [])) {
+        const { data: novaFaza } = await supabase.from('faze').insert({
+          projekat_id: noviProj.id,
+          naziv: f.naziv,
+          redoslijed: f.redoslijed
+        }).select().single()
+
+        if (!novaFaza) continue
+
+        // Ucitaj pozicije ove faze i kopiraj ih
+        const { data: originalPoz } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+        
+        if (originalPoz && originalPoz.length > 0) {
+          const novePoz = originalPoz.map(p => ({
+            faza_id: novaFaza.id,
+            naziv: p.naziv,
+            jedinica: p.jedinica,
+            cijena: p.cijena,
+            kolicina: p.kolicina,
+            rabat: p.rabat,
+            kategorija: p.kategorija,
+            redoslijed: p.redoslijed
+          }))
+          await supabase.from('pozicije').insert(novePoz)
+        }
+      }
+
+      // Ucitaj projekte i odaberi novi
+      await ucitajProjekte()
+      setAktivniProjekat(noviProj)
+      alert(`Projekat "${noviProj.naziv}" je uspješno kreiran!`)
+    } catch(e) {
+      alert('Greška pri kloniranju: ' + e.message)
+    }
+    setKloniranjeLoading(false)
+  }
+
   const odjava = () => supabase.auth.signOut()
 
   if (authLoading) return (
@@ -790,6 +708,11 @@ ${rekapHTML}
               onMouseEnter={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '#F0F5F2' }}
               onMouseLeave={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '' }}>
               <span style={{ flex: 1, fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.naziv}</span>
+              <button onClick={e => { e.stopPropagation(); setAktivniProjekat(p); klonirajProjekat() }}
+                title="Kloniraj projekat"
+                style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+                onMouseEnter={e => e.currentTarget.style.color = '#1B4332'}
+                onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>⧉</button>
               <button onClick={e => { e.stopPropagation(); obrisiProjekat(p.id) }}
                 style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
                 onMouseEnter={e => e.currentTarget.style.color = '#C0392B'}
@@ -965,11 +888,14 @@ ${rekapHTML}
                                 onMouseLeave={e => e.currentTarget.style.background = ''}>
                                 <td style={{ padding: '6px 8px', color: '#888', width: 28 }}>{i + 1}</td>
                                 <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
-                                  <textarea defaultValue={p.naziv} onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
-                                    rows={Math.max(2, Math.ceil(p.naziv.length / 60))}
-                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.5, overflow: 'hidden', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                                    onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
-                                    onBlur={e => e.target.style.border = '1px solid transparent'} />
+                                  <textarea
+                                    defaultValue={p.naziv}
+                                    onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
+                                    rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
+                                    style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40 }}
+                                    onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8'; e.target.style.resize = 'vertical' }}
+                                    onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
+                                  />
                                 </td>
                                 <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap' }}>
                                   <input type="text" defaultValue={p.jedinica} onBlur={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
