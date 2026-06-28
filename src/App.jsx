@@ -688,25 +688,23 @@ ${sviFazeSadrzaj}
 </table>
 </body></html>`
 
-    // Otvori u novom tabu
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const printWin = window.open(url, '_blank')
-    if (printWin) {
-      printWin.onload = () => {
-        setTimeout(() => {
-          printWin.print()
-          URL.revokeObjectURL(url)
-        }, 500)
-      }
-    } else {
-      // Fallback ako popup blokiran
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    // Otvori print prozor
+    const printWin = window.open('', '_blank', 'width=1000,height=750,scrollbars=yes')
+    if (!printWin) {
+      alert('Molimo dozvolite popup prozore za ovaj sajt da bi štampa radila.')
+      return
     }
+    printWin.document.open()
+    printWin.document.write(html)
+    printWin.document.close()
+    // Čekaj da se učita pa štampaj
+    printWin.addEventListener('load', () => {
+      setTimeout(() => printWin.print(), 300)
+    })
+    // Fallback ako load event ne okine
+    setTimeout(() => {
+      try { printWin.print() } catch(e) {}
+    }, 1200)
   }
 
 
@@ -1074,11 +1072,18 @@ ${sviFazeSadrzaj}
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
                                       defaultValue={p.naziv}
-                                      onBlur={e => azurirajPoziciju(p.id, 'naziv', e.target.value)}
-                                      rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
+                                      onChange={e => {
+                                        setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: e.target.value} : pz))
+                                      }}
+                                      onBlur={e => {
+                                        azurirajPoziciju(p.id, 'naziv', e.target.value)
+                                        e.target.style.border = '1px solid transparent'
+                                        e.target.style.background = 'transparent'
+                                      }}
+                                      rows={Math.max(2, Math.ceil((p.naziv||''). length / 65))}
+                                      onClick={e => e.stopPropagation()}
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, fontWeight: imadjece ? 600 : 400 }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
-                                      onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent' }}
                                     />
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
