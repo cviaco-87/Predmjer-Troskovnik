@@ -9,6 +9,7 @@ const BAZA = JSON.parse(atob(BAZA_B64))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtJmj = j => (j || '').replace(/m2/g, 'm²').replace(/m3/g, 'm³').replace(/m1/g, 'm¹').replace(/M2/g, 'M²').replace(/M3/g, 'M³')
 const calcRow = (p, svePoz) => {
   // Ako stavka ima podstavke, ukupno je zbir podstavki
   if (svePoz) {
@@ -441,11 +442,11 @@ export default function App() {
         for (const p of stavke) {
           const u = calcRow(p, poz)
           const imadjece = p.djeca.length > 0
-          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          const naziv = (p.naziv||'').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           redovi += `<tr class="${pi%2===1?'par':''}">
             <td class="rb">${rb++}</td>
             <td class="opis${imadjece?' opis-gl':''}">${naziv}</td>
-            <td class="jmj">${p.jedinica||''}</td>
+            <td class="jmj">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
             <td class="broj">${!imadjece && (p.cijena||0)>0 ? fmtN(p.cijena) : (imadjece ? '<em style="color:#888;font-size:8.5pt">zbir</em>' : '—')}</td>
             <td class="broj">${!imadjece && (p.kolicina||0)>0 ? p.kolicina : '—'}</td>
             <td class="broj">${!imadjece && (p.rabat||0)>0 ? p.rabat+'%' : '—'}</td>
@@ -459,7 +460,7 @@ export default function App() {
               redovi += `<tr class="pod-row">
                 <td class="rb" style="color:#aaa;font-size:9pt">${rb-1}.${di+1}</td>
                 <td class="pod-opis">${dNaziv}</td>
-                <td class="jmj" style="font-size:9pt">${d.jedinica||''}</td>
+                <td class="jmj" style="font-size:9pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                 <td class="broj" style="font-size:9pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                 <td class="broj" style="font-size:9pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
                 <td class="broj" style="font-size:9pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
@@ -469,7 +470,7 @@ export default function App() {
             const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
             redovi += `<tr class="pod-sum">
               <td></td>
-              <td colspan="5">Ukupno: ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td colspan="5">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
               <td style="text-align:right;font-weight:bold;color:#1B4332">${fmtN(u)} €</td>
             </tr>`
           }
@@ -579,11 +580,11 @@ export default function App() {
         for (const p of stavke) {
           const u = calcRow(p, poz)
           const imadjece = p.djeca.length > 0
-          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          const naziv = (p.naziv||'').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
           rows += `<tr>
             <td class="c">${rb++}</td>
             <td class="opis${imadjece?' bold':''}">${naziv}</td>
-            <td class="c">${p.jedinica||''}</td>
+            <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
             <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
             <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
             <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
@@ -596,7 +597,7 @@ export default function App() {
               rows += `<tr class="pod">
                 <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
                 <td class="pod-opis">${dNaziv}</td>
-                <td class="c" style="font-size:8.5pt">${d.jedinica||''}</td>
+                <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                 <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                 <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
                 <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
@@ -606,7 +607,7 @@ export default function App() {
             const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
             rows += `<tr class="pod-sum">
               <td></td>
-              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${p.jedinica||''}</td>
+              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
               <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} €</td>
             </tr>`
           }
@@ -1082,8 +1083,19 @@ ${sviFazeSadrzaj}
                                       }}
                                       rows={Math.max(2, Math.ceil((p.naziv||''). length / 65))}
                                       onClick={e => e.stopPropagation()}
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, fontWeight: imadjece ? 600 : 400 }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, fontWeight: 400 }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
+                                      onKeyDown={e => {
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                                          e.preventDefault()
+                                          const t = e.target
+                                          const start = t.selectionStart, end = t.selectionEnd
+                                          const sel = t.value.slice(start, end)
+                                          const novi = t.value.slice(0, start) + '**' + sel + '**' + t.value.slice(end)
+                                          azurirajPoziciju(p.id, 'naziv', novi)
+                                          setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: novi} : pz))
+                                        }
+                                      }}
                                     />
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
@@ -1091,7 +1103,7 @@ ${sviFazeSadrzaj}
                                       style={{ width: 50, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent' }}
                                       onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                       onBlurCapture={e => e.target.style.border = '1px solid transparent'} />}
-                                    {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{p.jedinica}</span>}
+                                    {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
                                     {!imadjece && <input type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
@@ -1197,7 +1209,7 @@ ${sviFazeSadrzaj}
                                   <tr style={{ borderBottom: '1px solid #EEECEA', background: '#F5F8F6' }}>
                                     <td></td>
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
-                                      Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {p.jedinica}
+                                      Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
                                     </td>
                                     <td></td>
                                     <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
