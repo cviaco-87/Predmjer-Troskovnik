@@ -1072,7 +1072,7 @@ ${sviFazeSadrzaj}
                                   <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>{i + 1}</td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
-                                      defaultValue={p.naziv}
+                                      value={p.naziv || ''}
                                       onChange={e => {
                                         setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: e.target.value} : pz))
                                       }}
@@ -1099,10 +1099,16 @@ ${sviFazeSadrzaj}
                                     />
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                                    {!imadjece && <input type="text" defaultValue={p.jedinica} onBlur={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
-                                      style={{ width: 50, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent' }}
+                                    {!imadjece && <select
+                                      defaultValue={fmtJmj(p.jedinica)||'m²'}
+                                      onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
+                                      style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                       onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
-                                      onBlurCapture={e => e.target.style.border = '1px solid transparent'} />}
+                                      onBlur={e => e.target.style.border = '1px solid transparent'}>
+                                      {['m²','m³','m¹','m1','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                        <option key={j} value={j}>{j}</option>
+                                      ))}
+                                    </select>}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
@@ -1153,7 +1159,7 @@ ${sviFazeSadrzaj}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
                                           <textarea
-                                            defaultValue={d.naziv}
+                                            value={d.naziv || ''}
                                             onChange={e => {
                                               // Azuriraj lokalni state odmah
                                               setPozicije(prev => prev.map(pz => pz.id === d.id ? {...pz, naziv: e.target.value} : pz))
@@ -1172,10 +1178,16 @@ ${sviFazeSadrzaj}
                                          </div>
                                        </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
-                                        <input type="text" defaultValue={d.jedinica} onBlur={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
-                                          style={{ width: 45, border: '1px solid transparent', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', textAlign: 'center' }}
+                                        <select
+                                          defaultValue={fmtJmj(d.jedinica)||'m²'}
+                                          onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
+                                          style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                           onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
-                                          onBlurCapture={e => e.target.style.border = '1px solid transparent'} />
+                                          onBlur={e => e.target.style.border = '1px solid transparent'}>
+                                          {['m²','m³','m¹','m1','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                            <option key={j} value={j}>{j}</option>
+                                          ))}
+                                        </select>
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>
                                         <input type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
