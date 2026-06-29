@@ -359,131 +359,35 @@ export default function App() {
   const exportExcel = async () => {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export.'); return }
 
-    // Ucitaj SheetJS
-    let XLSX
     try {
-      if (window.XLSX) {
-        XLSX = window.XLSX
-      } else {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script')
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-          s.onload = resolve; s.onerror = reject
-          document.head.appendChild(s)
-        })
-        XLSX = window.XLSX
-      }
-    } catch(e) { alert('Greška pri učitavanju biblioteke.'); return }
-
-    const svePozicije = {}
-    for (const f of faze) {
-      const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
-      svePozicije[f.id] = data || []
-    }
-
-    const proj = aktivniProjekat
-    const fmtJmjL = j => (j||'').replace(/m2/g,'m²').replace(/m3/g,'m³').replace(/m1/g,'m¹')
-    const stripB = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
-
-    let grandTotal = 0
-    for (const f of faze) {
-      const poz = svePozicije[f.id]||[]
-      grandTotal += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-    }
-    const uvecIznos = grandTotal*(uvR+uvM)/100
-    const umanIznos = grandTotal*(umR+umM)/100
-    const ukupno = grandTotal+uvecIznos-umanIznos
-
-    const wb = XLSX.utils.book_new()
-    const data = []
-    const merges = []
-    let r = 0
-    const M = (r,c1,c2) => merges.push({s:{r,c:c1},e:{r,c:c2}})
-
-    // Pomocne
-    const T = (v) => ({v: v===null||v===undefined?'':String(v), t:'s'})
-    const N = (v) => ({v: parseFloat(v)||0, t:'n', z:'#,##0.00'})
-    const addR = (...cells) => { data.push(cells); r++ }
-
-    // Naslov
-    addR(T('PREDMJER I PREDRAČUN'),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
-    addR(T('Projekat:'),T(proj.naziv||''),T(''),T(''),T('Investitor:'),T(proj.klijent||''),T('')); M(r-1,1,2); M(r-1,5,6)
-    addR(T('Lokacija:'),T(proj.adresa||''),T(''),T(''),T('Datum:'),T(proj.datum||''),T('')); M(r-1,1,2); M(r-1,5,6)
-    addR(T(''),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
-
-    for (const f of faze) {
-      const poz = svePozicije[f.id]||[]
-      if (!poz.length) continue
-
-      const djecaMap = {}
-      for (const p of poz) if (p.parent_id) { if(!djecaMap[p.parent_id]) djecaMap[p.parent_id]=[]; djecaMap[p.parent_id].push(p) }
-      const roditelji = poz.filter(p=>!p.parent_id)
-      const byK = {}
-      for (const p of roditelji) { const k=p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
-
-      addR(T(f.naziv.toUpperCase()),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
-      addR(T('R.br.'),T('Opis pozicije'),T('J.mj.'),T('Jed. cijena (€)'),T('Količina'),T('Rabat (%)'),T('Ukupno (€)'))
-
-      let rb = 1
-      for (const [k,stavke] of Object.entries(byK)) {
-        addR(T(k.toUpperCase()),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
-        for (const p of stavke) {
-          const djeca = djecaMap[p.id]||[]
-          const imadjece = djeca.length > 0
-          const u = calcRow(p, poz)
-          addR(
-            T(String(rb++)),
-            T(stripB(p.naziv||'')),
-            T(fmtJmjL(p.jedinica)),
-            imadjece ? T('zbir') : (p.cijena>0 ? N(p.cijena) : T('—')),
-            imadjece ? T('—') : (p.kolicina>0 ? N(p.kolicina) : T('—')),
-            (p.rabat>0&&!imadjece) ? N(p.rabat) : T('—'),
-            u>0 ? N(u) : T('—')
-          )
-          if (imadjece) {
-            djeca.forEach((d,di) => {
-              const du = calcRowSimple(d)
-              addR(
-                T(`${rb-1}.${di+1}`),
-                T('  ' + stripB(d.naziv||'')),
-                T(fmtJmjL(d.jedinica)),
-                d.cijena>0 ? N(d.cijena) : T('—'),
-                d.kolicina>0 ? N(d.kolicina) : T('—'),
-                d.rabat>0 ? N(d.rabat) : T('—'),
-                du>0 ? N(du) : T('—')
-              )
-            })
-            const ukKol = djeca.reduce((s,d)=>s+(parseFloat(d.kolicina)||0),0)
-            addR(T(''),T(`Ukupno: ${ukKol.toFixed(2)} ${fmtJmjL(p.jedinica)}`),T(''),T(''),T(''),T(''),N(u))
-          }
-        }
+      const svePozicije = {}
+      for (const f of faze) {
+        const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+        svePozicije[f.id] = data || []
       }
 
-      const ft = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
-      addR(T(''),T(''),T(''),T(''),T(''),T(`UKUPNO ${f.naziv.toUpperCase()}:`),N(ft))
-      addR(T(''),T(''),T(''),T(''),T(''),T(''),T(''))
+      const response = await fetch('/api/excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({error: 'Server greška'}))
+        throw new Error(err.error || 'Greška pri generisanju Excel fajla')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const ime = (aktivniProjekat.naziv||'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g,'_')
+      a.download = `${ime}_${aktivniProjekat.datum||new Date().toISOString().slice(0,10)}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch(e) {
+      alert('Greška pri exportu: ' + e.message)
     }
-
-    // Rekapitulacija
-    addR(T('REKAPITULACIJA'),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
-    addR(T('Faza'),T(''),T(''),T(''),T(''),T(''),T('Ukupno (€)')); M(r-1,0,5)
-    for (const f of faze) {
-      const poz = svePozicije[f.id]||[]
-      const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      addR(T(f.naziv),T(''),T(''),T(''),T(''),T(''),N(t)); M(r-1,0,5)
-    }
-    addR(T(''),T(''),T(''),T(''),T(''),T('Međuzbir:'),N(grandTotal))
-    if (uvecIznos>0) addR(T(''),T(''),T(''),T(''),T(''),T(`+ Uvećanje (${uvR+uvM}%):`),N(uvecIznos))
-    if (umanIznos>0) addR(T(''),T(''),T(''),T(''),T(''),T(`− Umanjenje (${umR+umM}%):`),N(umanIznos))
-    addR(T(''),T(''),T(''),T(''),T(''),T('SVEUKUPNO:'),N(ukupno))
-
-    const ws = XLSX.utils.aoa_to_sheet(data)
-    ws['!cols'] = [{wch:8},{wch:55},{wch:7},{wch:14},{wch:11},{wch:14},{wch:14}]
-    ws['!merges'] = merges
-    XLSX.utils.book_append_sheet(wb, ws, 'Predmjer')
-
-    const ime = (proj.naziv||'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g,'_')
-    XLSX.writeFile(wb, `${ime}_${proj.datum||new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   // ── PDF PRINT ──
@@ -600,7 +504,7 @@ export default function App() {
     const html = `<!DOCTYPE html><html lang="bs">
 <head><meta charset="UTF-8"><title>Predmjer — ${proj.naziv||''}</title>
 <style>
-  * { box-sizing:border-box; margin:0; padding:0; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
   body { font-family:Arial,sans-serif; font-size:10pt; color:#111; }
   .header { margin-bottom:16px; border-bottom:2px solid #1B4332; padding-bottom:10px; }
   .header h1 { font-size:15pt; color:#1B4332; margin-bottom:6px; }
@@ -608,20 +512,26 @@ export default function App() {
   .info span { color:#555; }
   .faza-header h2 { font-size:11pt; color:#1B4332; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A7C65; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
-  th { background:#1B4332; color:#fff; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
+  th { background:#1B4332 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
   th.r { text-align:right; } th.c { text-align:center; }
   td { padding:4px 6px; border-bottom:1px solid #E5E5E0; vertical-align:top; font-size:9.5pt; }
-  tr:nth-child(even) td { background:#F9F9F7; }
-  .kat td { background:#EEF3F1; font-weight:700; font-size:8.5pt; color:#1B4332; text-transform:uppercase; }
-  .pod td { background:#FAFAF8; border-bottom:none; }
+  tr:nth-child(even) td { background:#F9F9F7 !important; }
+  .kat td { background:#EEF3F1 !important; font-weight:700; font-size:8.5pt; color:#1B4332 !important; text-transform:uppercase; }
+  .pod td { background:#FAFAF8 !important; border-bottom:none; }
   .pod-opis { padding-left:16px; font-size:9pt; color:#444; }
-  .pod-sum td { background:#F5F8F6; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
-  .total td { background:#EEF3F1; font-weight:700; border-top:2px solid #1B4332; }
+  .pod-sum td { background:#F5F8F6 !important; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
+  .total td { background:#EEF3F1 !important; font-weight:700; border-top:2px solid #1B4332; }
   .c { text-align:center; } .r { text-align:right; }
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
   @page { margin:12mm; }
-  @media print { * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } }
+  @media print {
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+    th { background:#1B4332 !important; color:#fff !important; }
+    .kat td { background:#EEF3F1 !important; }
+    .total td { background:#EEF3F1 !important; }
+    .pod-sum td { background:#F5F8F6 !important; }
+  }
 </style></head>
 <body>
 <div class="header">
