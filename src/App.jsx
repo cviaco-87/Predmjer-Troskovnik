@@ -1072,35 +1072,34 @@ ${sviFazeSadrzaj}
                                   <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>{i + 1}</td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
-                                      value={p.naziv || ''}
-                                      onChange={e => {
-                                        setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: e.target.value} : pz))
-                                      }}
+                                      ref={el => { if (el) el._pozId = p.id }}
+                                      defaultValue={p.naziv || ''}
                                       onBlur={e => {
                                         azurirajPoziciju(p.id, 'naziv', e.target.value)
                                         e.target.style.border = '1px solid transparent'
                                         e.target.style.background = 'transparent'
                                       }}
-                                      rows={Math.max(2, Math.ceil((p.naziv||''). length / 65))}
+                                      rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
                                       onClick={e => e.stopPropagation()}
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, fontWeight: 400 }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40 }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
                                           e.preventDefault()
                                           const t = e.target
-                                          const start = t.selectionStart, end = t.selectionEnd
+                                          const start = t.selectionStart
+                                          const end = t.selectionEnd
+                                          if (start === end) return
                                           const sel = t.value.slice(start, end)
-                                          if (!sel) return // Nema selekcije
-                                          const novi = t.value.slice(0, start) + '**' + sel + '**' + t.value.slice(end)
-                                          // Azuriraj state i bazu
-                                          setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: novi} : pz))
+                                          const before = t.value.slice(0, start)
+                                          const after = t.value.slice(end)
+                                          const novi = before + '**' + sel + '**' + after
+                                          // Direktno azuriraj DOM bez React re-rendera
+                                          t.value = novi
+                                          t.selectionStart = start + 2
+                                          t.selectionEnd = end + 2
+                                          // Azuriraj bazu (ali ne state da ne re-renderuje)
                                           azurirajPoziciju(p.id, 'naziv', novi)
-                                          // Vrati kursor na pravo mjesto
-                                          setTimeout(() => {
-                                            t.selectionStart = start + 2
-                                            t.selectionEnd = end + 2
-                                          }, 0)
                                         }
                                       }}
                                     />
