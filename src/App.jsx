@@ -442,7 +442,7 @@ export default function App() {
         for (const p of stavke) {
           const u = calcRow(p, poz)
           const imadjece = p.djeca.length > 0
-          const naziv = (p.naziv||'').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
           redovi += `<tr class="${pi%2===1?'par':''}">
             <td class="rb">${rb++}</td>
             <td class="opis${imadjece?' opis-gl':''}">${naziv}</td>
@@ -580,7 +580,7 @@ export default function App() {
         for (const p of stavke) {
           const u = calcRow(p, poz)
           const imadjece = p.djeca.length > 0
-          const naziv = (p.naziv||'').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
           rows += `<tr>
             <td class="c">${rb++}</td>
             <td class="opis${imadjece?' bold':''}">${naziv}</td>
@@ -1091,9 +1091,16 @@ ${sviFazeSadrzaj}
                                           const t = e.target
                                           const start = t.selectionStart, end = t.selectionEnd
                                           const sel = t.value.slice(start, end)
+                                          if (!sel) return // Nema selekcije
                                           const novi = t.value.slice(0, start) + '**' + sel + '**' + t.value.slice(end)
-                                          azurirajPoziciju(p.id, 'naziv', novi)
+                                          // Azuriraj state i bazu
                                           setPozicije(prev => prev.map(pz => pz.id === p.id ? {...pz, naziv: novi} : pz))
+                                          azurirajPoziciju(p.id, 'naziv', novi)
+                                          // Vrati kursor na pravo mjesto
+                                          setTimeout(() => {
+                                            t.selectionStart = start + 2
+                                            t.selectionEnd = end + 2
+                                          }, 0)
                                         }
                                       }}
                                     />
