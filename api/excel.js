@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -8,219 +8,465 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { projekat, faze, svePozicije, uvR, uvM, umR, umM } = req.body
+    const { projekat, faze, svePozicije, uvR=0, uvM=0, umR=0, umM=0 } = req.body
 
-    const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0) * (1 - (parseFloat(p.rabat) || 0) / 100)
+    const calcSimple = p => (parseFloat(p.kolicina)||0)*(parseFloat(p.cijena)||0)*(1-(parseFloat(p.rabat)||0)/100)
     const calcRow = (p, poz) => {
-      const djeca = (poz || []).filter(d => d.parent_id === p.id)
-      if (djeca.length > 0) return djeca.reduce((s, d) => s + calcRowSimple(d), 0)
-      return calcRowSimple(p)
+      const dj = poz.filter(d => d.parent_id === p.id)
+      return dj.length>0 ? dj.reduce((s,d)=>s+calcSimple(d),0) : calcSimple(p)
     }
-    const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm¹')
-    const stripBold = s => (s || '').replace(/\*\*([^*]+)\*\*/g, '$1')
-
-    const wb = XLSX.utils.book_new()
-
-    // Stilovi
-    const border = (style) => ({ top: { style, color: { rgb: 'D8D5CC' } }, bottom: { style, color: { rgb: 'D8D5CC' } }, left: { style, color: { rgb: 'D8D5CC' } }, right: { style, color: { rgb: 'D8D5CC' } } })
-    const borderB = (style, color) => ({ bottom: { style, color: { rgb: color || 'D8D5CC' } } })
-
-    const S = {
-      naslov:     { font: { bold: true, color: { rgb: '1B4332' }, sz: 15 }, alignment: { horizontal: 'center', wrapText: true } },
-      infoLab:    { font: { color: { rgb: '888888' }, sz: 9 }, alignment: { wrapText: true } },
-      infoVal:    { font: { bold: true, sz: 9 }, alignment: { wrapText: true } },
-      fazaNaslov: { font: { bold: true, color: { rgb: '1B4332' }, sz: 11 }, border: borderB('thick', '1B4332') },
-      th:         { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9 }, fill: { fgColor: { rgb: '1B4332' } }, alignment: { horizontal: 'center', wrapText: true }, border: borderB('medium', 'FFFFFF') },
-      thR:        { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9 }, fill: { fgColor: { rgb: '1B4332' } }, alignment: { horizontal: 'right', wrapText: true }, border: borderB('medium', 'FFFFFF') },
-      kat:        { font: { bold: true, color: { rgb: '1B4332' }, sz: 9 }, fill: { fgColor: { rgb: 'EEF3F1' } }, alignment: { wrapText: true }, border: borderB('thin', 'C8C5BD') },
-      rb:         { font: { color: { rgb: '666666' }, sz: 9 }, alignment: { horizontal: 'center', vertical: 'top', wrapText: true }, border: borderB('thin', 'EEECEA') },
-      rbPar:      { font: { color: { rgb: '666666' }, sz: 9 }, fill: { fgColor: { rgb: 'F8FAF8' } }, alignment: { horizontal: 'center', vertical: 'top', wrapText: true }, border: borderB('thin', 'EEECEA') },
-      rbPod:      { font: { color: { rgb: 'AAAAAA' }, sz: 9 }, fill: { fgColor: { rgb: 'FAFAF8' } }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      opis:       { font: { sz: 9.5 }, alignment: { wrapText: true, vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      opisPar:    { font: { sz: 9.5 }, fill: { fgColor: { rgb: 'F8FAF8' } }, alignment: { wrapText: true, vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      opisPod:    { font: { color: { rgb: '444444' }, sz: 9 }, fill: { fgColor: { rgb: 'FAFAF8' } }, alignment: { wrapText: true, vertical: 'top', indent: 2 }, border: borderB('thin', 'EEECEA') },
-      jmj:        { font: { color: { rgb: '555555' }, sz: 9 }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      jmjPar:     { font: { color: { rgb: '555555' }, sz: 9 }, fill: { fgColor: { rgb: 'F8FAF8' } }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      jmjPod:     { font: { color: { rgb: '777777' }, sz: 9 }, fill: { fgColor: { rgb: 'FAFAF8' } }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      broj:       { font: { sz: 9.5 }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      brojPar:    { font: { sz: 9.5 }, fill: { fgColor: { rgb: 'F8FAF8' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      brojPod:    { font: { sz: 9 }, fill: { fgColor: { rgb: 'FAFAF8' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      crt:        { font: { color: { rgb: '999999' }, sz: 9 }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      crtPar:     { font: { color: { rgb: '999999' }, sz: 9 }, fill: { fgColor: { rgb: 'F8FAF8' } }, alignment: { horizontal: 'center', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      ukupno:     { font: { bold: true, color: { rgb: '1B4332' }, sz: 9.5 }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      ukupnoPar:  { font: { bold: true, color: { rgb: '1B4332' }, sz: 9.5 }, fill: { fgColor: { rgb: 'F8FAF8' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      ukupnoPod:  { font: { color: { rgb: '4A7C65' }, sz: 9 }, fill: { fgColor: { rgb: 'FAFAF8' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right', vertical: 'top' }, border: borderB('thin', 'EEECEA') },
-      podSum:     { font: { italic: true, color: { rgb: '666666' }, sz: 8.5 }, fill: { fgColor: { rgb: 'F5F8F6' } }, alignment: { wrapText: true }, border: borderB('thin', 'D8D5CC') },
-      podSumUk:   { font: { bold: true, color: { rgb: '1B4332' }, sz: 9 }, fill: { fgColor: { rgb: 'F5F8F6' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right' }, border: borderB('medium', '1B4332') },
-      total:      { font: { bold: true, sz: 10 }, fill: { fgColor: { rgb: 'EEF3F1' } }, alignment: { horizontal: 'right' }, border: { top: { style: 'medium', color: { rgb: '1B4332' } }, bottom: { style: 'medium', color: { rgb: '1B4332' } } } },
-      totalIznos: { font: { bold: true, color: { rgb: '1B4332' }, sz: 10 }, fill: { fgColor: { rgb: 'EEF3F1' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right' }, border: { top: { style: 'medium', color: { rgb: '1B4332' } }, bottom: { style: 'medium', color: { rgb: '1B4332' } } } },
-      sveuLab:    { font: { bold: true, color: { rgb: '1B4332' }, sz: 12 }, fill: { fgColor: { rgb: 'E8F0EC' } }, alignment: { horizontal: 'right' }, border: { top: { style: 'medium', color: { rgb: '1B4332' } }, bottom: { style: 'medium', color: { rgb: '1B4332' } } } },
-      sveuIznos:  { font: { bold: true, color: { rgb: '1B4332' }, sz: 12 }, fill: { fgColor: { rgb: 'E8F0EC' } }, numFmt: '#,##0.00', alignment: { horizontal: 'right' }, border: { top: { style: 'medium', color: { rgb: '1B4332' } }, bottom: { style: 'medium', color: { rgb: '1B4332' } } } },
-      rekapNas:   { font: { bold: true, color: { rgb: '1B4332' }, sz: 11 }, border: borderB('thick', '1B4332') },
-      rekapTh:    { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9 }, fill: { fgColor: { rgb: '1B4332' } }, alignment: { wrapText: true } },
-      rekapThR:   { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 9 }, fill: { fgColor: { rgb: '1B4332' } }, alignment: { horizontal: 'right' } },
-      prazno:     {}
+    const fmtJmj = j => (j||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')
+    const strip = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
+    // Sigurno pisanje broja koji NE smije biti datum
+    const safeNum = v => {
+      const n = parseFloat(v)
+      if (isNaN(n)) return null
+      return n
     }
 
-    const T = (v, s) => ({ v: v === null || v === undefined ? '' : String(v), t: 's', s })
-    const N = (v, s) => ({ v: parseFloat(v) || 0, t: 'n', s })
-    const CRTICE = (s) => ({ v: '—', t: 's', s })
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'Predmjer/Troškovnik'
+    const ws = wb.addWorksheet('Predmjer', { views:[{showGridLines:false}] })
 
-    // Kalkulacije
+    // Tacne sirine kao u referentnom fajlu
+    ws.columns = [
+      {width:8},      // A - R.br.
+      {width:51.14},  // B - Opis
+      {width:4.86},   // C - J.mj.
+      {width:12.29},  // D - Jed. cijena
+      {width:8.43},   // E - Količina
+      {width:5.71},   // F - Rabat
+      {width:12},     // G - Ukupno
+    ]
+
+    const Z = '1B4332'  // zelena
+    const ZS = 'EEF3F1' // zelena svijetla
+    const ZM = 'E8F0EC' // zelena medium
+    const SI = 'F8FAF8' // siva 1
+    const SI2 = 'FAFAF8' // siva 2
+    const SI3 = 'F5F8F6' // siva 3
+
+    const fill = c => ({type:'pattern',pattern:'solid',fgColor:{argb:'FF'+c}})
+    const font = (opts) => ({
+      bold: opts.bold||false,
+      italic: opts.italic||false,
+      size: opts.size||10,
+      color: opts.color ? {argb:'FF'+opts.color} : undefined,
+      name: 'Calibri'
+    })
+    const align = (h,v,wrap) => ({horizontal:h||'left',vertical:v||'top',wrapText:wrap!==false})
+    const border = (style,color) => ({
+      top:{style,color:{argb:'FF'+(color||'D8D5CC')}},
+      bottom:{style,color:{argb:'FF'+(color||'D8D5CC')}}
+    })
+    const borderB = (style,color) => ({bottom:{style,color:{argb:'FF'+(color||'D8D5CC')}}})
+    const borderT = (style,color) => ({top:{style,color:{argb:'FF'+(color||'D8D5CC')}}})
+
+    let row
+
+    // ── NASLOV ──
+    row = ws.addRow(['PREDMJER I PREDRAČUN','','','','','',''])
+    ws.mergeCells(`A${row.number}:G${row.number}`)
+    row.height = 22
+    row.getCell(1).font = font({bold:true,size:15,color:Z})
+    row.getCell(1).alignment = align('center','middle',false)
+
+    // ── INFO ──
+    row = ws.addRow(['Projekat:', projekat.naziv||'','','','Investitor:', projekat.klijent||'',''])
+    ws.mergeCells(`B${row.number}:C${row.number}`)
+    ws.mergeCells(`F${row.number}:G${row.number}`)
+    row.height = 13
+    row.getCell(1).font = font({size:9,color:'888888'})
+    row.getCell(2).font = font({bold:true,size:9})
+    row.getCell(5).font = font({size:9,color:'888888'})
+    row.getCell(6).font = font({bold:true,size:9})
+    row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+
+    row = ws.addRow(['Lokacija:', projekat.adresa||'','','','Datum:', projekat.datum||'',''])
+    ws.mergeCells(`B${row.number}:C${row.number}`)
+    ws.mergeCells(`F${row.number}:G${row.number}`)
+    row.height = 13
+    row.getCell(1).font = font({size:9,color:'888888'})
+    row.getCell(2).font = font({bold:true,size:9})
+    row.getCell(5).font = font({size:9,color:'888888'})
+    row.getCell(6).font = font({bold:true,size:9})
+    row.getCell(6).numFmt = '@' // tekst format da ne postane datum
+    row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+
+    // Prazan red
+    row = ws.addRow([])
+    ws.mergeCells(`A${row.number}:G${row.number}`)
+    row.height = 8
+
+    // ── KALKULACIJE ──
     let grandTotal = 0
     for (const f of faze) {
-      const poz = svePozicije[f.id] || []
-      grandTotal += poz.filter(p => !p.parent_id).reduce((s, p) => s + calcRow(p, poz), 0)
+      const poz = svePozicije[f.id]||[]
+      grandTotal += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
     }
-    const uvecIznos = grandTotal * ((uvR || 0) + (uvM || 0)) / 100
-    const umanIznos = grandTotal * ((umR || 0) + (umM || 0)) / 100
-    const ukupno = grandTotal + uvecIznos - umanIznos
+    const uvecIznos = grandTotal*(uvR+uvM)/100
+    const umanIznos = grandTotal*(umR+umM)/100
+    const ukupno = grandTotal+uvecIznos-umanIznos
 
-    const data = []
-    const merges = []
-    const rowH = []
-    let r = 0
-
-    const addRow = (cells, h) => { data.push(cells); rowH.push({ hpt: h || 14.25 }); r++ }
-    const merge = (r, c1, c2) => merges.push({ s: { r, c: c1 }, e: { r, c: c2 } })
-
-    // Naslov
-    addRow([T('PREDMJER I PREDRAČUN', S.naslov)], 20)
-    merge(r-1, 0, 6)
-
-    addRow([T('Projekat:', S.infoLab), T(projekat.naziv || '', S.infoVal), T('', S.prazno), T('', S.prazno), T('Investitor:', S.infoLab), T(projekat.klijent || '', S.infoVal), T('', S.prazno)], 13)
-    merge(r-1, 1, 2); merge(r-1, 5, 6)
-
-    addRow([T('Lokacija:', S.infoLab), T(projekat.adresa || '', S.infoVal), T('', S.prazno), T('', S.prazno), T('Datum:', S.infoLab), T(projekat.datum || '', S.infoVal), T('', S.prazno)], 13)
-    merge(r-1, 1, 2); merge(r-1, 5, 6)
-
-    addRow([T('', S.prazno)], 8); merge(r-1, 0, 6)
-
-    // Faze
+    // ── FAZE ──
     for (const f of faze) {
-      const poz = svePozicije[f.id] || []
+      const poz = svePozicije[f.id]||[]
       if (!poz.length) continue
 
       const djecaMap = {}
       for (const p of poz) {
         if (p.parent_id) {
-          if (!djecaMap[p.parent_id]) djecaMap[p.parent_id] = []
+          if (!djecaMap[p.parent_id]) djecaMap[p.parent_id]=[]
           djecaMap[p.parent_id].push(p)
         }
       }
-      const roditelji = poz.filter(p => !p.parent_id)
+      const roditelji = poz.filter(p=>!p.parent_id)
+      const byK = {}
+      for (const p of roditelji) { const k=p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
 
       // Faza naslov
-      addRow([T(f.naziv.toUpperCase(), S.fazaNaslov)], 16)
-      merge(r-1, 0, 6)
+      row = ws.addRow([f.naziv.toUpperCase(),'','','','','',''])
+      ws.mergeCells(`A${row.number}:G${row.number}`)
+      row.height = 18
+      row.getCell(1).font = font({bold:true,size:11,color:Z})
+      row.getCell(1).border = borderB('medium',Z)
+      row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
-      // Header
-      addRow([T('R.br.', S.th), T('Opis pozicije', S.th), T('J.mj.', S.th), T('Jed. cijena (€)', S.thR), T('Količina', S.thR), T('Rabat', S.thR), T('Ukupno (€)', S.thR)], 26)
+      // Zaglavlje
+      row = ws.addRow(['R.br.','Opis pozicije','J.mj.','Jed. cijena (€)','Količina','Rabat','Ukupno (€)'])
+      row.height = 28
+      const thAligns = ['center','left','center','right','right','right','right']
+      row.eachCell((cell,col) => {
+        cell.fill = fill(Z)
+        cell.font = font({bold:true,size:9,color:'FFFFFF'})
+        cell.alignment = align(thAligns[col-1],'middle',true)
+        cell.border = borderB('medium','145229')
+      })
 
-      // Grupisano po kategorijama
-      const byK = {}
-      for (const p of roditelji) {
-        const k = p.kategorija || 'Ostalo'
-        if (!byK[k]) byK[k] = []
-        byK[k].push(p)
-      }
-
-      let rb = 1
-      let par = 0
-      for (const [k, stavke] of Object.entries(byK)) {
-        addRow([T(k.toUpperCase(), S.kat)], 14); merge(r-1, 0, 6)
+      let rb=1; let par=0
+      for (const [k,stavke] of Object.entries(byK)) {
+        // Kategorija
+        row = ws.addRow([k.toUpperCase(),'','','','','',''])
+        ws.mergeCells(`A${row.number}:G${row.number}`)
+        row.height = 14
+        row.getCell(1).fill = fill(ZS)
+        row.getCell(1).font = font({bold:true,size:9,color:Z})
+        row.getCell(1).border = borderB('thin','C8C5BD')
 
         for (const p of stavke) {
-          const djeca = djecaMap[p.id] || []
-          const imadjece = djeca.length > 0
-          const u = calcRow(p, poz)
-          const ispar = par % 2 === 1
-          const naziv = stripBold(p.naziv || '')
-          const jmj = fmtJmj(p.jedinica)
+          const djeca = djecaMap[p.id]||[]
+          const imadjece = djeca.length>0
+          const u = calcRow(p,poz)
+          const ispar = par%2===1
+          const bg = ispar ? SI : 'FFFFFF'
+          const naziv = strip(p.naziv||'')
+          const visina = Math.max(14, Math.min(150, Math.ceil(naziv.length/55)*12+4))
 
-          const rbS = ispar ? S.rbPar : S.rb
-          const opisS = ispar ? S.opisPar : S.opis
-          const jmjS = ispar ? S.jmjPar : S.jmj
-          const brS = ispar ? S.brojPar : S.broj
-          const crtS = ispar ? S.crtPar : S.crt
-          const ukS = ispar ? S.ukupnoPar : S.ukupno
+          row = ws.addRow(['','','','','','',''])
+          row.height = visina
 
-          const visina = Math.max(14, Math.min(180, Math.ceil(naziv.length / 60) * 12 + 4))
+          // R.br. - kao tekst da ne postane datum
+          row.getCell(1).value = String(rb++)
+          row.getCell(1).fill = fill(bg)
+          row.getCell(1).font = font({size:9,color:'666666'})
+          row.getCell(1).alignment = align('center','top',false)
+          row.getCell(1).border = borderB('thin','EEECEA')
 
-          addRow([
-            T(String(rb++), rbS),
-            T(naziv, opisS),
-            T(jmj, jmjS),
-            imadjece ? T('zbir', { ...brS, font: { italic: true, color: { rgb: '888888' }, sz: 9 } }) : (p.cijena > 0 ? N(p.cijena, brS) : CRTICE(crtS)),
-            imadjece ? CRTICE(crtS) : (p.kolicina > 0 ? N(p.kolicina, brS) : CRTICE(crtS)),
-            (p.rabat > 0 && !imadjece) ? N(p.rabat, brS) : CRTICE(crtS),
-            u > 0 ? N(u, ukS) : CRTICE(crtS)
-          ], visina)
+          // Opis
+          row.getCell(2).value = naziv
+          row.getCell(2).fill = fill(bg)
+          row.getCell(2).font = font({size:9.5})
+          row.getCell(2).alignment = align('left','top',true)
+          row.getCell(2).border = borderB('thin','EEECEA')
 
-          // Podstavke
+          // J.mj.
+          row.getCell(3).value = fmtJmj(p.jedinica)
+          row.getCell(3).fill = fill(bg)
+          row.getCell(3).font = font({size:9,color:'555555'})
+          row.getCell(3).alignment = align('center','top',false)
+          row.getCell(3).border = borderB('thin','EEECEA')
+
+          // Jed. cijena - VAZNO: ne smije biti datum!
           if (imadjece) {
-            djeca.forEach((d, di) => {
-              const du = calcRowSimple(d)
-              addRow([
-                T(`${rb-1}.${di+1}`, S.rbPod),
-                T(stripBold(d.naziv || ''), S.opisPod),
-                T(fmtJmj(d.jedinica), S.jmjPod),
-                d.cijena > 0 ? N(d.cijena, S.brojPod) : CRTICE(S.jmjPod),
-                d.kolicina > 0 ? N(d.kolicina, S.brojPod) : CRTICE(S.jmjPod),
-                d.rabat > 0 ? N(d.rabat, S.brojPod) : CRTICE(S.jmjPod),
-                du > 0 ? N(du, S.ukupnoPod) : CRTICE(S.jmjPod)
-              ], 14)
+            row.getCell(4).value = 'zbir'
+            row.getCell(4).font = font({size:9,italic:true,color:'888888'})
+            row.getCell(4).alignment = align('center','top',false)
+          } else if (p.cijena>0) {
+            row.getCell(4).value = safeNum(p.cijena)
+            row.getCell(4).numFmt = '#,##0.00'
+            row.getCell(4).font = font({size:9.5})
+            row.getCell(4).alignment = align('right','top',false)
+          } else {
+            row.getCell(4).value = '—'
+            row.getCell(4).font = font({size:9,color:'999999'})
+            row.getCell(4).alignment = align('center','top',false)
+          }
+          row.getCell(4).fill = fill(bg)
+          row.getCell(4).border = borderB('thin','EEECEA')
+
+          // Količina
+          if (imadjece || !p.kolicina || p.kolicina==0) {
+            row.getCell(5).value = '—'
+            row.getCell(5).font = font({size:9,color:'999999'})
+            row.getCell(5).alignment = align('center','top',false)
+          } else {
+            row.getCell(5).value = safeNum(p.kolicina)
+            row.getCell(5).numFmt = '#,##0.##'
+            row.getCell(5).font = font({size:9.5})
+            row.getCell(5).alignment = align('right','top',false)
+          }
+          row.getCell(5).fill = fill(bg)
+          row.getCell(5).border = borderB('thin','EEECEA')
+
+          // Rabat
+          if (!imadjece && p.rabat>0) {
+            row.getCell(6).value = safeNum(p.rabat)
+            row.getCell(6).numFmt = '0.0"%"'
+            row.getCell(6).font = font({size:9})
+            row.getCell(6).alignment = align('right','top',false)
+          } else {
+            row.getCell(6).value = '—'
+            row.getCell(6).font = font({size:9,color:'999999'})
+            row.getCell(6).alignment = align('center','top',false)
+          }
+          row.getCell(6).fill = fill(bg)
+          row.getCell(6).border = borderB('thin','EEECEA')
+
+          // Ukupno
+          if (u>0) {
+            row.getCell(7).value = safeNum(u)
+            row.getCell(7).numFmt = '#,##0.00 €'
+            row.getCell(7).font = font({bold:true,size:9.5,color:Z})
+            row.getCell(7).alignment = align('left','top',false)
+          } else {
+            row.getCell(7).value = '—'
+            row.getCell(7).font = font({bold:true,size:9,color:Z})
+            row.getCell(7).alignment = align('center','top',false)
+          }
+          row.getCell(7).fill = fill(bg)
+          row.getCell(7).border = borderB('thin','EEECEA')
+
+          // ── PODSTAVKE ──
+          if (imadjece) {
+            djeca.forEach((d,di) => {
+              const du = calcSimple(d)
+              const dNaziv = strip(d.naziv||'')
+              const dRow = ws.addRow(['','','','','','',''])
+              dRow.height = Math.max(14, Math.ceil(dNaziv.length/55)*11+4)
+
+              // R.br. podstavke - VAZNO: kao tekst sa apostrofom prefix
+              dRow.getCell(1).value = `${rb-1}.${di+1}`
+              dRow.getCell(1).numFmt = '@' // tekst format - spriječava datum konverziju
+              dRow.getCell(1).fill = fill(SI2)
+              dRow.getCell(1).font = font({size:9,color:'AAAAAA'})
+              dRow.getCell(1).alignment = align('center','top',false)
+              dRow.getCell(1).border = borderB('thin','EEECEA')
+
+              dRow.getCell(2).value = dNaziv
+              dRow.getCell(2).fill = fill(SI2)
+              dRow.getCell(2).font = font({size:9,color:'444444'})
+              dRow.getCell(2).alignment = align('left','top',true)
+              dRow.getCell(2).border = borderB('thin','EEECEA')
+
+              dRow.getCell(3).value = fmtJmj(d.jedinica)
+              dRow.getCell(3).fill = fill(SI2)
+              dRow.getCell(3).font = font({size:9,color:'555555'})
+              dRow.getCell(3).alignment = align('center','top',false)
+              dRow.getCell(3).border = borderB('thin','EEECEA')
+
+              // Cijena podstavke - kao BROJ ne datum
+              if (d.cijena>0) {
+                dRow.getCell(4).value = safeNum(d.cijena)
+                dRow.getCell(4).numFmt = '#,##0.00'
+                dRow.getCell(4).alignment = align('center','top',false)
+              } else {
+                dRow.getCell(4).value = '—'
+                dRow.getCell(4).alignment = align('center','top',false)
+              }
+              dRow.getCell(4).fill = fill(SI2)
+              dRow.getCell(4).font = font({size:9})
+              dRow.getCell(4).border = borderB('thin','EEECEA')
+
+              if (d.kolicina>0) {
+                dRow.getCell(5).value = safeNum(d.kolicina)
+                dRow.getCell(5).numFmt = '#,##0.##'
+                dRow.getCell(5).alignment = align('center','top',false)
+              } else {
+                dRow.getCell(5).value = '—'
+                dRow.getCell(5).alignment = align('center','top',false)
+              }
+              dRow.getCell(5).fill = fill(SI2)
+              dRow.getCell(5).font = font({size:9})
+              dRow.getCell(5).border = borderB('thin','EEECEA')
+
+              if (d.rabat>0) {
+                dRow.getCell(6).value = safeNum(d.rabat)
+                dRow.getCell(6).numFmt = '0.0"%"'
+                dRow.getCell(6).alignment = align('right','top',false)
+              } else {
+                dRow.getCell(6).value = '—'
+                dRow.getCell(6).alignment = align('center','top',false)
+              }
+              dRow.getCell(6).fill = fill(SI2)
+              dRow.getCell(6).font = font({size:9})
+              dRow.getCell(6).border = borderB('thin','EEECEA')
+
+              if (du>0) {
+                dRow.getCell(7).value = safeNum(du)
+                dRow.getCell(7).numFmt = '#,##0.00 €'
+                dRow.getCell(7).font = font({size:9,color:'4A7C65'})
+                dRow.getCell(7).alignment = align('left','top',false)
+              } else {
+                dRow.getCell(7).value = '—'
+                dRow.getCell(7).font = font({size:9})
+                dRow.getCell(7).alignment = align('center','top',false)
+              }
+              dRow.getCell(7).fill = fill(SI2)
+              dRow.getCell(7).border = borderB('thin','EEECEA')
             })
-            const ukKol = djeca.reduce((s, d) => s + (parseFloat(d.kolicina) || 0), 0)
-            addRow([T('', S.podSum), T(`Ukupno: ${ukKol.toFixed(2)} ${fmtJmj(p.jedinica)}`, S.podSum), T('', S.podSum), T('', S.podSum), T('', S.podSum), T('', S.podSum), N(u, S.podSumUk)], 13)
+
+            // Red "Ukupno"
+            const ukKol = djeca.reduce((s,d)=>s+(parseFloat(d.kolicina)||0),0)
+            const sumRow = ws.addRow(['','','','','','',''])
+            ws.mergeCells(`B${sumRow.number}:F${sumRow.number}`)
+            sumRow.height = 13
+            sumRow.getCell(2).value = `Ukupno: ${ukKol.toFixed(2)} ${fmtJmj(p.jedinica)}`
+            sumRow.getCell(2).fill = fill(SI3)
+            sumRow.getCell(2).font = font({size:8.5,color:'666666',italic:true})
+            sumRow.eachCell({includeEmpty:true}, c => {
+              c.fill = fill(SI3)
+              c.border = borderB('thin','D8D5CC')
+            })
+            if (u>0) {
+              sumRow.getCell(7).value = safeNum(u)
+              sumRow.getCell(7).numFmt = '#,##0.00 €'
+              sumRow.getCell(7).font = font({bold:true,size:9,color:Z})
+              sumRow.getCell(7).alignment = align('left','middle',false)
+              sumRow.getCell(7).border = {
+                top:{style:'medium',color:{argb:'FF'+Z}},
+                bottom:{style:'thin',color:{argb:'FFD8D5CC'}}
+              }
+            }
           }
           par++
         }
       }
 
       // Ukupno faza
-      const fazaTotal = roditelji.reduce((s, p) => s + calcRow(p, poz), 0)
-      addRow([T('', S.total), T('', S.total), T('', S.total), T('', S.total), T('', S.total), T(`UKUPNO ${f.naziv.toUpperCase()}:`, S.total), N(fazaTotal, S.totalIznos)], 14)
-      addRow([T('', S.prazno)], 8); merge(r-1, 0, 6)
+      const ft = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
+      const totRow = ws.addRow(['','','','','','',''])
+      ws.mergeCells(`A${totRow.number}:F${totRow.number}`)
+      totRow.height = 16
+      totRow.getCell(1).value = `UKUPNO ${f.naziv.toUpperCase()}:`
+      totRow.getCell(1).alignment = align('right','middle',false)
+      totRow.eachCell({includeEmpty:true}, c => {
+        c.fill = fill(ZS)
+        c.font = font({bold:true,size:10})
+        c.border = {top:{style:'medium',color:{argb:'FF'+Z}},bottom:{style:'medium',color:{argb:'FF'+Z}}}
+        c.alignment = align('right','middle',false)
+      })
+      totRow.getCell(7).value = safeNum(ft)
+      totRow.getCell(7).numFmt = '#,##0.00 €'
+      totRow.getCell(7).font = font({bold:true,size:10,color:Z})
+      totRow.getCell(7).alignment = align('left','middle',false)
+
+      // Prazan red
+      const prazan = ws.addRow([])
+      ws.mergeCells(`A${prazan.number}:G${prazan.number}`)
+      prazan.height = 8
     }
 
-    // Rekapitulacija
-    addRow([T('REKAPITULACIJA', S.rekapNas)], 16); merge(r-1, 0, 6)
-    addRow([T('Faza', S.rekapTh), T('', S.rekapTh), T('', S.rekapTh), T('', S.rekapTh), T('', S.rekapTh), T('', S.rekapTh), T('Ukupno (€)', S.rekapThR)], 14)
-    merge(r-1, 0, 5)
+    // ── REKAPITULACIJA ──
+    const rekNas = ws.addRow(['REKAPITULACIJA','','','','','',''])
+    ws.mergeCells(`A${rekNas.number}:G${rekNas.number}`)
+    rekNas.height = 18
+    rekNas.getCell(1).font = font({bold:true,size:11,color:Z})
+    rekNas.getCell(1).border = borderB('medium',Z)
+    rekNas.eachCell({includeEmpty:true}, c => c.fill = fill('FFFFFF'))
+
+    const rekHdr = ws.addRow(['Faza','','','','','','Ukupno (€)'])
+    ws.mergeCells(`A${rekHdr.number}:F${rekHdr.number}`)
+    rekHdr.height = 14
+    rekHdr.eachCell({includeEmpty:true}, c => {
+      c.fill = fill(Z)
+      c.font = font({bold:true,size:9,color:'FFFFFF'})
+      c.alignment = align('left','middle',false)
+    })
+    rekHdr.getCell(7).alignment = align('left','middle',false)
 
     for (const f of faze) {
-      const poz = svePozicije[f.id] || []
-      const t = poz.filter(p => !p.parent_id).reduce((s, p) => s + calcRow(p, poz), 0)
-      addRow([T(f.naziv, S.opis), T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), N(t, S.ukupno)], 14)
-      merge(r-1, 0, 5)
+      const poz = svePozicije[f.id]||[]
+      const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
+      const fRow = ws.addRow([f.naziv,'','','','','',''])
+      ws.mergeCells(`A${fRow.number}:F${fRow.number}`)
+      fRow.height = 14
+      fRow.getCell(1).font = font({size:10})
+      fRow.getCell(1).border = borderB('thin','EEECEA')
+      fRow.getCell(7).value = safeNum(t)
+      fRow.getCell(7).numFmt = '#,##0.00 €'
+      fRow.getCell(7).font = font({bold:true,color:Z})
+      fRow.getCell(7).alignment = align('left','top',false)
+      fRow.getCell(7).border = borderB('thin','EEECEA')
     }
 
-    addRow([T('', S.total), T('', S.total), T('', S.total), T('', S.total), T('', S.total), T('Međuzbir:', S.total), N(grandTotal, S.totalIznos)], 14)
-    if (uvecIznos > 0) {
-      addRow([T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), T(`+ Uvećanje (${(uvR||0)+(uvM||0)}%):`, { ...S.total, font: { color: { rgb: '1B4332' }, sz: 10 } }), N(uvecIznos, { ...S.totalIznos, font: { color: { rgb: '1B4332' }, bold: true, sz: 10 } })], 14)
+    // Međuzbir
+    const mbRow = ws.addRow(['','','','','','Međuzbir:',''])
+    ws.mergeCells(`A${mbRow.number}:E${mbRow.number}`)
+    mbRow.height = 14
+    mbRow.eachCell({includeEmpty:true}, c => {
+      c.fill = fill(ZS)
+      c.font = font({bold:true,size:10})
+      c.border = {top:{style:'medium',color:{argb:'FF'+Z}},bottom:{style:'medium',color:{argb:'FF'+Z}}}
+      c.alignment = align('right','middle',false)
+    })
+    mbRow.getCell(7).value = safeNum(grandTotal)
+    mbRow.getCell(7).numFmt = '#,##0.00 €'
+    mbRow.getCell(7).font = font({bold:true,size:10,color:Z})
+    mbRow.getCell(7).alignment = align('left','middle',false)
+
+    if (uvecIznos>0) {
+      const uvRow = ws.addRow(['','','','','',`+ Uvećanje (${uvR+uvM}%):`,safeNum(uvecIznos)])
+      ws.mergeCells(`A${uvRow.number}:E${uvRow.number}`)
+      uvRow.height = 14
+      uvRow.getCell(6).font = font({size:10,color:Z})
+      uvRow.getCell(6).alignment = align('right','middle',false)
+      uvRow.getCell(7).numFmt = '#,##0.00 €'
+      uvRow.getCell(7).font = font({size:10,color:Z})
+      uvRow.getCell(7).alignment = align('left','middle',false)
     }
-    if (umanIznos > 0) {
-      addRow([T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), T('', S.prazno), T(`− Umanjenje (${(umR||0)+(umM||0)}%):`, { ...S.total, font: { color: { rgb: 'C0392B' }, sz: 10 } }), N(umanIznos, { ...S.totalIznos, font: { color: { rgb: 'C0392B' }, bold: true, sz: 10 } })], 14)
+    if (umanIznos>0) {
+      const umRow = ws.addRow(['','','','','',`− Umanjenje (${umR+umM}%):`,safeNum(umanIznos)])
+      ws.mergeCells(`A${umRow.number}:E${umRow.number}`)
+      umRow.height = 14
+      umRow.getCell(6).font = font({size:10,color:'C0392B'})
+      umRow.getCell(6).alignment = align('right','middle',false)
+      umRow.getCell(7).numFmt = '#,##0.00 €'
+      umRow.getCell(7).font = font({size:10,color:'C0392B'})
+      umRow.getCell(7).alignment = align('left','middle',false)
     }
-    addRow([T('', S.sveuLab), T('', S.sveuLab), T('', S.sveuLab), T('', S.sveuLab), T('', S.sveuLab), T('SVEUKUPNO:', S.sveuLab), N(ukupno, S.sveuIznos)], 16)
-    merge(r-1, 0, 4)
 
-    const ws = XLSX.utils.aoa_to_sheet(data)
-    ws['!cols'] = [{ wch: 8 }, { wch: 52 }, { wch: 7 }, { wch: 13 }, { wch: 10 }, { wch: 12 }, { wch: 13 }]
-    ws['!merges'] = merges
-    ws['!rows'] = rowH
+    // Sveukupno
+    const svRow = ws.addRow(['','','','','','SVEUKUPNO:',safeNum(ukupno)])
+    ws.mergeCells(`A${svRow.number}:E${svRow.number}`)
+    svRow.height = 18
+    svRow.eachCell({includeEmpty:true}, c => {
+      c.fill = fill(ZM)
+      c.font = font({bold:true,size:12,color:Z})
+      c.border = {top:{style:'medium',color:{argb:'FF'+Z}},bottom:{style:'medium',color:{argb:'FF'+Z}}}
+      c.alignment = align('left','middle',false)
+    })
+    svRow.getCell(6).alignment = align('left','middle',false)
+    svRow.getCell(7).numFmt = '#,##0.00 €'
+    svRow.getCell(7).alignment = align('left','middle',false)
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Predmjer')
+    const buffer = await wb.xlsx.writeBuffer()
+    const ime = (projekat.naziv||'Predmjer').replace(/[^a-zA-Z0-9_]/g,'_')
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition',`attachment; filename="${ime}.xlsx"`)
+    res.send(Buffer.from(buffer))
 
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', cellStyles: true })
-    const ime = (projekat.naziv || 'Predmjer').replace(/[^a-zA-Z0-9_\u00C0-\u024F\s]/g, '_')
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    res.setHeader('Content-Disposition', `attachment; filename="${ime}.xlsx"`)
-    res.send(buf)
-
-  } catch (err) {
-    console.error('Excel error:', err)
+  } catch(err) {
+    console.error('Excel API greška:', err.stack||err.message)
     res.status(500).json({ error: err.message })
   }
 }
