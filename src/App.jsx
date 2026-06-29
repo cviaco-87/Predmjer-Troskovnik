@@ -359,6 +359,22 @@ export default function App() {
   const exportExcel = async () => {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export.'); return }
 
+    // Ucitaj SheetJS
+    let XLSX
+    try {
+      if (window.XLSX) {
+        XLSX = window.XLSX
+      } else {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script')
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+          s.onload = resolve; s.onerror = reject
+          document.head.appendChild(s)
+        })
+        XLSX = window.XLSX
+      }
+    } catch(e) { alert('Greška pri učitavanju biblioteke.'); return }
+
     const svePozicije = {}
     for (const f of faze) {
       const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
@@ -366,7 +382,6 @@ export default function App() {
     }
 
     const proj = aktivniProjekat
-    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
     const fmtJmjL = j => (j||'').replace(/m2/g,'m²').replace(/m3/g,'m³').replace(/m1/g,'m¹')
     const stripB = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
 
@@ -375,47 +390,27 @@ export default function App() {
       const poz = svePozicije[f.id]||[]
       grandTotal += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
     }
-    const uvec = grandTotal*(uvR+uvM)/100
-    const uman = grandTotal*(umR+umM)/100
-    const ukupno = grandTotal+uvec-uman
+    const uvecIznos = grandTotal*(uvR+uvM)/100
+    const umanIznos = grandTotal*(umR+umM)/100
+    const ukupno = grandTotal+uvecIznos-umanIznos
 
-    // CSS koji Excel razumije
-    const css = `
-      .xl-wb { mso-displayed-decimal-separator:','; mso-displayed-thousand-separator:'.'; }
-      body { font-family: Calibri, Arial; font-size: 11pt; }
-      table { border-collapse: collapse; width: 100%; }
-      td, th { border: 1px solid #D8D5CC; padding: 4px 7px; vertical-align: top; mso-number-format: "General"; }
-      .n { font-size: 15pt; font-weight: bold; color: #1B4332; text-align: center; border: none; background: white; }
-      .il { font-size: 9pt; color: #888; border: none; background: white; }
-      .iv { font-size: 9pt; font-weight: bold; border: none; background: white; }
-      .fn { font-size: 11pt; font-weight: bold; color: #1B4332; border: none; background: white; border-bottom: 2.5pt solid #1B4332; }
-      .th { background: #1B4332; color: white; font-weight: bold; font-size: 9pt; text-align: center; border: 1px solid #145229; }
-      .thr { background: #1B4332; color: white; font-weight: bold; font-size: 9pt; text-align: right; border: 1px solid #145229; }
-      .kat { background: #EEF3F1; color: #1B4332; font-weight: bold; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.05em; }
-      .rb { text-align: center; color: #666; font-size: 9pt; width: 28px; }
-      .rb2 { text-align: center; color: #aaa; font-size: 9pt; background: #FAFAF8; }
-      .op { font-size: 9.5pt; line-height: 1.4; }
-      .op2 { font-size: 9pt; color: #444; background: #FAFAF8; padding-left: 18px; line-height: 1.4; }
-      .jm { text-align: center; color: #555; font-size: 9pt; }
-      .jm2 { text-align: center; color: #777; font-size: 9pt; background: #FAFAF8; }
-      .br { text-align: right; font-size: 9.5pt; mso-number-format: '\#\,\#\#0\.00'; }
-      .br2 { text-align: right; font-size: 9pt; background: #FAFAF8; mso-number-format: '\#\,\#\#0\.00'; }
-      .uk { text-align: right; font-weight: bold; color: #1B4332; font-size: 9.5pt; mso-number-format: '\#\,\#\#0\.00'; }
-      .uk2 { text-align: right; color: #4A7C65; font-size: 9pt; background: #FAFAF8; mso-number-format: '\#\,\#\#0\.00'; }
-      .ps { font-style: italic; color: #666; font-size: 8.5pt; background: #F5F8F6; }
-      .psu { text-align: right; font-weight: bold; color: #1B4332; font-size: 9pt; background: #F5F8F6; border-top: 1.5pt solid #1B4332; mso-number-format: '\#\,\#\#0\.00'; }
-      .par td { background: #F8FAF8; }
-      .tot td { background: #EEF3F1; font-weight: bold; border-top: 1.5pt solid #1B4332; border-bottom: 1.5pt solid #1B4332; }
-      .tot .tl { text-align: right; }
-      .tot .ti { text-align: right; color: #1B4332; mso-number-format: '\#\,\#\#0\.00'; }
-      .sveu td { background: #E8F0EC; font-weight: bold; color: #1B4332; border-top: 2pt solid #1B4332; border-bottom: 2pt solid #1B4332; font-size: 11pt; }
-      .sveu .ti { text-align: right; mso-number-format: '\#\,\#\#0\.00'; }
-      .crt { text-align: center; color: #999; }
-      .zbir { text-align: center; font-style: italic; color: #888; font-size: 8.5pt; }
-      .rn { border: none; background: white; height: 8px; }
-    `
+    const wb = XLSX.utils.book_new()
+    const data = []
+    const merges = []
+    let r = 0
+    const M = (r,c1,c2) => merges.push({s:{r,c:c1},e:{r,c:c2}})
 
-    let fazeSadrzaj = ''
+    // Pomocne
+    const T = (v) => ({v: v===null||v===undefined?'':String(v), t:'s'})
+    const N = (v) => ({v: parseFloat(v)||0, t:'n', z:'#,##0.00'})
+    const addR = (...cells) => { data.push(cells); r++ }
+
+    // Naslov
+    addR(T('PREDMJER I PREDRAČUN'),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
+    addR(T('Projekat:'),T(proj.naziv||''),T(''),T(''),T('Investitor:'),T(proj.klijent||''),T('')); M(r-1,1,2); M(r-1,5,6)
+    addR(T('Lokacija:'),T(proj.adresa||''),T(''),T(''),T('Datum:'),T(proj.datum||''),T('')); M(r-1,1,2); M(r-1,5,6)
+    addR(T(''),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
+
     for (const f of faze) {
       const poz = svePozicije[f.id]||[]
       if (!poz.length) continue
@@ -423,112 +418,72 @@ export default function App() {
       const djecaMap = {}
       for (const p of poz) if (p.parent_id) { if(!djecaMap[p.parent_id]) djecaMap[p.parent_id]=[]; djecaMap[p.parent_id].push(p) }
       const roditelji = poz.filter(p=>!p.parent_id)
-
       const byK = {}
       for (const p of roditelji) { const k=p.kategorija||'Ostalo'; if(!byK[k]) byK[k]=[]; byK[k].push(p) }
 
-      let redovi = ''
-      let rb = 1; let par = 0
+      addR(T(f.naziv.toUpperCase()),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
+      addR(T('R.br.'),T('Opis pozicije'),T('J.mj.'),T('Jed. cijena (€)'),T('Količina'),T('Rabat (%)'),T('Ukupno (€)'))
+
+      let rb = 1
       for (const [k,stavke] of Object.entries(byK)) {
-        redovi += `<tr><td class="kat" colspan="7">${k.toUpperCase()}</td></tr>`
+        addR(T(k.toUpperCase()),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
         for (const p of stavke) {
           const djeca = djecaMap[p.id]||[]
           const imadjece = djeca.length > 0
           const u = calcRow(p, poz)
-          const naziv = stripB(p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-          const jmj = fmtJmjL(p.jedinica)
-          const cls = par%2===1 ? 'par' : ''
-
-          redovi += `<tr class="${cls}">
-            <td class="rb">${rb++}</td>
-            <td class="op">${naziv}</td>
-            <td class="jm">${jmj}</td>
-            <td class="${imadjece?'zbir':'br'}">${imadjece?'zbir':(p.cijena>0?fmtN(p.cijena):'—')}</td>
-            <td class="${imadjece?'crt':'br'}">${imadjece?'—':(p.kolicina>0?p.kolicina:'—')}</td>
-            <td class="${imadjece?'crt':'br'}">${imadjece?'—':(p.rabat>0?p.rabat+'%':'—')}</td>
-            <td class="${u>0?'uk':'crt'}">${u>0?fmtN(u):'—'}</td>
-          </tr>`
-
+          addR(
+            T(String(rb++)),
+            T(stripB(p.naziv||'')),
+            T(fmtJmjL(p.jedinica)),
+            imadjece ? T('zbir') : (p.cijena>0 ? N(p.cijena) : T('—')),
+            imadjece ? T('—') : (p.kolicina>0 ? N(p.kolicina) : T('—')),
+            (p.rabat>0&&!imadjece) ? N(p.rabat) : T('—'),
+            u>0 ? N(u) : T('—')
+          )
           if (imadjece) {
             djeca.forEach((d,di) => {
               const du = calcRowSimple(d)
-              redovi += `<tr>
-                <td class="rb2">${rb-1}.${di+1}</td>
-                <td class="op2">${stripB(d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</td>
-                <td class="jm2">${fmtJmjL(d.jedinica)}</td>
-                <td class="br2">${d.cijena>0?fmtN(d.cijena):'—'}</td>
-                <td class="br2">${d.kolicina>0?d.kolicina:'—'}</td>
-                <td class="br2">${d.rabat>0?d.rabat+'%':'—'}</td>
-                <td class="uk2">${du>0?fmtN(du):'—'}</td>
-              </tr>`
+              addR(
+                T(`${rb-1}.${di+1}`),
+                T('  ' + stripB(d.naziv||'')),
+                T(fmtJmjL(d.jedinica)),
+                d.cijena>0 ? N(d.cijena) : T('—'),
+                d.kolicina>0 ? N(d.kolicina) : T('—'),
+                d.rabat>0 ? N(d.rabat) : T('—'),
+                du>0 ? N(du) : T('—')
+              )
             })
             const ukKol = djeca.reduce((s,d)=>s+(parseFloat(d.kolicina)||0),0)
-            redovi += `<tr>
-              <td class="ps"></td>
-              <td class="ps" colspan="5">Ukupno: ${ukKol.toFixed(2)} ${fmtJmjL(p.jedinica)}</td>
-              <td class="psu">${fmtN(u)}</td>
-            </tr>`
+            addR(T(''),T(`Ukupno: ${ukKol.toFixed(2)} ${fmtJmjL(p.jedinica)}`),T(''),T(''),T(''),T(''),N(u))
           }
-          par++
         }
       }
 
       const ft = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
-      redovi += `<tr class="tot">
-        <td colspan="6" class="tl">UKUPNO ${f.naziv.toUpperCase()}:</td>
-        <td class="ti">${fmtN(ft)}</td>
-      </tr>`
-
-      fazeSadrzaj += `
-        <tr><td class="rn" colspan="7"></td></tr>
-        <tr><td class="fn" colspan="7">${f.naziv.toUpperCase()}</td></tr>
-        <tr>
-          <th class="th" style="width:28px">R.br.</th>
-          <th class="th" style="width:380px">Opis pozicije</th>
-          <th class="th" style="width:45px">J.mj.</th>
-          <th class="thr" style="width:90px">Jed. cijena (€)</th>
-          <th class="thr" style="width:70px">Količina</th>
-          <th class="thr" style="width:60px">Rabat</th>
-          <th class="thr" style="width:95px">Ukupno (€)</th>
-        </tr>
-        ${redovi}`
+      addR(T(''),T(''),T(''),T(''),T(''),T(`UKUPNO ${f.naziv.toUpperCase()}:`),N(ft))
+      addR(T(''),T(''),T(''),T(''),T(''),T(''),T(''))
     }
 
-    const rekapR = faze.map((f,i) => {
+    // Rekapitulacija
+    addR(T('REKAPITULACIJA'),T(''),T(''),T(''),T(''),T(''),T('')); M(r-1,0,6)
+    addR(T('Faza'),T(''),T(''),T(''),T(''),T(''),T('Ukupno (€)')); M(r-1,0,5)
+    for (const f of faze) {
       const poz = svePozicije[f.id]||[]
       const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      return `<tr class="${i%2===1?'par':''}"><td colspan="6">${f.naziv}</td><td class="uk">${fmtN(t)}</td></tr>`
-    }).join('')
+      addR(T(f.naziv),T(''),T(''),T(''),T(''),T(''),N(t)); M(r-1,0,5)
+    }
+    addR(T(''),T(''),T(''),T(''),T(''),T('Međuzbir:'),N(grandTotal))
+    if (uvecIznos>0) addR(T(''),T(''),T(''),T(''),T(''),T(`+ Uvećanje (${uvR+uvM}%):`),N(uvecIznos))
+    if (umanIznos>0) addR(T(''),T(''),T(''),T(''),T(''),T(`− Umanjenje (${umR+umM}%):`),N(umanIznos))
+    addR(T(''),T(''),T(''),T(''),T(''),T('SVEUKUPNO:'),N(ukupno))
 
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
-<x:Name>Predmjer</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-<style>${css}</style></head>
-<body class="xl-wb"><table>
-  <tr><td class="n" colspan="7">PREDMJER I PREDRAČUN</td></tr>
-  <tr><td class="il">Projekat:</td><td class="iv" colspan="2">${proj.naziv||''}</td><td></td><td class="il">Investitor:</td><td class="iv" colspan="2">${proj.klijent||''}</td></tr>
-  <tr><td class="il">Lokacija:</td><td class="iv" colspan="2">${proj.adresa||''}</td><td></td><td class="il">Datum:</td><td class="iv" colspan="2">${proj.datum||''}</td></tr>
-  ${fazeSadrzaj}
-  <tr><td class="rn" colspan="7"></td></tr>
-  <tr><td class="fn" colspan="7">REKAPITULACIJA</td></tr>
-  <tr><th class="th" colspan="6">Faza</th><th class="thr">Ukupno (€)</th></tr>
-  ${rekapR}
-  <tr class="tot"><td colspan="6" class="tl">Međuzbir:</td><td class="ti">${fmtN(grandTotal)}</td></tr>
-  ${uvec>0?`<tr><td colspan="6" style="text-align:right;color:#1B4332">+ Uvećanje (${uvR+uvM}%):</td><td class="uk">${fmtN(uvec)}</td></tr>`:''}
-  ${uman>0?`<tr><td colspan="6" style="text-align:right;color:#C0392B">− Umanjenje (${umR+umM}%):</td><td style="text-align:right;color:#C0392B;font-weight:bold">${fmtN(uman)}</td></tr>`:''}
-  <tr class="sveu"><td colspan="6" style="text-align:right">SVEUKUPNO:</td><td class="ti">${fmtN(ukupno)}</td></tr>
-</table></body></html>`
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    ws['!cols'] = [{wch:8},{wch:55},{wch:7},{wch:14},{wch:11},{wch:14},{wch:14}]
+    ws['!merges'] = merges
+    XLSX.utils.book_append_sheet(wb, ws, 'Predmjer')
 
-    const blob = new Blob(['﻿'+html], {type:'application/vnd.ms-excel;charset=utf-8'})
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
     const ime = (proj.naziv||'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g,'_')
-    a.download = `${ime}_${proj.datum||new Date().toISOString().slice(0,10)}.xls`
-    a.click()
-    URL.revokeObjectURL(url)
+    XLSX.writeFile(wb, `${ime}_${proj.datum||new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   // ── PDF PRINT ──
@@ -666,7 +621,7 @@ export default function App() {
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
   @page { margin:12mm; }
-  @media print { body { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
+  @media print { * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; } }
 </style></head>
 <body>
 <div class="header">
