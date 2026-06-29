@@ -445,7 +445,7 @@ export default function App() {
           const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
           redovi += `<tr class="${pi%2===1?'par':''}">
             <td class="rb">${rb++}</td>
-            <td class="opis${imadjece?' opis-gl':''}">${naziv}</td>
+            <td class="opis">${naziv}</td>
             <td class="jmj">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
             <td class="broj">${!imadjece && (p.cijena||0)>0 ? fmtN(p.cijena) : (imadjece ? '<em style="color:#888;font-size:8.5pt">zbir</em>' : '—')}</td>
             <td class="broj">${!imadjece && (p.kolicina||0)>0 ? p.kolicina : '—'}</td>
@@ -583,7 +583,7 @@ export default function App() {
           const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
           rows += `<tr>
             <td class="c">${rb++}</td>
-            <td class="opis${imadjece?' bold':''}">${naziv}</td>
+            <td class="opis">${naziv}</td>
             <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
             <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
             <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
@@ -1066,9 +1066,9 @@ ${sviFazeSadrzaj}
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
-                                <tr style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: imadjece ? '#F0F5F2' : 'white' }}
-                                  onMouseEnter={e => { if (!imadjece) e.currentTarget.style.background = '#F8FAF8' }}
-                                  onMouseLeave={e => { if (!imadjece) e.currentTarget.style.background = 'white' }}>
+                                <tr style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: 'white' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'white'}>
                                   <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>{i + 1}</td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
