@@ -462,7 +462,7 @@ export default function App() {
       const response = await fetch('/api/excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM, valutaZnak })
       })
 
       if (!response.ok) {
@@ -544,7 +544,7 @@ export default function App() {
             <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
             <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
             <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
-            <td class="r bold">${u>0?fmtN(u)+' €':'—'}</td>
+            <td class="r bold">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
           </tr>`
           if (imadjece) {
             p.djeca.forEach((d, di) => {
@@ -557,20 +557,20 @@ export default function App() {
                 <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                 <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
                 <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
-                <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' €':'—'}</td>
+                <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
               </tr>`
             })
             const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
             rows += `<tr class="pod-sum">
               <td></td>
               <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-              <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} €</td>
+              <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
             </tr>`
           }
         }
       }
       const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(ft)} €</td></tr>`
+      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
 
       sviFazeSadrzaj += `
         <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
@@ -578,10 +578,10 @@ export default function App() {
           <thead><tr>
             <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
             <th class="c" style="width:45px">J.mj.</th>
-            <th class="r" style="width:75px">Jed. cijena (€)</th>
+            <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
             <th class="r" style="width:65px">Količina</th>
             <th class="r" style="width:50px">Rabat</th>
-            <th class="r" style="width:80px">Ukupno (€)</th>
+            <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -591,7 +591,7 @@ export default function App() {
     const rekapRows = faze.map(f => {
       const poz = svePozicije[f.id]||[]
       const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} €</td></tr>`
+      return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} ${valutaZnak}</td></tr>`
     }).join('')
 
     const html = `<!DOCTYPE html><html lang="bs">
@@ -640,13 +640,13 @@ ${sviFazeSadrzaj}
 <div class="page-break"></div>
 <h2 style="color:#1B4332;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B4332">REKAPITULACIJA</h2>
 <table style="width:400px">
-  <thead><tr><th>Faza</th><th class="r">Ukupno (€)</th></tr></thead>
+  <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
   <tbody>
     ${rekapRows}
-    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} €</td></tr>
-    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} €</td></tr>`:''}
-    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} €</td></tr>`:''}
-    <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} €</td></tr>
+    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
+    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
+    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
+    <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
 </table>
 </body></html>`
@@ -911,7 +911,7 @@ ${sviFazeSadrzaj}
                   onMouseEnter={e => { if (f.id !== aktivnaFaza?.id) e.currentTarget.style.background = '#F0F5F2' }}
                   onMouseLeave={e => { if (f.id !== aktivnaFaza?.id) e.currentTarget.style.background = '' }}>
                   <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{f.naziv}</span>
-                  {f.id === aktivnaFaza?.id && <span style={{ fontSize: 12, fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(t)} €</span>}
+                  {f.id === aktivnaFaza?.id && <span style={{ fontSize: 12, fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(t)} {valutaZnak}</span>}
                   <button onClick={e => { e.stopPropagation(); obrisiFeazu(f.id) }}
                     style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px' }}
                     onMouseEnter={e => e.currentTarget.style.color = '#C0392B'}
@@ -965,16 +965,16 @@ ${sviFazeSadrzaj}
                 <tr>
                   <td style={{ padding: '3px 0', color: '#666' }}>{aktivnaFaza.naziv}</td>
                   <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt(fazaTotali[aktivnaFaza.id] || 0)} €
+                    {fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}
                   </td>
                 </tr>
                 <tr><td colSpan={2} style={{ borderTop: '1px solid #D8D5CC', paddingTop: 5 }}></td></tr>
-                {uvecanje > 0 && <tr><td style={{ color: '#1B4332' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} €</td></tr>}
-                {umanjenje > 0 && <tr><td style={{ color: '#C0392B' }}>− Umanjenje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#C0392B', fontVariantNumeric: 'tabular-nums' }}>−{fmt(umanjenje)} €</td></tr>}
+                {uvecanje > 0 && <tr><td style={{ color: '#1B4332' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} {valutaZnak}</td></tr>}
+                {umanjenje > 0 && <tr><td style={{ color: '#C0392B' }}>− Umanjenje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#C0392B', fontVariantNumeric: 'tabular-nums' }}>−{fmt(umanjenje)} {valutaZnak}</td></tr>}
                 <tr>
                   <td style={{ fontWeight: 800, fontSize: 14 }}>UKUPNO</td>
                   <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje - umanjenje)} €
+                    {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje - umanjenje)} {valutaZnak}
                   </td>
                 </tr>
               </tbody>
@@ -1028,7 +1028,7 @@ ${sviFazeSadrzaj}
                   <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#1B4332', color: '#fff' }}>
-                        {['R.br.', 'Opis pozicije', 'J.mj.', 'Jed. cijena (€)', 'Količina', 'Rabat', 'Ukupno (€)', ''].map((h, i) => (
+                        {['R.br.', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', 'Rabat', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
                           <th key={i} style={{ padding: '9px 8px', textAlign: i >= 3 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -1124,7 +1124,7 @@ ${sviFazeSadrzaj}
                                       style={{ width: 42, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} /> %</>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
-                                    {u > 0 ? fmt(u) + ' €' : '—'}
+                                    {u > 0 ? fmt(u) + ' ' + valutaZnak : '—'}
                                   </td>
                                   <td style={{ padding: '6px 4px', verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
@@ -1201,7 +1201,7 @@ ${sviFazeSadrzaj}
                                           style={{ width: 38, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: '#F5F4F0' }} /> %
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A7C65', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
-                                        {du > 0 ? fmt(du) + ' €' : '—'}
+                                        {du > 0 ? fmt(du) + ' ' + valutaZnak : '—'}
                                       </td>
                                       <td style={{ padding: '4px 4px' }}>
                                         <button onClick={() => obrisiPoziciju(d.id)}
@@ -1222,7 +1222,7 @@ ${sviFazeSadrzaj}
                                     </td>
                                     <td></td>
                                     <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
-                                      {fmt(u)} €
+                                      {fmt(u)} {valutaZnak}
                                     </td>
                                     <td></td>
                                   </tr>
@@ -1234,7 +1234,7 @@ ${sviFazeSadrzaj}
                       ))}
                       <tr style={{ background: '#EEF3F1' }}>
                         <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO FAZA:</td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} €</td>
+                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
                     </tbody>
