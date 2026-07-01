@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { projekat, faze, svePozicije, uvR=0, uvM=0, umR=0, umM=0 } = req.body
+    const { projekat, faze, svePozicije, uvR=0, uvM=0, umR=0, umM=0, valutaZnak='€' } = req.body
 
     const calcSimple = p => (parseFloat(p.kolicina)||0)*(parseFloat(p.cijena)||0)*(1-(parseFloat(p.rabat)||0)/100)
     const calcRow = (p, poz) => {
@@ -18,6 +18,9 @@ export default async function handler(req, res) {
     const fmtJmj = j => (j||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')
     const strip = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
     const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
+    // Dinamički format broja sa izabranom valutom (radi sa bilo kojim simbolom: €, KM, din, $)
+    const CUR = String(valutaZnak).replace(/"/g, '')
+    const NUM_FMT_CUR = `#,##0.00 "${CUR}"`
 
     // Format datuma DD.MM.YYYY - čuvamo kao tekst da Excel ne konvertuje
     const formatDatum = d => {
@@ -163,7 +166,7 @@ export default async function handler(req, res) {
       row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
       // ── ZAGLAVLJE KOLONA ──
-      row = ws.addRow(['','R.br.','Opis pozicije','J.mj.','Jed. cijena (€)','Količina','Rabat','Ukupno (€)'])
+      row = ws.addRow(['','R.br.','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina','Rabat',`Ukupno (${CUR})`])
       row.height = 27.95
       const thCols = ['B','C','D','E','F','G','H']
       const thAligns = ['center','left','center','center','center','center','center']
@@ -271,7 +274,7 @@ export default async function handler(req, res) {
           // Ukupno — centrirano kao u referentnom fajlu
           if (u > 0) {
             row.getCell('H').value     = safeNum(u)
-            row.getCell('H').numFmt    = '#,##0.00 \\€'
+            row.getCell('H').numFmt    = NUM_FMT_CUR
             row.getCell('H').font      = font({bold:true, size:9.5, color:Z})
             row.getCell('H').alignment = al('center','center',false)
           } else {
@@ -352,7 +355,7 @@ export default async function handler(req, res) {
               // Ukupno podstavke — centrirano
               if (du > 0) {
                 dRow.getCell('H').value     = safeNum(du)
-                dRow.getCell('H').numFmt    = '#,##0.00 \\€'
+                dRow.getCell('H').numFmt    = NUM_FMT_CUR
                 dRow.getCell('H').font      = font({size:9, color:'4A7C65'})
                 dRow.getCell('H').alignment = al('center','center',false)
               } else {
@@ -386,7 +389,7 @@ export default async function handler(req, res) {
             }
             if (u > 0) {
               sumRow.getCell('H').value     = safeNum(u)
-              sumRow.getCell('H').numFmt    = '#,##0.00 \\€'
+              sumRow.getCell('H').numFmt    = NUM_FMT_CUR
               sumRow.getCell('H').font      = font({bold:true, size:9, color:Z})
               sumRow.getCell('H').alignment = al('center','center',false)
             }
@@ -409,7 +412,7 @@ export default async function handler(req, res) {
         totRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
       })
       totRow.getCell('H').value     = safeNum(ft)
-      totRow.getCell('H').numFmt    = '#,##0.00 \\€'
+      totRow.getCell('H').numFmt    = NUM_FMT_CUR
       totRow.getCell('H').font      = font({bold:true, size:10, color:Z})
       totRow.getCell('H').alignment = al('center','center',false)
 
@@ -429,7 +432,7 @@ export default async function handler(req, res) {
     rekNas.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
     // Header rekapitulacije
-    const rekHdr = ws.addRow(['','Faza','','','','','','Ukupno (€)'])
+    const rekHdr = ws.addRow(['','Faza','','','','','',`Ukupno (${CUR})`])
     ws.mergeCells(`B${rekHdr.number}:G${rekHdr.number}`)
     rekHdr.height = 14.1
     ;['B','C','D','E','F','G','H'].forEach(col => {
@@ -449,7 +452,7 @@ export default async function handler(req, res) {
       fRow.getCell('B').font      = font({size:10})
       fRow.getCell('B').border    = borderBottom('thin','EEECEA')
       fRow.getCell('H').value     = safeNum(t)
-      fRow.getCell('H').numFmt    = '#,##0.00 \\€'
+      fRow.getCell('H').numFmt    = NUM_FMT_CUR
       fRow.getCell('H').font      = font({bold:true, color:Z})
       fRow.getCell('H').alignment = al('center','center',false)
       fRow.getCell('H').border    = borderBottom('thin','EEECEA')
@@ -466,7 +469,7 @@ export default async function handler(req, res) {
     })
     mbRow.getCell('G').alignment = al('center','center',false)
     mbRow.getCell('H').value     = safeNum(grandTotal)
-    mbRow.getCell('H').numFmt    = '#,##0.00 \\€'
+    mbRow.getCell('H').numFmt    = NUM_FMT_CUR
     mbRow.getCell('H').font      = font({bold:true, size:10, color:Z})
     mbRow.getCell('H').alignment = al('center','center',false)
 
@@ -476,7 +479,7 @@ export default async function handler(req, res) {
       uvRow.height = 14.1
       uvRow.getCell('G').font      = font({size:10, color:Z})
       uvRow.getCell('G').alignment = al('center','center',false)
-      uvRow.getCell('H').numFmt    = '#,##0.00 \\€'
+      uvRow.getCell('H').numFmt    = NUM_FMT_CUR
       uvRow.getCell('H').font      = font({size:10, color:Z})
       uvRow.getCell('H').alignment = al('center','center',false)
     }
@@ -487,7 +490,7 @@ export default async function handler(req, res) {
       umRow.height = 14.1
       umRow.getCell('G').font      = font({size:10, color:'C0392B'})
       umRow.getCell('G').alignment = al('center','center',false)
-      umRow.getCell('H').numFmt    = '#,##0.00 \\€'
+      umRow.getCell('H').numFmt    = NUM_FMT_CUR
       umRow.getCell('H').font      = font({size:10, color:'C0392B'})
       umRow.getCell('H').alignment = al('center','center',false)
     }
@@ -502,7 +505,7 @@ export default async function handler(req, res) {
       svRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
     })
     svRow.getCell('G').alignment = al('center','center',false)
-    svRow.getCell('H').numFmt    = '#,##0.00 \\€'
+    svRow.getCell('H').numFmt    = NUM_FMT_CUR
     svRow.getCell('H').alignment = al('center','center',false)
 
     // ── SLANJE FAJLA ──
