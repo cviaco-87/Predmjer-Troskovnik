@@ -271,37 +271,101 @@ export default function App() {
   }
 
   // ── POZICIJE ──
+
+  // Sljedeći redoslijed samo za roditelje (bez podstavki)
+  const nextRedoslijed = () => {
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    if (roditelji.length === 0) return 0
+    return Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+  }
+
   const dodajPoziciju = useCallback(async (idx) => {
     if (!aktivnaFaza) return
     const item = BAZA[idx]
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: item.c, kategorija: item.k, redoslijed: pozicije.length
+      cijena: item.c, kategorija: item.k, redoslijed: red
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
-  }, [aktivnaFaza, pozicije.length])
+  }, [aktivnaFaza, pozicije])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
     if (!aktivnaFaza) return
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: pozicije.length
+      cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
-  }, [aktivnaFaza, pozicije.length])
+  }, [aktivnaFaza, pozicije])
 
   const dodajVlastitupoziciju = async () => {
     if (!aktivnaFaza) return
-    // Koristi zadnju kategoriju iz aktivne faze, ili prvu ako nema
     const roditelji = pozicije.filter(p => !p.parent_id)
-    const zadnjaKat = roditelji.length > 0 
-      ? roditelji[roditelji.length - 1].kategorija 
+    const zadnjaKat = roditelji.length > 0
+      ? roditelji[roditelji.length - 1].kategorija
       : 'Ostalo'
+    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
-      cijena: 0, kategorija: zadnjaKat, redoslijed: pozicije.length
+      cijena: 0, kategorija: zadnjaKat, redoslijed: red
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
+  }
+
+  // ── DRAG & DROP REDOSLIJED ──
+  const dragPoz = React.useRef(null)
+  const dragOverPoz = React.useRef(null)
+
+  const onDragStart = (e, poz) => {
+    dragPoz.current = poz
+    e.dataTransfer.effectAllowed = 'move'
+    e.currentTarget.style.opacity = '0.5'
+  }
+
+  const onDragEnd = (e) => {
+    e.currentTarget.style.opacity = '1'
+  }
+
+  const onDragOver = (e, poz) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    dragOverPoz.current = poz
+  }
+
+  const onDrop = async (e, targetPoz) => {
+    e.preventDefault()
+    if (!dragPoz.current || dragPoz.current.id === targetPoz.id) return
+    if (dragPoz.current.parent_id || targetPoz.parent_id) return
+
+    const roditelji = pozicije
+      .filter(p => !p.parent_id)
+      .sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
+
+    const fromIdx = roditelji.findIndex(p => p.id === dragPoz.current.id)
+    const toIdx   = roditelji.findIndex(p => p.id === targetPoz.id)
+    if (fromIdx === -1 || toIdx === -1) return
+
+    const novi = [...roditelji]
+    const [premjesteni] = novi.splice(fromIdx, 1)
+    novi.splice(toIdx, 0, premjesteni)
+
+    const updates = novi.map((p, i) => ({ id: p.id, redoslijed: i }))
+
+    setPozicije(prev => prev.map(p => {
+      const u = updates.find(u => u.id === p.id)
+      return u ? { ...p, redoslijed: u.redoslijed } : p
+    }))
+
+    for (const u of updates) {
+      await supabase.from('pozicije').update({ redoslijed: u.redoslijed }).eq('id', u.id)
+    }
+
+    dragPoz.current = null
+    dragOverPoz.current = null
   }
 
   const azurirajPoziciju = async (id, polje, vrijednost) => {
@@ -330,8 +394,9 @@ export default function App() {
 
   const grouped = useMemo(() => {
     const g = {}
-    // Samo roditelji (bez parent_id) u grupama
-    const roditelji = pozicije.filter(p => !p.parent_id)
+    // Samo roditelji sortirani po redoslijedu
+    const roditelji = [...pozicije.filter(p => !p.parent_id)]
+      .sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
     for (const p of roditelji) { const k = p.kategorija || 'Ostalo'; if (!g[k]) g[k] = []; g[k].push(p) }
     return g
   }, [pozicije])
@@ -591,13 +656,16 @@ ${sviFazeSadrzaj}
     // Ukloni ** Markdown bold iz naziva
     const cleanNaziv = (stavka.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').trim()
 
+    const rod = pozicije.filter(p => !p.parent_id)
+    const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
+
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id,
       naziv: cleanNaziv,
       jedinica: stavka.jedinica || 'm²',
       cijena: parseFloat(stavka.cijena) || 0,
       kategorija: aktivnaKategorija,
-      redoslijed: pozicije.length
+      redoslijed: red
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
   }
@@ -945,10 +1013,21 @@ ${sviFazeSadrzaj}
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
-                                <tr style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: 'white' }}
+                                <tr
+                                  draggable
+                                  onDragStart={e => onDragStart(e, p)}
+                                  onDragEnd={onDragEnd}
+                                  onDragOver={e => onDragOver(e, p)}
+                                  onDrop={e => onDrop(e, p)}
+                                  style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: 'white', cursor: 'grab' }}
                                   onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'white'}>
-                                  <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>{i + 1}</td>
+                                  <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                      <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
+                                      <span style={{ fontSize: 11, color: '#aaa' }}>{i + 1}</span>
+                                    </div>
+                                  </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
                                       ref={el => { if (el) el._pozId = p.id }}
