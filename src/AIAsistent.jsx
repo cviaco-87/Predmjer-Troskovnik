@@ -51,11 +51,16 @@ Kada korisnik traži procjenu cijena za više stavki, odgovori ISKLJUČIVO u ovo
 PRAVILA ZA PROCJENU CIJENA:
 - Analiziraj svaki opis stavke pažljivo
 - Cijene trebaju biti realne tržišne cijene za region BiH/Srbija/Hrvatska
+- Stavke mogu biti organizovane hijerarhijski: RODITELJ stavka može imati PODSTAVKE (npr. "prizemlje", "sprat")
+- Ako stavka piše "[RODITELJ - ima podstavke, NE procjenjuj cijenu]" - PRESKOČI je, ne vraćaj cijenu za nju
+- Procijeni cijenu ISKLJUČIVO za stavke koje imaju "ID:" naznačen - to su stavke gdje se cijena upisuje (obične stavke i podstavke)
+- Sve podstavke jedne stavke (npr. prizemlje, sprat) obično imaju ISTU ili vrlo sličnu jediničnu cijenu, jer opisuju isti rad u različitim zonama - koristi to kao smjernicu
 - Ako korisnik kaže "u KM" ili "u markama" postavi valuta:"KM"
 - Ako korisnik kaže "u dinarima" ili "u RSD" postavi valuta:"RSD"
 - Ako korisnik kaže "u dolarima" ili "u USD" postavi valuta:"USD"
 - Inače koristi valuta:"EUR"
 - Koristi web search ako je dostupan da provjeriš aktuelne tržišne cijene
+- U odgovoru MORAŠ vratiti procjenu za SVAKU stavku koja ima "ID:" naznačen, uključujući sve podstavke
 
 KATEGORIJE koje postoje:
 - Pripremno završni radovi
@@ -155,9 +160,22 @@ Kako mogu pomoći? Npr:
   const getStavkeKontekst = () => {
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
     const roditelji = pozicije.filter(p => !p.parent_id)
-    return roditelji.map((p, i) =>
-      `ID:${p.id} | ${i+1}. ${(p.naziv||'').replace(/\*\*([^*]+)\*\*/g,'$1').slice(0,120)} | ${p.jedinica} | trenutna cijena: ${p.cijena||0}`
-    ).join('\n')
+    const linije = []
+    roditelji.forEach((p, i) => {
+      const djeca = pozicije.filter(d => d.parent_id === p.id)
+      const nazivR = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 100)
+      if (djeca.length > 0) {
+        // Roditelj sa podstavkama - cijena mu je zbir, ne procjenjuje se direktno
+        linije.push(`${i + 1}. ${nazivR} [RODITELJ - ima ${djeca.length} podstavki, cijena je zbir, NE procjenjuj cijenu za ovu stavku]`)
+        djeca.forEach((d, j) => {
+          const nazivD = (d.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 100) || `(podstavka ${j + 1} bez naziva, dio: "${nazivR}")`
+          linije.push(`  ID:${d.id} | ${i + 1}.${j + 1} ${nazivD} | jed: ${d.jedinica} | trenutna cijena: ${d.cijena || 0}`)
+        })
+      } else {
+        linije.push(`ID:${p.id} | ${i + 1}. ${nazivR} | jed: ${p.jedinica} | trenutna cijena: ${p.cijena || 0}`)
+      }
+    })
+    return linije.join('\n')
   }
 
   const posalji = async () => {
@@ -203,9 +221,17 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
         const modalStavke = cijeneData.stavke.map(s => {
           const poz = pozicije.find(p => p.id === s.id)
           if (!poz) return null
+          let prikazNaziv = (poz.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 80)
+          // Ako je podstavka bez naziva, prikaži naziv roditelja radi konteksta
+          if (poz.parent_id && !prikazNaziv.trim()) {
+            const roditelj = pozicije.find(r => r.id === poz.parent_id)
+            prikazNaziv = `(podstavka) ${(roditelj?.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 60)}`
+          } else if (poz.parent_id) {
+            prikazNaziv = `↳ ${prikazNaziv}`
+          }
           return {
             id: s.id,
-            naziv: (poz.naziv||'').replace(/\*\*([^*]+)\*\*/g,'$1').slice(0,80),
+            naziv: prikazNaziv,
             staraCijena: poz.cijena || 0,
             novaCijena: s.cijena,
             obrazlozenje: s.obrazlozenje || '',
