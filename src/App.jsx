@@ -1030,7 +1030,7 @@ ${sviFazeSadrzaj}
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => setValuta(e.target.value)}
                   style={{ border: '1px solid #4A7C65', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F0F5F2', color: '#1B4332', fontWeight: 600, cursor: 'pointer' }}>
-                  {VALUTE.map(v => <option key={v.kod} value={v.kod}>{v.znak} {v.naziv}</option>)}
+                  {VALUTE.map(v => <option key={v.kod} value={v.kod}>Valuta ({v.kod})</option>)}
                 </select>
                 <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
                 <button onClick={exportPDF} style={B('#1B4332')}>🖨 Print/PDF</button>
