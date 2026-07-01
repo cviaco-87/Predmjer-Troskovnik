@@ -145,6 +145,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
   const [valuta, setValuta] = useState('EUR') // EUR | KM | RSD | USD
+  const [revizija, setRevizija] = useState(0) // brojač koji se povećava samo pri AI grupnim izmjenama (forsira osvježenje polja)
 
   const VALUTE = [
     { kod: 'EUR', znak: '€', naziv: 'Euro' },
@@ -412,6 +413,31 @@ export default function App() {
 
     // Ponovo učitaj iz baze radi sigurnosti (potvrda konzistentnosti)
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+
+    // Forsiraj osvježenje prikaza cijena u tabeli
+    setRevizija(r => r + 1)
+  }
+
+  // ── AI PREGLED I POBOLJŠANJE POSTOJEĆIH STAVKI ──
+  const primijeniIzmjene = async (stavkeIzmjene) => {
+    // stavkeIzmjene = [{id, noviOpis}]
+
+    // Odmah ažuriraj lokalni state za trenutni vizuelni feedback
+    setPozicije(prev => prev.map(p => {
+      const izm = stavkeIzmjene.find(s => s.id === p.id)
+      return izm ? { ...p, naziv: izm.noviOpis } : p
+    }))
+
+    // Snimi u bazu — direktno u postojeću ćeliju, ne kao nova stavka
+    for (const s of stavkeIzmjene) {
+      await supabase.from('pozicije').update({ naziv: s.noviOpis }).eq('id', s.id)
+    }
+
+    // Ponovo učitaj iz baze radi sigurnosti
+    if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+
+    // Forsiraj osvježenje prikaza teksta u tabeli
+    setRevizija(r => r + 1)
   }
 
   // ── KALKULACIJE ──
@@ -1063,6 +1089,7 @@ ${sviFazeSadrzaj}
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
+                                      key={`naz-${p.id}-${revizija}`}
                                       ref={el => { if (el) el._pozId = p.id }}
                                       defaultValue={p.naziv || ''}
                                       onBlur={e => {
@@ -1109,7 +1136,7 @@ ${sviFazeSadrzaj}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
-                                    {!imadjece && <input key={`cij-${p.id}-${p.cijena}`} type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
                                       style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
@@ -1187,7 +1214,7 @@ ${sviFazeSadrzaj}
                                         </select>
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                                        <input key={`cij-${d.id}-${d.cijena}`} type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                        <input key={`cij-${d.id}-${revizija}`} type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>
@@ -1292,6 +1319,7 @@ ${sviFazeSadrzaj}
           pozicije={pozicije}
           onDodajStavku={dodajStavkuIzAI}
           onProcijeniCijene={procijeniCijene}
+          onPrimijeniIzmjene={primijeniIzmjene}
           onSetValuta={setValuta}
           onClose={() => setShowAI(false)}
         />
