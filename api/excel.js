@@ -17,17 +17,12 @@ export default async function handler(req, res) {
     }
     const fmtJmj = j => (j||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')
     const strip = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
-    const safeNum = v => { const n = parseFloat(v); return isNaN(n) ? null : n }
-    // Dinamički format broja sa izabranom valutom (radi sa bilo kojim simbolom: €, KM, din, $)
-    const CUR = String(valutaZnak).replace(/"/g, '')
-    const NUM_FMT_CUR = `#,##0.00 "${CUR}"`
+    const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n }
 
     // Format datuma DD.MM.YYYY - čuvamo kao tekst da Excel ne konvertuje
     const formatDatum = d => {
       if (!d) return ''
-      // Ako je već u formatu DD.MM.YYYY vrati kao jeste
       if (/^\d{2}\.\d{2}\.\d{4}$/.test(d)) return d
-      // Ako je YYYY-MM-DD konvertuj u DD.MM.YYYY
       if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
         const [g, m, dd] = d.split('-')
         return `${dd}.${m}.${g}`
@@ -40,7 +35,6 @@ export default async function handler(req, res) {
     const ws = wb.addWorksheet('Predmjer', { views:[{showGridLines:false}] })
 
     // ── KOLONE: B-H (kao u referentnom fajlu) ──
-    // Kolona A je prazna spacer
     ws.columns = [
       {width: 2.5},    // A - spacer
       {width: 8.0},    // B - R.br.
@@ -48,20 +42,17 @@ export default async function handler(req, res) {
       {width: 4.86},   // D - J.mj.
       {width: 10.71},  // E - Jed. cijena
       {width: 8.86},   // F - Količina
-      {width: 14.0},   // G - Rabat  (u referentnom fajlu G=14)
+      {width: 14.0},   // G - Rabat
       {width: 8.86},   // H - Ukupno
     ]
 
-    // Boje iz referentnog fajla
-    const Z   = '1B4332'  // tamnozelena
-    const ZS  = 'EEF3F1'  // zelena svijetla (kategorija, ukupno faza)
-    const SI  = 'F8FAF8'  // siva 1 (parni redovi)
-    const SI2 = 'FAFAF8'  // siva 2 (podstavke)
-    const SI3 = 'F5F8F6'  // siva 3 (ukupno podstavki red)
+    const Z   = '1B4332'
+    const ZS  = 'EEF3F1'
+    const SI  = 'F8FAF8'
+    const SI2 = 'FAFAF8'
+    const SI3 = 'F5F8F6'
 
     const fill = c => ({type:'pattern', pattern:'solid', fgColor:{argb:'FF'+c}})
-    const noFill = () => ({type:'none'})
-
     const font = (opts={}) => ({
       name: 'Calibri',
       bold:   opts.bold   || false,
@@ -69,21 +60,19 @@ export default async function handler(req, res) {
       size:   opts.size   || 10,
       color:  opts.color  ? {argb:'FF'+opts.color} : {argb:'FF000000'}
     })
-
-    // h: horizontal align, v: vertical align, wrap: wrapText
-    const al = (h, v, wrap) => ({
-      horizontal: h || 'left',
-      vertical:   v || 'top',
-      wrapText:   wrap !== false
-    })
-
-    const borderBottom = (style='thin', color='D8D5CC') => ({
-      bottom: {style, color:{argb:'FF'+color}}
-    })
+    const al = (h, v, wrap) => ({ horizontal: h || 'left', vertical: v || 'top', wrapText: wrap !== false })
+    const borderBottom = (style='thin', color='D8D5CC') => ({ bottom: {style, color:{argb:'FF'+color}} })
     const borderTopBottom = (topStyle, topColor, botStyle, botColor) => ({
       top:    {style:topStyle,  color:{argb:'FF'+topColor}},
       bottom: {style:botStyle||topStyle, color:{argb:'FF'+(botColor||topColor)}}
     })
+
+    // Dinamički format broja sa izabranom valutom - 3 sekcije: pozitivno;negativno;nula(prikaži crticu)
+    const CUR = String(valutaZnak).replace(/"/g, '')
+    const FMT_CUR = `#,##0.00" ${CUR}";-#,##0.00" ${CUR}";"—"`
+    const FMT_NUM = `#,##0.00;-#,##0.00;"—"`
+    const FMT_QTY = `#,##0.##;-#,##0.##;"—"`
+    const FMT_PCT = `0.0"%";-0.0"%";"—"`
 
     let row
 
@@ -118,22 +107,22 @@ export default async function handler(req, res) {
     row.getCell('F').font = font({size:9, color:'888888'})
     row.getCell('F').alignment = al('center','center',false)
     row.getCell('G').font = font({bold:true, size:9})
-    row.getCell('G').numFmt = '@'  // Tekst format - sprečava konverziju u datum
+    row.getCell('G').numFmt = '@'
     row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
     // ── PRAZAN RED ──
     row = ws.addRow([])
     row.height = 8.1
 
-    // ── KALKULACIJE ──
-    let grandTotal = 0
+    // Rezultati potrebni za 'result' keš formula (prikaz prije prvog Excel recalculate-a)
+    let grandTotalJS = 0
     for (const f of faze) {
       const poz = svePozicije[f.id]||[]
-      grandTotal += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
+      grandTotalJS += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
     }
-    const uvecIznos = grandTotal*(uvR+uvM)/100
-    const umanIznos = grandTotal*(umR+umM)/100
-    const ukupno    = grandTotal+uvecIznos-umanIznos
+
+    // Adrese H-ćelija "UKUPNO FAZA" po fazi, za rekapitulaciju
+    const fazaTotalInfo = [] // { naziv, addr, jsValue }
 
     // ── FAZE ──
     for (const f of faze) {
@@ -179,6 +168,7 @@ export default async function handler(req, res) {
       })
 
       let rb=1; let par=0
+      const topLevelHAddrs = [] // H-ćelije svih glavnih (roditelj) stavki u ovoj fazi
 
       for (const [k, stavke] of Object.entries(byK)) {
         // ── KATEGORIJA ──
@@ -194,7 +184,6 @@ export default async function handler(req, res) {
         for (const p of stavke) {
           const djeca   = djecaMap[p.id]||[]
           const imadjece = djeca.length > 0
-          const u       = calcRow(p, poz)
           const ispar   = par%2===1
           const bg      = ispar ? SI : 'FFFFFF'
           const naziv   = strip(p.naziv||'')
@@ -203,9 +192,10 @@ export default async function handler(req, res) {
           // ── GLAVNA STAVKA ──
           row = ws.addRow(['','','','','','','',''])
           row.height = visina
+          const mainRowNum = row.number
 
           // R.br.
-          row.getCell('B').value     = String(rb++)
+          row.getCell('B').value     = String(rb)
           row.getCell('B').fill      = fill(bg)
           row.getCell('B').font      = font({size:9, color:'666666'})
           row.getCell('B').alignment = al('center','top',false)
@@ -214,7 +204,7 @@ export default async function handler(req, res) {
           // Opis
           row.getCell('C').value     = naziv
           row.getCell('C').fill      = fill(bg)
-          row.getCell('C').font      = font({size:9.5})
+          row.getCell('C').font      = font({size:9.5, italic: imadjece})
           row.getCell('C').alignment = al('left','top',true)
           row.getCell('C').border    = borderBottom('thin','EEECEA')
 
@@ -225,76 +215,66 @@ export default async function handler(req, res) {
           row.getCell('D').alignment = al('center','center',false)
           row.getCell('D').border    = borderBottom('thin','EEECEA')
 
-          // Jed. cijena — centrirana kao u referentnom fajlu
           if (imadjece) {
+            // Roditelj sa podstavkama - E/F/G su labele, ne brojevi
             row.getCell('E').value     = 'zbir'
             row.getCell('E').font      = font({size:9, italic:true, color:'888888'})
             row.getCell('E').alignment = al('center','center',false)
-          } else if (p.cijena > 0) {
-            row.getCell('E').value     = safeNum(p.cijena)
-            row.getCell('E').numFmt    = '#,##0.00'
-            row.getCell('E').font      = font({size:9.5})
-            row.getCell('E').alignment = al('center','center',false)
-          } else {
-            row.getCell('E').value     = '—'
-            row.getCell('E').font      = font({size:9, color:'999999'})
-            row.getCell('E').alignment = al('center','center',false)
-          }
-          row.getCell('E').fill   = fill(bg)
-          row.getCell('E').border = borderBottom('thin','EEECEA')
 
-          // Količina — centrirana
-          if (imadjece || !p.kolicina || p.kolicina==0) {
             row.getCell('F').value     = '—'
             row.getCell('F').font      = font({size:9, color:'999999'})
             row.getCell('F').alignment = al('center','center',false)
-          } else {
-            row.getCell('F').value     = safeNum(p.kolicina)
-            row.getCell('F').numFmt    = '#,##0.##'
-            row.getCell('F').font      = font({size:9.5})
-            row.getCell('F').alignment = al('center','center',false)
-          }
-          row.getCell('F').fill   = fill(bg)
-          row.getCell('F').border = borderBottom('thin','EEECEA')
 
-          // Rabat — centriran
-          if (!imadjece && p.rabat > 0) {
-            row.getCell('G').value     = safeNum(p.rabat)
-            row.getCell('G').numFmt    = '0.0"%"'
-            row.getCell('G').font      = font({size:9})
-            row.getCell('G').alignment = al('center','center',false)
-          } else {
             row.getCell('G').value     = '—'
             row.getCell('G').font      = font({size:9, color:'999999'})
             row.getCell('G').alignment = al('center','center',false)
-          }
-          row.getCell('G').fill   = fill(bg)
-          row.getCell('G').border = borderBottom('thin','EEECEA')
-
-          // Ukupno — centrirano kao u referentnom fajlu
-          if (u > 0) {
-            row.getCell('H').value     = safeNum(u)
-            row.getCell('H').numFmt    = NUM_FMT_CUR
-            row.getCell('H').font      = font({bold:true, size:9.5, color:Z})
-            row.getCell('H').alignment = al('center','center',false)
           } else {
-            row.getCell('H').value     = '—'
-            row.getCell('H').font      = font({bold:true, size:9, color:Z})
-            row.getCell('H').alignment = al('center','center',false)
+            // Obična stavka - E/F/G su pravi brojevi (default 0), formule će raditi
+            row.getCell('E').value     = num(p.cijena)
+            row.getCell('E').numFmt    = FMT_NUM
+            row.getCell('E').font      = font({size:9.5})
+            row.getCell('E').alignment = al('center','center',false)
+
+            row.getCell('F').value     = num(p.kolicina)
+            row.getCell('F').numFmt    = FMT_QTY
+            row.getCell('F').font      = font({size:9.5})
+            row.getCell('F').alignment = al('center','center',false)
+
+            row.getCell('G').value     = num(p.rabat)
+            row.getCell('G').numFmt    = FMT_PCT
+            row.getCell('G').font      = font({size:9})
+            row.getCell('G').alignment = al('center','center',false)
           }
-          row.getCell('H').fill   = fill(bg)
-          row.getCell('H').border = borderBottom('thin','EEECEA')
+          ;['E','F','G'].forEach(col => {
+            row.getCell(col).fill   = fill(bg)
+            row.getCell(col).border = borderBottom('thin','EEECEA')
+          })
+
+          // Ukupno (H) — formula, popunjava se odmah za obične stavke,
+          // a za stavke sa podstavkama se popunjava NAKON upisa djece (treba raspon redova)
+          row.getCell('H').fill      = fill(bg)
+          row.getCell('H').border    = borderBottom('thin','EEECEA')
+          row.getCell('H').numFmt    = FMT_CUR
+          row.getCell('H').font      = font({bold:true, size:9.5, color:Z})
+          row.getCell('H').alignment = al('center','center',false)
+
+          if (!imadjece) {
+            const jsVal = calcSimple(p)
+            row.getCell('H').value = { formula: `E${mainRowNum}*F${mainRowNum}*(1-G${mainRowNum}/100)`, result: jsVal }
+            topLevelHAddrs.push(`H${mainRowNum}`)
+          }
 
           // ── PODSTAVKE ──
           if (imadjece) {
-            djeca.forEach((d, di) => {
-              const du    = calcSimple(d)
-              const dNaziv = strip(d.naziv||'')
-              const dRow  = ws.addRow(['','','','','','','',''])
-              dRow.height = Math.max(14, Math.ceil(dNaziv.length/52)*11+4)
+            const childRowNums = []
 
-              // R.br. podstavke kao tekst (npr. "1.1")
-              dRow.getCell('B').value     = `${rb-1}.${di+1}`
+            djeca.forEach((d, di) => {
+              const dNaziv = strip(d.naziv||'')
+              const dRow = ws.addRow(['','','','','','','',''])
+              dRow.height = Math.max(14, Math.ceil(dNaziv.length/52)*11+4)
+              childRowNums.push(dRow.number)
+
+              dRow.getCell('B').value     = `${rb}.${di+1}`
               dRow.getCell('B').numFmt    = '@'
               dRow.getCell('B').fill      = fill(SI2)
               dRow.getCell('B').font      = font({size:9, color:'AAAAAA'})
@@ -313,62 +293,47 @@ export default async function handler(req, res) {
               dRow.getCell('D').alignment = al('center','center',false)
               dRow.getCell('D').border    = borderBottom('thin','EEECEA')
 
-              // Cijena podstavke — centrirana
-              if (d.cijena > 0) {
-                dRow.getCell('E').value     = safeNum(d.cijena)
-                dRow.getCell('E').numFmt    = '#,##0.00'
-                dRow.getCell('E').alignment = al('center','center',false)
-              } else {
-                dRow.getCell('E').value     = '—'
-                dRow.getCell('E').alignment = al('center','center',false)
-              }
-              dRow.getCell('E').fill   = fill(SI2)
-              dRow.getCell('E').font   = font({size:9})
-              dRow.getCell('E').border = borderBottom('thin','EEECEA')
+              // Pravi brojevi - editabilni, formule rade
+              dRow.getCell('E').value     = num(d.cijena)
+              dRow.getCell('E').numFmt    = FMT_NUM
+              dRow.getCell('E').fill      = fill(SI2)
+              dRow.getCell('E').font      = font({size:9})
+              dRow.getCell('E').alignment = al('center','center',false)
+              dRow.getCell('E').border    = borderBottom('thin','EEECEA')
 
-              // Količina podstavke — centrirana
-              if (d.kolicina > 0) {
-                dRow.getCell('F').value     = safeNum(d.kolicina)
-                dRow.getCell('F').numFmt    = '#,##0.##'
-                dRow.getCell('F').alignment = al('center','center',false)
-              } else {
-                dRow.getCell('F').value     = '—'
-                dRow.getCell('F').alignment = al('center','center',false)
-              }
-              dRow.getCell('F').fill   = fill(SI2)
-              dRow.getCell('F').font   = font({size:9})
-              dRow.getCell('F').border = borderBottom('thin','EEECEA')
+              dRow.getCell('F').value     = num(d.kolicina)
+              dRow.getCell('F').numFmt    = FMT_QTY
+              dRow.getCell('F').fill      = fill(SI2)
+              dRow.getCell('F').font      = font({size:9})
+              dRow.getCell('F').alignment = al('center','center',false)
+              dRow.getCell('F').border    = borderBottom('thin','EEECEA')
 
-              // Rabat podstavke — centriran
-              if (d.rabat > 0) {
-                dRow.getCell('G').value     = safeNum(d.rabat)
-                dRow.getCell('G').numFmt    = '0.0"%"'
-                dRow.getCell('G').alignment = al('center','center',false)
-              } else {
-                dRow.getCell('G').value     = '—'
-                dRow.getCell('G').alignment = al('center','center',false)
-              }
-              dRow.getCell('G').fill   = fill(SI2)
-              dRow.getCell('G').font   = font({size:9})
-              dRow.getCell('G').border = borderBottom('thin','EEECEA')
+              dRow.getCell('G').value     = num(d.rabat)
+              dRow.getCell('G').numFmt    = FMT_PCT
+              dRow.getCell('G').fill      = fill(SI2)
+              dRow.getCell('G').font      = font({size:9})
+              dRow.getCell('G').alignment = al('center','center',false)
+              dRow.getCell('G').border    = borderBottom('thin','EEECEA')
 
-              // Ukupno podstavke — centrirano
-              if (du > 0) {
-                dRow.getCell('H').value     = safeNum(du)
-                dRow.getCell('H').numFmt    = NUM_FMT_CUR
-                dRow.getCell('H').font      = font({size:9, color:'4A7C65'})
-                dRow.getCell('H').alignment = al('center','center',false)
-              } else {
-                dRow.getCell('H').value     = '—'
-                dRow.getCell('H').font      = font({size:9})
-                dRow.getCell('H').alignment = al('center','center',false)
-              }
-              dRow.getCell('H').fill   = fill(SI2)
-              dRow.getCell('H').border = borderBottom('thin','EEECEA')
+              // Ukupno podstavke — živa formula
+              const jsDu = calcSimple(d)
+              dRow.getCell('H').value     = { formula: `E${dRow.number}*F${dRow.number}*(1-G${dRow.number}/100)`, result: jsDu }
+              dRow.getCell('H').numFmt    = FMT_CUR
+              dRow.getCell('H').fill      = fill(SI2)
+              dRow.getCell('H').font      = font({size:9, color:'4A7C65'})
+              dRow.getCell('H').alignment = al('center','center',false)
+              dRow.getCell('H').border    = borderBottom('thin','EEECEA')
             })
 
-            // ── RED "Ukupno" za podstavke ──
-            const ukKol  = djeca.reduce((s,d)=>s+(parseFloat(d.kolicina)||0),0)
+            // Popuni H roditelja formulom SUM djece (raspon je kontinuiran)
+            const firstChild = childRowNums[0]
+            const lastChild  = childRowNums[childRowNums.length - 1]
+            const jsParentTotal = djeca.reduce((s,d)=>s+calcSimple(d),0)
+            const parentHCell = ws.getRow(mainRowNum).getCell('H')
+            parentHCell.value = { formula: `SUM(H${firstChild}:H${lastChild})`, result: jsParentTotal }
+            topLevelHAddrs.push(`H${mainRowNum}`)
+
+            // ── RED "Ukupno: X.XX jed." — živa formula (SUM količina djece) ──
             const sumRow = ws.addRow(['','','','','','','',''])
             ws.mergeCells(`C${sumRow.number}:G${sumRow.number}`)
             sumRow.height = 12.95
@@ -376,30 +341,34 @@ export default async function handler(req, res) {
             sumRow.getCell('B').fill   = fill(SI3)
             sumRow.getCell('B').border = borderBottom('thin','D8D5CC')
 
-            sumRow.getCell('C').value     = `Ukupno: ${ukKol.toFixed(2)} ${fmtJmj(p.jedinica)}`
+            const jmjTekst = fmtJmj(p.jedinica)
+            const jsUkKol = djeca.reduce((s,d)=>s+(parseFloat(d.kolicina)||0),0)
+            sumRow.getCell('C').value = {
+              formula: `"Ukupno: "&TEXT(SUM(F${firstChild}:F${lastChild}),"0.00")&" ${jmjTekst}"`,
+              result: `Ukupno: ${jsUkKol.toFixed(2)} ${jmjTekst}`
+            }
             sumRow.getCell('C').fill      = fill(SI3)
             sumRow.getCell('C').font      = font({size:8.5, color:'666666', italic:true})
             sumRow.getCell('C').alignment = al('left','center',false)
             sumRow.getCell('C').border    = borderBottom('thin','D8D5CC')
 
-            sumRow.getCell('H').fill   = fill(SI3)
-            sumRow.getCell('H').border = {
+            sumRow.getCell('H').value     = { formula: `H${mainRowNum}`, result: jsParentTotal }
+            sumRow.getCell('H').numFmt    = FMT_CUR
+            sumRow.getCell('H').fill      = fill(SI3)
+            sumRow.getCell('H').font      = font({bold:true, size:9, color:Z})
+            sumRow.getCell('H').alignment = al('center','center',false)
+            sumRow.getCell('H').border    = {
               top:    {style:'medium', color:{argb:'FF'+Z}},
               bottom: {style:'thin',   color:{argb:'FFD8D5CC'}}
             }
-            if (u > 0) {
-              sumRow.getCell('H').value     = safeNum(u)
-              sumRow.getCell('H').numFmt    = NUM_FMT_CUR
-              sumRow.getCell('H').font      = font({bold:true, size:9, color:Z})
-              sumRow.getCell('H').alignment = al('center','center',false)
-            }
           }
+          rb++
           par++
         }
       }
 
-      // ── UKUPNO FAZA ──
-      const ft     = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
+      // ── UKUPNO FAZA — formula: SUM svih glavnih H-ćelija (mogu biti nekontinuirane) ──
+      const jsFazaTotal = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
       const totRow = ws.addRow(['','','','','','','',''])
       ws.mergeCells(`B${totRow.number}:G${totRow.number}`)
       totRow.height = 15.95
@@ -411,10 +380,15 @@ export default async function handler(req, res) {
         totRow.getCell(col).font   = font({bold:true, size:10})
         totRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
       })
-      totRow.getCell('H').value     = safeNum(ft)
-      totRow.getCell('H').numFmt    = NUM_FMT_CUR
+      totRow.getCell('H').value = {
+        formula: topLevelHAddrs.length > 0 ? `SUM(${topLevelHAddrs.join(',')})` : '0',
+        result: jsFazaTotal
+      }
+      totRow.getCell('H').numFmt    = FMT_CUR
       totRow.getCell('H').font      = font({bold:true, size:10, color:Z})
       totRow.getCell('H').alignment = al('center','center',false)
+
+      fazaTotalInfo.push({ naziv: f.naziv, addr: `H${totRow.number}`, jsValue: jsFazaTotal })
 
       // Prazan red između faza
       const prazan = ws.addRow([])
@@ -431,7 +405,6 @@ export default async function handler(req, res) {
     rekNas.getCell('B').border    = borderBottom('medium', Z)
     rekNas.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
-    // Header rekapitulacije
     const rekHdr = ws.addRow(['','Faza','','','','','',`Ukupno (${CUR})`])
     ws.mergeCells(`B${rekHdr.number}:G${rekHdr.number}`)
     rekHdr.height = 14.1
@@ -442,23 +415,23 @@ export default async function handler(req, res) {
     })
     rekHdr.getCell('H').alignment = al('center','center',false)
 
-    // Redovi faza u rekapitulaciji
-    for (const f of faze) {
-      const poz = svePozicije[f.id]||[]
-      const t   = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      const fRow = ws.addRow(['', f.naziv,'','','','','',''])
+    // Redovi faza u rekapitulaciji — H referencira "UKUPNO FAZA" ćeliju (živo)
+    const rekapHAddrs = []
+    for (const info of fazaTotalInfo) {
+      const fRow = ws.addRow(['', info.naziv,'','','','','',''])
       ws.mergeCells(`B${fRow.number}:G${fRow.number}`)
       fRow.height = 14.1
       fRow.getCell('B').font      = font({size:10})
       fRow.getCell('B').border    = borderBottom('thin','EEECEA')
-      fRow.getCell('H').value     = safeNum(t)
-      fRow.getCell('H').numFmt    = NUM_FMT_CUR
+      fRow.getCell('H').value     = { formula: info.addr, result: info.jsValue }
+      fRow.getCell('H').numFmt    = FMT_CUR
       fRow.getCell('H').font      = font({bold:true, color:Z})
       fRow.getCell('H').alignment = al('center','center',false)
       fRow.getCell('H').border    = borderBottom('thin','EEECEA')
+      rekapHAddrs.push(`H${fRow.number}`)
     }
 
-    // Međuzbir
+    // Međuzbir — SUM svih rekap redova (živo)
     const mbRow = ws.addRow(['','','','','','','Međuzbir:',''])
     ws.mergeCells(`B${mbRow.number}:F${mbRow.number}`)
     mbRow.height = 14.1
@@ -468,35 +441,54 @@ export default async function handler(req, res) {
       mbRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
     })
     mbRow.getCell('G').alignment = al('center','center',false)
-    mbRow.getCell('H').value     = safeNum(grandTotal)
-    mbRow.getCell('H').numFmt    = NUM_FMT_CUR
+    mbRow.getCell('H').value = {
+      formula: rekapHAddrs.length > 0 ? `SUM(${rekapHAddrs.join(',')})` : '0',
+      result: grandTotalJS
+    }
+    mbRow.getCell('H').numFmt    = FMT_CUR
     mbRow.getCell('H').font      = font({bold:true, size:10, color:Z})
     mbRow.getCell('H').alignment = al('center','center',false)
+    const medjuzbirAddr = `H${mbRow.number}`
 
-    if (uvecIznos > 0) {
-      const uvRow = ws.addRow(['','','','','','',`+ Uvećanje (${uvR+uvM}%):`, safeNum(uvecIznos)])
+    // Uvećanje/Umanjenje — formula: Međuzbir * procenat/100 (živo prati Međuzbir)
+    const uvecPct = uvR + uvM
+    const umanPct = umR + umM
+    let uvecAddr = null
+    let umanAddr = null
+
+    if (uvecPct > 0) {
+      const uvRow = ws.addRow(['','','','','','',`+ Uvećanje (${uvecPct}%):`,''])
       ws.mergeCells(`B${uvRow.number}:F${uvRow.number}`)
       uvRow.height = 14.1
       uvRow.getCell('G').font      = font({size:10, color:Z})
       uvRow.getCell('G').alignment = al('center','center',false)
-      uvRow.getCell('H').numFmt    = NUM_FMT_CUR
+      uvRow.getCell('H').value     = { formula: `${medjuzbirAddr}*${uvecPct}/100`, result: grandTotalJS*uvecPct/100 }
+      uvRow.getCell('H').numFmt    = FMT_CUR
       uvRow.getCell('H').font      = font({size:10, color:Z})
       uvRow.getCell('H').alignment = al('center','center',false)
+      uvecAddr = `H${uvRow.number}`
     }
 
-    if (umanIznos > 0) {
-      const umRow = ws.addRow(['','','','','','',`− Umanjenje (${umR+umM}%):`, safeNum(umanIznos)])
+    if (umanPct > 0) {
+      const umRow = ws.addRow(['','','','','','',`− Umanjenje (${umanPct}%):`,''])
       ws.mergeCells(`B${umRow.number}:F${umRow.number}`)
       umRow.height = 14.1
       umRow.getCell('G').font      = font({size:10, color:'C0392B'})
       umRow.getCell('G').alignment = al('center','center',false)
-      umRow.getCell('H').numFmt    = NUM_FMT_CUR
+      umRow.getCell('H').value     = { formula: `${medjuzbirAddr}*${umanPct}/100`, result: grandTotalJS*umanPct/100 }
+      umRow.getCell('H').numFmt    = FMT_CUR
       umRow.getCell('H').font      = font({size:10, color:'C0392B'})
       umRow.getCell('H').alignment = al('center','center',false)
+      umanAddr = `H${umRow.number}`
     }
 
-    // Sveukupno
-    const svRow = ws.addRow(['','','','','','','SVEUKUPNO:', safeNum(ukupno)])
+    // Sveukupno — formula: Međuzbir (+ Uvećanje) (- Umanjenje), sve živo povezano
+    let sveukupnoFormula = medjuzbirAddr
+    if (uvecAddr) sveukupnoFormula += `+${uvecAddr}`
+    if (umanAddr) sveukupnoFormula += `-${umanAddr}`
+    const jsSveukupno = grandTotalJS + (uvecPct>0 ? grandTotalJS*uvecPct/100 : 0) - (umanPct>0 ? grandTotalJS*umanPct/100 : 0)
+
+    const svRow = ws.addRow(['','','','','','','SVEUKUPNO:',''])
     ws.mergeCells(`B${svRow.number}:F${svRow.number}`)
     svRow.height = 18
     ;['B','C','D','E','F','G','H'].forEach(col => {
@@ -505,7 +497,8 @@ export default async function handler(req, res) {
       svRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
     })
     svRow.getCell('G').alignment = al('center','center',false)
-    svRow.getCell('H').numFmt    = NUM_FMT_CUR
+    svRow.getCell('H').value     = { formula: sveukupnoFormula, result: jsSveukupno }
+    svRow.getCell('H').numFmt    = FMT_CUR
     svRow.getCell('H').alignment = al('center','center',false)
 
     // ── SLANJE FAJLA ──
