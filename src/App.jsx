@@ -144,6 +144,15 @@ export default function App() {
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [valuta, setValuta] = useState('EUR') // EUR | KM | RSD | USD
+
+  const VALUTE = [
+    { kod: 'EUR', znak: '€', naziv: 'Euro' },
+    { kod: 'KM',  znak: 'KM', naziv: 'Kon. marka' },
+    { kod: 'RSD', znak: 'din', naziv: 'Dinar' },
+    { kod: 'USD', znak: '$', naziv: 'Dolar' },
+  ]
+  const valutaZnak = VALUTE.find(v => v.kod === valuta)?.znak || '€'
   const [uvR, setUvR] = useState(0)
   const [uvM, setUvM] = useState(0)
   const [umR, setUmR] = useState(0)
@@ -384,6 +393,16 @@ export default function App() {
     })
     ucitajMojuBazu()
     alert('Stavka sačuvana u vašu bazu!')
+  }
+
+  // ── AI PROCJENA CIJENA ──
+  const procijeniCijene = async (stavkeNoveCijene) => {
+    // stavkeNoveCijene = [{id, cijena}]
+    for (const s of stavkeNoveCijene) {
+      await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
+    }
+    // Refresh pozicija
+    if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
   }
 
   // ── KALKULACIJE ──
@@ -973,6 +992,11 @@ ${sviFazeSadrzaj}
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B4332', '1px solid #4A7C65')}>+ Vlastita stavka</button>
+                {/* Valutni meni */}
+                <select value={valuta} onChange={e => setValuta(e.target.value)}
+                  style={{ border: '1px solid #4A7C65', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F0F5F2', color: '#1B4332', fontWeight: 600, cursor: 'pointer' }}>
+                  {VALUTE.map(v => <option key={v.kod} value={v.kod}>{v.znak} {v.naziv}</option>)}
+                </select>
                 <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
                 <button onClick={exportPDF} style={B('#1B4332')}>🖨 Print/PDF</button>
               </div>
@@ -1256,7 +1280,10 @@ ${sviFazeSadrzaj}
       {showAI && (
         <AIAsistent
           aktivnaFaza={aktivnaFaza}
+          pozicije={pozicije}
           onDodajStavku={dodajStavkuIzAI}
+          onProcijeniCijene={procijeniCijene}
+          onSetValuta={setValuta}
           onClose={() => setShowAI(false)}
         />
       )}
