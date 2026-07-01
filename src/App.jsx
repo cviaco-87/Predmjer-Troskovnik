@@ -581,12 +581,22 @@ ${sviFazeSadrzaj}
   // ── AI ASISTENT - dodaj stavku ──
   const dodajStavkuIzAI = async (stavka) => {
     if (!aktivnaFaza) return
+
+    // Uzmi kategoriju zadnje stavke u aktivnoj fazi (ne AI-jevu izmišljenu)
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const aktivnaKategorija = roditelji.length > 0
+      ? roditelji[roditelji.length - 1].kategorija
+      : 'Ostalo'
+
+    // Ukloni ** Markdown bold iz naziva
+    const cleanNaziv = (stavka.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').trim()
+
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id,
-      naziv: stavka.naziv,
-      jedinica: stavka.jedinica,
+      naziv: cleanNaziv,
+      jedinica: stavka.jedinica || 'm²',
       cijena: parseFloat(stavka.cijena) || 0,
-      kategorija: stavka.kategorija || 'Ostalo',
+      kategorija: aktivnaKategorija,
       redoslijed: pozicije.length
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
