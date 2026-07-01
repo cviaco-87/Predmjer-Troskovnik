@@ -62,6 +62,27 @@ PRAVILA ZA PROCJENU CIJENA:
 - Koristi web search ako je dostupan da provjeriš aktuelne tržišne cijene
 - U odgovoru MORAŠ vratiti procjenu za SVAKU stavku koja ima "ID:" naznačen, uključujući sve podstavke
 
+FORMAT ODGOVORA KADA KORISNIK TRAŽI PREGLED/POBOLJŠANJE POSTOJEĆEG DOKUMENTA:
+Kada korisnik traži da pregledaš, analiziraš, poboljšaš, ili predložiš izmjene za POSTOJEĆE stavke u predmjeru (ne novu stavku), odgovori ISKLJUČIVO u ovom JSON formatu (bez ikakvog drugog teksta prije ili poslije):
+
+---IZMJENE---
+{
+  "stavke": [
+    { "id": "ID_STAVKE", "noviOpis": "kompletan poboljšan tekst opisa stavke, spreman da zamijeni postojeći", "obrazlozenje": "kratko obrazloženje šta je i zašto promijenjeno" }
+  ]
+}
+---KRAJ-IZMJENA---
+
+PRAVILA ZA PREGLED/POBOLJŠANJE:
+- Vrati SAMO stavke koje stvarno trebaju izmjenu ili poboljšanje - ne moraš vraćati stavke koje su već potpune i dobre
+- "noviOpis" mora biti KOMPLETAN i KONAČAN novi tekst cijele stavke (naziv + puni opis spojeno), NE samo razlika ili dodatak
+- Ova izmjena se upisuje DIREKTNO u postojeću stavku (zamjenjuje stari tekst), NE kreira se nova stavka
+- Uzmi u obzir hijerarhiju: ako je podstavka označena kao dio roditelja, poboljšaj samo njen kratki opis (npr. "prizemlje"), ne cijelu tehničku specifikaciju
+- Traži: nepotpune opise, nejasne formulacije, nedostatak standarda/normi, propuste u tehničkim detaljima, pogrešnu terminologiju
+- Zadrži postojeću jedinicu mjere i strukturu, samo poboljšaj tekst
+- Piši isključivo na srpskom jeziku, ijekavica
+- Ne mijenjaj cijene u ovom formatu, samo tekst opisa
+
 KATEGORIJE koje postoje:
 - Pripremno završni radovi
 - Istraživački radovi
@@ -118,14 +139,22 @@ function parseCijene(text) {
   catch(e) { return null }
 }
 
+function parseIzmjene(text) {
+  const match = text.match(/---IZMJENE---([\s\S]*?)---KRAJ-IZMJENA---/)
+  if (!match) return null
+  try { return JSON.parse(match[1].trim()) }
+  catch(e) { return null }
+}
+
 function formatOdgovor(text) {
   return text
     .replace(/---STAVKA---[\s\S]*?---KRAJ---/, '')
     .replace(/---CIJENE---[\s\S]*?---KRAJ-CIJENA---/, '')
+    .replace(/---IZMJENE---[\s\S]*?---KRAJ-IZMJENA---/, '')
     .trim()
 }
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onSetValuta, onClose }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onPrimijeniIzmjene, onSetValuta, onClose }) {
   const [poruke, setPoruke] = useState([{
     uloga: 'asistent',
     tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
@@ -135,13 +164,13 @@ Mogu vam pomoći da:
 • **Dopunite** kratke ili nepotpune stavke
 • **Predložim** stavke sa specificiranim proizvodima (Knauf, Rigips, Weber, Mapei...)
 • **Procijenim cijene** za sve stavke u predmjeru (sa web pretragom aktuelnih cijena)
-• **Pregledam** vaš predmjer i upozorim na propuste
+• **Pregledam cijeli predmjer** i poboljšam postojeće stavke direktno (bez dodavanja novih)
 
 ${aktivnaFaza ? `Trenutno radite na fazi: **${aktivnaFaza.naziv}**` : ''}
 
 Kako mogu pomoći? Npr:
+*"Pregledaj kompletan predmjer i predloži poboljšanja"*
 *"Procijeni cijene za sve stavke u KM"*
-*"Ažuriraj cijene prema aktuelnom tržištu"*
 *"Treba mi stavka za gips karton pregradni zid"*`,
     stavka: null,
     cijene: null
@@ -149,6 +178,7 @@ Kako mogu pomoći? Npr:
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [modalCijene, setModalCijene] = useState(null)
+  const [modalIzmjene, setModalIzmjene] = useState(null) // { stavke: [{id, stariOpis, noviOpis, obrazlozenje, prihvacena}] }
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
@@ -157,6 +187,28 @@ Kako mogu pomoći? Npr:
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [poruke])
   useEffect(() => { inputRef.current?.focus() }, [])
 
+  // Puni kontekst (necenzurisan opis) - koristi se za pregled/poboljšanje dokumenta
+  const getStavkeKontekstPuni = () => {
+    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const linije = []
+    roditelji.forEach((p, i) => {
+      const djeca = pozicije.filter(d => d.parent_id === p.id)
+      const nazivR = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1')
+      if (djeca.length > 0) {
+        linije.push(`${i + 1}. ID:${p.id} [RODITELJ sa ${djeca.length} podstavki] OPIS: "${nazivR}"`)
+        djeca.forEach((d, j) => {
+          const nazivD = (d.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1') || `(bez naziva)`
+          linije.push(`  ${i + 1}.${j + 1}. ID:${d.id} [PODSTAVKA] OPIS: "${nazivD}"`)
+        })
+      } else {
+        linije.push(`${i + 1}. ID:${p.id} OPIS: "${nazivR}"`)
+      }
+    })
+    return linije.join('\n')
+  }
+
+  // Skraćeni kontekst - koristi se za procjenu cijena
   const getStavkeKontekst = () => {
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
     const roditelji = pozicije.filter(p => !p.parent_id)
@@ -187,6 +239,7 @@ Kako mogu pomoći? Npr:
     setLoading(true)
 
     const trazeCijene = /procijen|ažuriraj cijene|update cijene|cijene za sve|sve cijene|procjeni cijene/i.test(tekst)
+    const trazeIzmjene = /pregledaj|pregled (cijelog|kompletnog|dokumenta|predmjera)|poboljšaj|poboljšanj|predlo[žz]i? izmjen|analiziraj (cijeli|kompletan|dokument|predmjer)|nedostac|propust/i.test(tekst) && !trazeCijene
 
     let userContent = tekst
     if (trazeCijene && pozicije && pozicije.length > 0) {
@@ -196,6 +249,13 @@ STAVKE U PREDMJERU (procijeni cijene za svaku):
 ${getStavkeKontekst()}
 
 Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
+    } else if (trazeIzmjene && pozicije && pozicije.length > 0) {
+      userContent = `${tekst}
+
+POSTOJEĆE STAVKE U PREDMJERU (pregledaj svaku i predloži poboljšanja gdje je potrebno):
+${getStavkeKontekstPuni()}
+
+Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaju izmjenu.`
     }
 
     const novaHistorija = [...historija, { role: 'user', content: userContent }]
@@ -215,6 +275,7 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
       const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
       const stavka = parseStavka(odgovorTekst)
       const cijeneData = parseCijene(odgovorTekst)
+      const izmjeneData = parseIzmjene(odgovorTekst)
       const prikazTekst = formatOdgovor(odgovorTekst)
 
       if (cijeneData && cijeneData.stavke && pozicije) {
@@ -241,10 +302,31 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
         setModalCijene({ valuta: cijeneData.valuta || 'EUR', stavke: modalStavke })
       }
 
+      if (izmjeneData && izmjeneData.stavke && pozicije) {
+        const modalStavke = izmjeneData.stavke.map(s => {
+          const poz = pozicije.find(p => p.id === s.id)
+          if (!poz) return null
+          return {
+            id: s.id,
+            stariOpis: poz.naziv || '',
+            noviOpis: s.noviOpis || '',
+            obrazlozenje: s.obrazlozenje || '',
+            prihvacena: true
+          }
+        }).filter(Boolean)
+        if (modalStavke.length > 0) {
+          setModalIzmjene({ stavke: modalStavke })
+        }
+      }
+
       setPoruke(prev => [...prev, {
         uloga: 'asistent',
         tekst: cijeneData
           ? `Analizirao sam ${cijeneData.stavke?.length || 0} stavki. Prijedlog cijena je spreman za pregled — pogledajte modal ispod. ✅`
+          : izmjeneData
+          ? (izmjeneData.stavke?.length > 0
+              ? `Pregledao sam predmjer i pronašao ${izmjeneData.stavke.length} stavki koje mogu poboljšati. Prijedlog izmjena je spreman za pregled — pogledajte modal ispod. ✅`
+              : `Pregledao sam predmjer — sve stavke izgledaju kompletno, nemam prijedloge za izmjenu. 👍`)
           : (prikazTekst || odgovorTekst),
         stavka: stavka || null,
         cijene: cijeneData
@@ -277,6 +359,20 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
     }])
   }
 
+  const primijeniIzmjene = async () => {
+    if (!modalIzmjene) return
+    setPrimjenaLoading(true)
+    const prihvacene = modalIzmjene.stavke.filter(s => s.prihvacena)
+    if (onPrimijeniIzmjene) await onPrimijeniIzmjene(prihvacene.map(s => ({ id: s.id, noviOpis: s.noviOpis })))
+    setPrimjenaLoading(false)
+    setModalIzmjene(null)
+    setPoruke(prev => [...prev, {
+      uloga: 'asistent',
+      tekst: `✅ Primijenjeno ${prihvacene.length} izmjena direktno u postojeće stavke. Ništa nije dodato kao nova stavka.`,
+      stavka: null, cijene: null
+    }])
+  }
+
   const renderTekst = (tekst) => {
     if (!tekst) return null
     return tekst.split('\n').map((linija, idx) => {
@@ -294,11 +390,11 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
   }
 
   const brziPrimjeri = [
+    '📝 Pregledaj kompletan predmjer i predloži poboljšanja',
     '💰 Procijeni cijene za sve stavke u EUR',
     '💰 Procijeni cijene za sve stavke u KM',
     '🏗️ Gips karton pregradni zid Knauf W112 10cm',
     '🛁 Hidroizolacija kupatila membranom',
-    '🧱 Malterisanje fasade sa termoizolacijom EPS 10cm',
   ]
 
   return (
@@ -351,6 +447,52 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
               <button onClick={primijeniCijene} disabled={primjenaLoading}
                 style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalCijene.stavke.filter(s=>s.prihvacena).length} cijena`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal pregleda/poboljšanja postojećih stavki */}
+      {modalIzmjene && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ background: '#1B4332', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>📝 Prijedlog izmjena stavki</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Izmjena se upisuje direktno u postojeću stavku — ništa se ne dodaje kao novo</div>
+              </div>
+              <button onClick={() => setModalIzmjene(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+              {modalIzmjene.stavke.map((s, i) => (
+                <div key={s.id} style={{ padding: '10px 10px', borderRadius: 8, marginBottom: 8, background: s.prihvacena ? '#EEF5F1' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A7C65' : '#e0e0e0'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                    <input type="checkbox" checked={s.prihvacena}
+                      onChange={e => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))}
+                      style={{ marginTop: 3, cursor: 'pointer', width: 15, height: 15, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, color: '#999', textDecoration: 'line-through', marginBottom: 4, maxHeight: 40, overflow: 'hidden' }}>
+                        {(s.stariOpis || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 150)}{(s.stariOpis||'').length > 150 ? '...' : ''}
+                      </div>
+                      {s.obrazlozenje && <div style={{ fontSize: 10.5, color: '#4A7C65', fontStyle: 'italic', marginBottom: 4 }}>💡 {s.obrazlozenje}</div>}
+                    </div>
+                  </div>
+                  {/* Ručno izmjenjiv predloženi tekst */}
+                  <textarea
+                    value={s.noviOpis}
+                    onChange={e => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, noviOpis: e.target.value} : x) }))}
+                    rows={4}
+                    style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, background: '#fff' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
+              <button onClick={() => setModalIzmjene(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
+              <button onClick={() => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8F0EC', border: '1px solid #4A7C65', color: '#1B4332', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
+              <button onClick={primijeniIzmjene} disabled={primjenaLoading}
+                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalIzmjene.stavke.filter(s=>s.prihvacena).length} izmjena`}
               </button>
             </div>
           </div>
