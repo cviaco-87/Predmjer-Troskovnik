@@ -398,10 +398,19 @@ export default function App() {
   // ── AI PROCJENA CIJENA ──
   const procijeniCijene = async (stavkeNoveCijene) => {
     // stavkeNoveCijene = [{id, cijena}]
+
+    // Odmah ažuriraj lokalni state za trenutni vizuelni feedback
+    setPozicije(prev => prev.map(p => {
+      const nova = stavkeNoveCijene.find(s => s.id === p.id)
+      return nova ? { ...p, cijena: nova.cijena } : p
+    }))
+
+    // Snimi u bazu
     for (const s of stavkeNoveCijene) {
       await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
     }
-    // Refresh pozicija
+
+    // Ponovo učitaj iz baze radi sigurnosti (potvrda konzistentnosti)
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
   }
 
@@ -1100,7 +1109,7 @@ ${sviFazeSadrzaj}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top' }}>
-                                    {!imadjece && <input type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                    {!imadjece && <input key={`cij-${p.id}-${p.cijena}`} type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
                                       style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
@@ -1178,7 +1187,7 @@ ${sviFazeSadrzaj}
                                         </select>
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                                        <input type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                        <input key={`cij-${d.id}-${d.cijena}`} type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right' }}>
