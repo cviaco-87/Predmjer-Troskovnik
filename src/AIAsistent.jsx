@@ -59,7 +59,7 @@ PRAVILA ZA PROCJENU CIJENA:
 
 KATEGORIJE koje postoje:
 - Pripremno završni radovi
-- Istraživački radovi  
+- Istraživački radovi
 - Demontaže i rušenja
 - Zemljani radovi
 - Zidarski radovi
@@ -92,7 +92,6 @@ KATEGORIJE koje postoje:
 
 Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 
-// Parsira odgovor AI-a i izvlaci stavku ako postoji
 function parseStavka(text) {
   const match = text.match(/---STAVKA---([\s\S]*?)---KRAJ---/)
   if (!match) return null
@@ -107,15 +106,11 @@ function parseStavka(text) {
   return { naziv, opis, jmj: jmj || 'kom.', cijena, kategorija: kategorija || 'Ostalo' }
 }
 
-// Parsira procjenu cijena iz odgovora
 function parseCijene(text) {
   const match = text.match(/---CIJENE---([\s\S]*?)---KRAJ-CIJENA---/)
   if (!match) return null
-  try {
-    return JSON.parse(match[1].trim())
-  } catch(e) {
-    return null
-  }
+  try { return JSON.parse(match[1].trim()) }
+  catch(e) { return null }
 }
 
 function formatOdgovor(text) {
@@ -126,10 +121,9 @@ function formatOdgovor(text) {
 }
 
 export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onSetValuta, onClose }) {
-  const [poruke, setPoruke] = useState([
-    {
-      uloga: 'asistent',
-      tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
+  const [poruke, setPoruke] = useState([{
+    uloga: 'asistent',
+    tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
 
 Mogu vam pomoći da:
 • **Generišete** kompletne, detaljne stavke predmjera
@@ -144,13 +138,12 @@ Kako mogu pomoći? Npr:
 *"Procijeni cijene za sve stavke u KM"*
 *"Ažuriraj cijene prema aktuelnom tržištu"*
 *"Treba mi stavka za gips karton pregradni zid"*`,
-      stavka: null,
-      cijene: null
-    }
-  ])
+    stavka: null,
+    cijene: null
+  }])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [modalCijene, setModalCijene] = useState(null) // { valuta, stavke: [{id, naziv, staraCijena, novaCijena, obrazlozenje}] }
+  const [modalCijene, setModalCijene] = useState(null)
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
@@ -159,11 +152,10 @@ Kako mogu pomoći? Npr:
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [poruke])
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  // Pripremi kontekst svih stavki za AI
   const getStavkeKontekst = () => {
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
     const roditelji = pozicije.filter(p => !p.parent_id)
-    return roditelji.map((p, i) => 
+    return roditelji.map((p, i) =>
       `ID:${p.id} | ${i+1}. ${(p.naziv||'').replace(/\*\*([^*]+)\*\*/g,'$1').slice(0,120)} | ${p.jedinica} | trenutna cijena: ${p.cijena||0}`
     ).join('\n')
   }
@@ -172,15 +164,12 @@ Kako mogu pomoći? Npr:
     const tekst = input.trim()
     if (!tekst || loading) return
 
-    const novaPoruka = { uloga: 'korisnik', tekst, stavka: null, cijene: null }
-    setPoruke(prev => [...prev, novaPoruka])
+    setPoruke(prev => [...prev, { uloga: 'korisnik', tekst, stavka: null, cijene: null }])
     setInput('')
     setLoading(true)
 
-    // Detektuj da li korisnik traži procjenu cijena
     const trazeCijene = /procijen|ažuriraj cijene|update cijene|cijene za sve|sve cijene|procjeni cijene/i.test(tekst)
 
-    // Pripremi poruku - ako traže cijene, dodaj kontekst stavki
     let userContent = tekst
     if (trazeCijene && pozicije && pozicije.length > 0) {
       userContent = `${tekst}
@@ -197,25 +186,19 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system: SYSTEM_PROMPT,
-          messages: novaHistorija,
-          webSearch: trazeCijene // signal da uključi web search
-        })
+        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene })
       })
 
       let data
       try { data = await response.json() }
-      catch(parseErr) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
+      catch(e) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
       if (!response.ok) throw new Error('API greška ' + response.status + ': ' + (data?.error || JSON.stringify(data)))
 
       const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
-
       const stavka = parseStavka(odgovorTekst)
       const cijeneData = parseCijene(odgovorTekst)
       const prikazTekst = formatOdgovor(odgovorTekst)
 
-      // Ako AI vratio procjenu cijena - pripremi modal
       if (cijeneData && cijeneData.stavke && pozicije) {
         const modalStavke = cijeneData.stavke.map(s => {
           const poz = pozicije.find(p => p.id === s.id)
@@ -229,13 +212,12 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
             prihvacena: true
           }
         }).filter(Boolean)
-
         setModalCijene({ valuta: cijeneData.valuta || 'EUR', stavke: modalStavke })
       }
 
       setPoruke(prev => [...prev, {
         uloga: 'asistent',
-        tekst: cijeneData 
+        tekst: cijeneData
           ? `Analizirao sam ${cijeneData.stavke?.length || 0} stavki. Prijedlog cijena je spreman za pregled — pogledajte modal ispod. ✅`
           : (prikazTekst || odgovorTekst),
         stavka: stavka || null,
@@ -254,20 +236,12 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
     onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija })
   }
 
-  // Primijeni odabrane cijene
   const primijeniCijene = async () => {
     if (!modalCijene) return
     setPrimjenaLoading(true)
-    
-    // Auto-postavi valutu u meniju
     if (onSetValuta) onSetValuta(modalCijene.valuta)
-    
-    // Primijeni samo prihvacene cijene
     const prihvacene = modalCijene.stavke.filter(s => s.prihvacena)
-    if (onProcijeniCijene) {
-      await onProcijeniCijene(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
-    }
-    
+    if (onProcijeniCijene) await onProcijeniCijene(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
     setPrimjenaLoading(false)
     setModalCijene(null)
     setPoruke(prev => [...prev, {
@@ -279,15 +253,18 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
 
   const renderTekst = (tekst) => {
     if (!tekst) return null
-    const linije = tekst.split('\n')
-    return linije.map((linija, idx) => {
+    return tekst.split('\n').map((linija, idx) => {
       const parsed = linija.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      if (linija.startsWith('•') || linija.startsWith('*') || linija.startsWith('-')) {
+      if (linija.startsWith('•') || linija.startsWith('*') || linija.startsWith('-'))
         return <div key={idx} style={{ paddingLeft: 12, marginBottom: 2 }} dangerouslySetInnerHTML={{ __html: '&bull; ' + parsed.replace(/^[•*\-]\s*/, '') }} />
-      }
       if (!linija.trim()) return <div key={idx} style={{ height: 6 }} />
       return <div key={idx} style={{ marginBottom: 2 }} dangerouslySetInnerHTML={{ __html: parsed }} />
     })
+  }
+
+  const fmtC = (n, valuta) => {
+    const v = VALUTE.find(x => x.kod === valuta)
+    return `${(n||0).toFixed(2)} ${v?.znak || valuta}`
   }
 
   const brziPrimjeri = [
@@ -298,14 +275,9 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
     '🧱 Malterisanje fasade sa termoizolacijom EPS 10cm',
   ]
 
-  const fmtC = (n, valuta) => {
-    const v = VALUTE.find(x => x.kod === valuta)
-    return `${(n||0).toFixed(2)} ${v?.znak || valuta}`
-  }
-
   return (
     <div style={{ position: 'fixed', bottom: 80, right: 20, width: 440, height: 600, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
-      
+
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✨</div>
@@ -320,7 +292,6 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
       {modalCijene && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            {/* Modal header */}
             <div style={{ background: '#1B4332', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>💰 Prijedlog cijena — {modalCijene.valuta}</div>
@@ -328,14 +299,12 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
               </div>
               <button onClick={() => setModalCijene(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
             </div>
-
-            {/* Lista stavki */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
               {modalCijene.stavke.map((s, i) => (
                 <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, marginBottom: 4, background: s.prihvacena ? '#EEF5F1' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A7C65' : '#e0e0e0'}` }}>
-                  <input type="checkbox" checked={s.prihvacena} onChange={e => {
-                    setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))
-                  }} style={{ marginTop: 3, cursor: 'pointer', width: 15, height: 15 }} />
+                  <input type="checkbox" checked={s.prihvacena}
+                    onChange={e => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))}
+                    style={{ marginTop: 3, cursor: 'pointer', width: 15, height: 15 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11.5, fontWeight: 600, color: '#1B4332', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.naziv}</div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
@@ -344,19 +313,17 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
                     </div>
                     {s.obrazlozenje && <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>{s.obrazlozenje}</div>}
                   </div>
-                  {/* Ručna izmjena cijene */}
                   <input type="number" value={s.novaCijena} min="0" step="0.5"
                     onChange={e => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, novaCijena: parseFloat(e.target.value)||0} : x) }))}
                     style={{ width: 70, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 6, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit' }} />
                 </div>
               ))}
             </div>
-
-            {/* Modal footer */}
             <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
               <button onClick={() => setModalCijene(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
               <button onClick={() => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8F0EC', border: '1px solid #4A7C65', color: '#1B4332', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
-              <button onClick={primijeniCijene} disabled={primjenaLoading} style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={primijeniCijene} disabled={primjenaLoading}
+                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalCijene.stavke.filter(s=>s.prihvacena).length} cijena`}
               </button>
             </div>
@@ -414,7 +381,8 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Brzi primjeri:</div>
             {brziPrimjeri.map((primjer, idx) => (
-              <button key={idx} onClick={() => { setInput(primjer.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
+              <button key={idx}
+                onClick={() => { setInput(primjer.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
                 style={{ display: 'block', width: '100%', textAlign: 'left', background: '#F5F4F0', border: '1px solid #E0DDD5', borderRadius: 8, padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 4, color: '#1A1A18' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#E8F0EC'}
                 onMouseLeave={e => e.currentTarget.style.background = '#F5F4F0'}>
@@ -444,7 +412,7 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
         <div style={{ fontSize: 10, color: '#aaa', marginTop: 5, textAlign: 'center' }}>AI asistent · Uvijek provjerite stavke sa stručnjakom</div>
       </div>
 
-      <style>{\`@keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }\`}</style>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }`}</style>
     </div>
   )
 }
