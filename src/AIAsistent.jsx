@@ -1,5 +1,12 @@
 import { useState, useRef, useEffect } from "react"
 
+const VALUTE = [
+  { kod: 'EUR', znak: '€', naziv: 'Euro' },
+  { kod: 'KM',  znak: 'KM', naziv: 'Konvertibilna marka' },
+  { kod: 'RSD', znak: 'din', naziv: 'Srpski dinar' },
+  { kod: 'USD', znak: '$', naziv: 'Američki dolar' },
+]
+
 const SYSTEM_PROMPT = `Ti si stručni asistent za predmjer i predračun građevinskih radova na srpskom jeziku (ijekavica).
 
 Tvoja uloga je da pomažeš korisnicima da:
@@ -7,6 +14,7 @@ Tvoja uloga je da pomažeš korisnicima da:
 2. Dopunjuju i poboljšavaju postojeće stavke
 3. Predlažu stavke sa specificiranim proizvodima poznatih proizvođača (Knauf, Rigips, Weber, Mapei, Rockwool, Isover, Ytong, Porotherm, Rehau, Wavin, itd.)
 4. Upozoravaju na propuste u predmjeru
+5. Procjenjuju i ažuriraju cijene za sve stavke
 
 PRAVILA ZA GENERISANJE STAVKI:
 - Uvijek piši na srpskom jeziku, ISKLJUČIVO IJEKAVICA (nije ekavica!)
@@ -14,7 +22,6 @@ PRAVILA ZA GENERISANJE STAVKI:
 - Uključi: pripremu podloge, materijale, način ugradnje, tolerancije, završnu obradu
 - Na kraju stavke uvijek napiši "Obračun po [jed.mjere]."
 - Jedinice mjere: m2, m3, m1, kom., pau., kg, t
-- Cijene u EUR, realne tržišne cijene za region BiH/Srbija/Hrvatska
 
 FORMAT ODGOVORA KADA GENERIŠEŠ STAVKU:
 Kada korisnik traži novu stavku, odgovori u ovom formatu:
@@ -23,11 +30,32 @@ Kada korisnik traži novu stavku, odgovori u ovom formatu:
 NAZIV: [kratki naziv stavke]
 OPIS: [kompletan opis, 3-8 rečenica]
 JMJ: [m2/m3/m1/kom./pau./kg]
-CIJENA: [broj u EUR]
+CIJENA: [broj]
 KATEGORIJA: [kategorija]
 ---KRAJ---
 
 Zatim dodaj kratko objašnjenje zašto si uključio određene elemente.
+
+FORMAT ODGOVORA KADA PROCJENJUJEŠ CIJENE:
+Kada korisnik traži procjenu cijena za više stavki, odgovori ISKLJUČIVO u ovom JSON formatu (bez ikakvog drugog teksta prije ili poslije):
+
+---CIJENE---
+{
+  "valuta": "EUR",
+  "stavke": [
+    { "id": "ID_STAVKE", "cijena": 45.00, "obrazlozenje": "kratko obrazloženje" }
+  ]
+}
+---KRAJ-CIJENA---
+
+PRAVILA ZA PROCJENU CIJENA:
+- Analiziraj svaki opis stavke pažljivo
+- Cijene trebaju biti realne tržišne cijene za region BiH/Srbija/Hrvatska
+- Ako korisnik kaže "u KM" ili "u markama" postavi valuta:"KM"
+- Ako korisnik kaže "u dinarima" ili "u RSD" postavi valuta:"RSD"
+- Ako korisnik kaže "u dolarima" ili "u USD" postavi valuta:"USD"
+- Inače koristi valuta:"EUR"
+- Koristi web search ako je dostupan da provjeriš aktuelne tržišne cijene
 
 KATEGORIJE koje postoje:
 - Pripremno završni radovi
@@ -62,36 +90,42 @@ KATEGORIJE koje postoje:
 - Kanalizacija
 - Sanitarni uređaji
 
-PRIMJERI DOBRIH STAVKI:
-- "Izrada pregradnog zida od gips-kartonskih ploča Knauf, sistem W112, debljine 12,5 cm. Metalnu podkonstrukciju od UW i CW profila 75 mm postaviti na osnom razmaku od 62,5 cm. S obje strane postaviti po jednu gips-kartonsku ploču debljine 12,5 mm. Prostor između ploča ispuniti mineralnom vunom Knauf Insulation debljine 50 mm, λ=0,035 W/mK. Spojeve ploča i uglove obraditi Knauf Fugenfüller kitom i armirnom trakom. Površinu zagletovati Knauf Uniflott finišom, brusiti i pripremiti za bojenje. Obračun po m2 izvedenog zida."
-
 Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 
 // Parsira odgovor AI-a i izvlaci stavku ako postoji
 function parseStavka(text) {
   const match = text.match(/---STAVKA---([\s\S]*?)---KRAJ---/)
   if (!match) return null
-  
   const blok = match[1]
   const naziv = blok.match(/NAZIV:\s*(.+)/)?.[1]?.trim()
   const opis = blok.match(/OPIS:\s*([\s\S]+?)(?=JMJ:|$)/)?.[1]?.trim()
   const jmj = blok.match(/JMJ:\s*(.+)/)?.[1]?.trim()
   const cijenaStr = blok.match(/CIJENA:\s*(.+)/)?.[1]?.trim()
   const kategorija = blok.match(/KATEGORIJA:\s*(.+)/)?.[1]?.trim()
-  
   const cijena = parseFloat(cijenaStr?.replace(',', '.')) || 0
-  
   if (!naziv || !opis) return null
-  
   return { naziv, opis, jmj: jmj || 'kom.', cijena, kategorija: kategorija || 'Ostalo' }
 }
 
-// Formatira tekst odgovora (uklanja blok stavke, prikazuje samo komentar)
-function formatOdgovor(text) {
-  return text.replace(/---STAVKA---[\s\S]*?---KRAJ---/, '').trim()
+// Parsira procjenu cijena iz odgovora
+function parseCijene(text) {
+  const match = text.match(/---CIJENE---([\s\S]*?)---KRAJ-CIJENA---/)
+  if (!match) return null
+  try {
+    return JSON.parse(match[1].trim())
+  } catch(e) {
+    return null
+  }
 }
 
-export default function AIAsistent({ aktivnaFaza, onDodajStavku, onClose }) {
+function formatOdgovor(text) {
+  return text
+    .replace(/---STAVKA---[\s\S]*?---KRAJ---/, '')
+    .replace(/---CIJENE---[\s\S]*?---KRAJ-CIJENA---/, '')
+    .trim()
+}
+
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onSetValuta, onClose }) {
   const [poruke, setPoruke] = useState([
     {
       uloga: 'asistent',
@@ -101,45 +135,63 @@ Mogu vam pomoći da:
 • **Generišete** kompletne, detaljne stavke predmjera
 • **Dopunite** kratke ili nepotpune stavke
 • **Predložim** stavke sa specificiranim proizvodima (Knauf, Rigips, Weber, Mapei...)
+• **Procijenim cijene** za sve stavke u predmjeru (sa web pretragom aktuelnih cijena)
 • **Pregledam** vaš predmjer i upozorim na propuste
 
 ${aktivnaFaza ? `Trenutno radite na fazi: **${aktivnaFaza.naziv}**` : ''}
 
-Kako mogu pomoći? Opišite šta vam treba — npr:
-*"Treba mi stavka za gips karton pregradni zid Knauf W112 debljine 10cm"*
-*"Napravi stavku za hidroizolaciju kupatila membranom"*
-*"Kakve stavke trebam za kompletno malterisanje fasade?"*`,
-      stavka: null
+Kako mogu pomoći? Npr:
+*"Procijeni cijene za sve stavke u KM"*
+*"Ažuriraj cijene prema aktuelnom tržištu"*
+*"Treba mi stavka za gips karton pregradni zid"*`,
+      stavka: null,
+      cijene: null
     }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [modalCijene, setModalCijene] = useState(null) // { valuta, stavke: [{id, naziv, staraCijena, novaCijena, obrazlozenje}] }
+  const [primjenaLoading, setPrimjenaLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
-  const [historija, setHistorija] = useState([]) // za API context
+  const [historija, setHistorija] = useState([])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [poruke])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [poruke])
+  useEffect(() => { inputRef.current?.focus() }, [])
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  // Pripremi kontekst svih stavki za AI
+  const getStavkeKontekst = () => {
+    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    return roditelji.map((p, i) => 
+      `ID:${p.id} | ${i+1}. ${(p.naziv||'').replace(/\*\*([^*]+)\*\*/g,'$1').slice(0,120)} | ${p.jedinica} | trenutna cijena: ${p.cijena||0}`
+    ).join('\n')
+  }
 
   const posalji = async () => {
     const tekst = input.trim()
     if (!tekst || loading) return
 
-    const novaPoruka = { uloga: 'korisnik', tekst, stavka: null }
+    const novaPoruka = { uloga: 'korisnik', tekst, stavka: null, cijene: null }
     setPoruke(prev => [...prev, novaPoruka])
     setInput('')
     setLoading(true)
 
-    // Pripremi historiju za API
-    const novaHistorija = [
-      ...historija,
-      { role: 'user', content: tekst }
-    ]
+    // Detektuj da li korisnik traži procjenu cijena
+    const trazeCijene = /procijen|ažuriraj cijene|update cijene|cijene za sve|sve cijene|procjeni cijene/i.test(tekst)
+
+    // Pripremi poruku - ako traže cijene, dodaj kontekst stavki
+    let userContent = tekst
+    if (trazeCijene && pozicije && pozicije.length > 0) {
+      userContent = `${tekst}
+
+STAVKE U PREDMJERU (procijeni cijene za svaku):
+${getStavkeKontekst()}
+
+Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
+    }
+
+    const novaHistorija = [...historija, { role: 'user', content: userContent }]
 
     try {
       const response = await fetch('/api/chat', {
@@ -147,203 +199,198 @@ Kako mogu pomoći? Opišite šta vam treba — npr:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system: SYSTEM_PROMPT,
-          messages: novaHistorija
+          messages: novaHistorija,
+          webSearch: trazeCijene // signal da uključi web search
         })
       })
 
       let data
-      try {
-        data = await response.json()
-      } catch(parseErr) {
-        throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')')
-      }
-      if (!response.ok) {
-        throw new Error('API greška ' + response.status + ': ' + (data?.error || JSON.stringify(data)))
-      }
+      try { data = await response.json() }
+      catch(parseErr) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
+      if (!response.ok) throw new Error('API greška ' + response.status + ': ' + (data?.error || JSON.stringify(data)))
+
       const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
 
-      // Pokušaj parsirati stavku
       const stavka = parseStavka(odgovorTekst)
-      const prikazTekst = stavka ? formatOdgovor(odgovorTekst) : odgovorTekst
+      const cijeneData = parseCijene(odgovorTekst)
+      const prikazTekst = formatOdgovor(odgovorTekst)
+
+      // Ako AI vratio procjenu cijena - pripremi modal
+      if (cijeneData && cijeneData.stavke && pozicije) {
+        const modalStavke = cijeneData.stavke.map(s => {
+          const poz = pozicije.find(p => p.id === s.id)
+          if (!poz) return null
+          return {
+            id: s.id,
+            naziv: (poz.naziv||'').replace(/\*\*([^*]+)\*\*/g,'$1').slice(0,80),
+            staraCijena: poz.cijena || 0,
+            novaCijena: s.cijena,
+            obrazlozenje: s.obrazlozenje || '',
+            prihvacena: true
+          }
+        }).filter(Boolean)
+
+        setModalCijene({ valuta: cijeneData.valuta || 'EUR', stavke: modalStavke })
+      }
 
       setPoruke(prev => [...prev, {
         uloga: 'asistent',
-        tekst: prikazTekst,
-        stavka
+        tekst: cijeneData 
+          ? `Analizirao sam ${cijeneData.stavke?.length || 0} stavki. Prijedlog cijena je spreman za pregled — pogledajte modal ispod. ✅`
+          : (prikazTekst || odgovorTekst),
+        stavka: stavka || null,
+        cijene: cijeneData
       }])
 
-      // Ažuriraj historiju
-      setHistorija([
-        ...novaHistorija,
-        { role: 'assistant', content: odgovorTekst }
-      ])
+      setHistorija([...novaHistorija, { role: 'assistant', content: odgovorTekst }])
     } catch (e) {
-      setPoruke(prev => [...prev, {
-        uloga: 'asistent',
-        tekst: 'Greška: ' + (e.message || JSON.stringify(e)),
-        stavka: null
-      }])
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Greška: ' + (e.message || JSON.stringify(e)), stavka: null, cijene: null }])
     }
-
     setLoading(false)
   }
 
   const dodajUPredmjer = (stavka) => {
-    if (!aktivnaFaza) {
-      alert('Molimo odaberite fazu predmjera prije dodavanja stavke.')
-      return
-    }
-    onDodajStavku({
-      naziv: stavka.naziv + '. ' + stavka.opis,
-      cijena: stavka.cijena,
-      jedinica: stavka.jmj,
-      kategorija: stavka.kategorija
-    })
+    if (!aktivnaFaza) { alert('Molimo odaberite fazu predmjera prije dodavanja stavke.'); return }
+    onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija })
   }
 
-  // Renderuje markdown-like tekst
+  // Primijeni odabrane cijene
+  const primijeniCijene = async () => {
+    if (!modalCijene) return
+    setPrimjenaLoading(true)
+    
+    // Auto-postavi valutu u meniju
+    if (onSetValuta) onSetValuta(modalCijene.valuta)
+    
+    // Primijeni samo prihvacene cijene
+    const prihvacene = modalCijene.stavke.filter(s => s.prihvacena)
+    if (onProcijeniCijene) {
+      await onProcijeniCijene(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
+    }
+    
+    setPrimjenaLoading(false)
+    setModalCijene(null)
+    setPoruke(prev => [...prev, {
+      uloga: 'asistent',
+      tekst: `✅ Primijenjeno ${prihvacene.length} cijena u valuti ${modalCijene.valuta}. Možete ih ručno prilagoditi u tabeli.`,
+      stavka: null, cijene: null
+    }])
+  }
+
   const renderTekst = (tekst) => {
     if (!tekst) return null
     const linije = tekst.split('\n')
     return linije.map((linija, idx) => {
-      // Bold **tekst**
       const parsed = linija.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       if (linija.startsWith('•') || linija.startsWith('*') || linija.startsWith('-')) {
-        return <div key={idx} style={{ paddingLeft: 12, marginBottom: 2 }}
-          dangerouslySetInnerHTML={{ __html: '&bull; ' + parsed.replace(/^[•*\-]\s*/, '') }} />
+        return <div key={idx} style={{ paddingLeft: 12, marginBottom: 2 }} dangerouslySetInnerHTML={{ __html: '&bull; ' + parsed.replace(/^[•*\-]\s*/, '') }} />
       }
       if (!linija.trim()) return <div key={idx} style={{ height: 6 }} />
-      return <div key={idx} style={{ marginBottom: 2 }}
-        dangerouslySetInnerHTML={{ __html: parsed }} />
+      return <div key={idx} style={{ marginBottom: 2 }} dangerouslySetInnerHTML={{ __html: parsed }} />
     })
   }
 
   const brziPrimjeri = [
+    '💰 Procijeni cijene za sve stavke u EUR',
+    '💰 Procijeni cijene za sve stavke u KM',
     '🏗️ Gips karton pregradni zid Knauf W112 10cm',
     '🛁 Hidroizolacija kupatila membranom',
-    '🪟 Ugradnja PVC prozora sa trostrukim staklom',
     '🧱 Malterisanje fasade sa termoizolacijom EPS 10cm',
-    '🚿 Kompletna instalacija kupatila - šta sve treba?',
   ]
 
+  const fmtC = (n, valuta) => {
+    const v = VALUTE.find(x => x.kod === valuta)
+    return `${(n||0).toFixed(2)} ${v?.znak || valuta}`
+  }
+
   return (
-    <div style={{
-      position: 'fixed', bottom: 80, right: 20, width: 420, height: 580,
-      background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
-      display: 'flex', flexDirection: 'column', zIndex: 300,
-      border: '1px solid #D8D5CC', overflow: 'hidden'
-    }}>
+    <div style={{ position: 'fixed', bottom: 80, right: 20, width: 440, height: 600, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+      
       {/* Header */}
-      <div style={{
-        background: 'linear-gradient(135deg, #1B4332, #2D6A4F)',
-        color: '#fff', padding: '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18
-        }}>✨</div>
+      <div style={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✨</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>AI Asistent</div>
-          <div style={{ fontSize: 11, opacity: 0.8 }}>
-            {aktivnaFaza ? `Faza: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}
+          <div style={{ fontSize: 11, opacity: 0.8 }}>{aktivnaFaza ? `Faza: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✕ Zatvori</button>
+      </div>
+
+      {/* Modal procjene cijena */}
+      {modalCijene && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            {/* Modal header */}
+            <div style={{ background: '#1B4332', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>💰 Prijedlog cijena — {modalCijene.valuta}</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Pregledajte i prihvatite ili odbijte svaku cijenu</div>
+              </div>
+              <button onClick={() => setModalCijene(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
+            </div>
+
+            {/* Lista stavki */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
+              {modalCijene.stavke.map((s, i) => (
+                <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, marginBottom: 4, background: s.prihvacena ? '#EEF5F1' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A7C65' : '#e0e0e0'}` }}>
+                  <input type="checkbox" checked={s.prihvacena} onChange={e => {
+                    setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))
+                  }} style={{ marginTop: 3, cursor: 'pointer', width: 15, height: 15 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: '#1B4332', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.naziv}</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+                      <span style={{ fontSize: 11, color: '#888', textDecoration: 'line-through' }}>{fmtC(s.staraCijena, modalCijene.valuta)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1B4332' }}>→ {fmtC(s.novaCijena, modalCijene.valuta)}</span>
+                    </div>
+                    {s.obrazlozenje && <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>{s.obrazlozenje}</div>}
+                  </div>
+                  {/* Ručna izmjena cijene */}
+                  <input type="number" value={s.novaCijena} min="0" step="0.5"
+                    onChange={e => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, novaCijena: parseFloat(e.target.value)||0} : x) }))}
+                    style={{ width: 70, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 6, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit' }} />
+                </div>
+              ))}
+            </div>
+
+            {/* Modal footer */}
+            <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
+              <button onClick={() => setModalCijene(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
+              <button onClick={() => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8F0EC', border: '1px solid #4A7C65', color: '#1B4332', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
+              <button onClick={primijeniCijene} disabled={primjenaLoading} style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalCijene.stavke.filter(s=>s.prihvacena).length} cijena`}
+              </button>
+            </div>
           </div>
         </div>
-        <button onClick={onClose}
-          style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
-            borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>
-          ✕ Zatvori
-        </button>
-      </div>
+      )}
 
       {/* Poruke */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         {poruke.map((p, idx) => (
-          <div key={idx} style={{
-            marginBottom: 14,
-            display: 'flex',
-            flexDirection: p.uloga === 'korisnik' ? 'row-reverse' : 'row',
-            gap: 8, alignItems: 'flex-start'
-          }}>
-            {/* Avatar */}
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-              background: p.uloga === 'korisnik' ? '#1B4332' : '#E8F0EC',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, color: p.uloga === 'korisnik' ? '#fff' : '#1B4332'
-            }}>
+          <div key={idx} style={{ marginBottom: 14, display: 'flex', flexDirection: p.uloga === 'korisnik' ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: p.uloga === 'korisnik' ? '#1B4332' : '#E8F0EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: p.uloga === 'korisnik' ? '#fff' : '#1B4332' }}>
               {p.uloga === 'korisnik' ? '👤' : '✨'}
             </div>
-
             <div style={{ maxWidth: '85%' }}>
-              {/* Balon poruke */}
               {p.tekst && (
-                <div style={{
-                  background: p.uloga === 'korisnik' ? '#1B4332' : '#F5F4F0',
-                  color: p.uloga === 'korisnik' ? '#fff' : '#1A1A18',
-                  borderRadius: p.uloga === 'korisnik' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
-                  padding: '10px 13px', fontSize: 12.5, lineHeight: 1.6
-                }}>
+                <div style={{ background: p.uloga === 'korisnik' ? '#1B4332' : '#F5F4F0', color: p.uloga === 'korisnik' ? '#fff' : '#1A1A18', borderRadius: p.uloga === 'korisnik' ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 13px', fontSize: 12.5, lineHeight: 1.6 }}>
                   {renderTekst(p.tekst)}
                 </div>
               )}
-
-              {/* Kartica generisane stavke */}
               {p.stavka && (
-                <div style={{
-                  marginTop: 8, background: '#fff', border: '2px solid #1B4332',
-                  borderRadius: 10, overflow: 'hidden'
-                }}>
-                  <div style={{
-                    background: '#1B4332', color: '#fff',
-                    padding: '8px 12px', fontSize: 11, fontWeight: 700,
-                    letterSpacing: '.06em', textTransform: 'uppercase',
-                    display: 'flex', alignItems: 'center', gap: 6
-                  }}>
-                    ✅ Generisana stavka
-                  </div>
+                <div style={{ marginTop: 8, background: '#fff', border: '2px solid #1B4332', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ background: '#1B4332', color: '#fff', padding: '8px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>✅ Generisana stavka</div>
                   <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1B4332', marginBottom: 4 }}>
-                      {p.stavka.naziv}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: '#444', lineHeight: 1.5, marginBottom: 8 }}>
-                      {p.stavka.opis.length > 200 ? p.stavka.opis.slice(0, 200) + '...' : p.stavka.opis}
-                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1B4332', marginBottom: 4 }}>{p.stavka.naziv}</div>
+                    <div style={{ fontSize: 11.5, color: '#444', lineHeight: 1.5, marginBottom: 8 }}>{p.stavka.opis.length > 200 ? p.stavka.opis.slice(0, 200) + '...' : p.stavka.opis}</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-                        {p.stavka.jmj}
-                      </span>
-                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-                        {p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' €' : 'cijena po dogovoru'}
-                      </span>
-                      <span style={{ background: '#F0F0EE', color: '#666', padding: '2px 8px', borderRadius: 20, fontSize: 10 }}>
-                        {p.stavka.kategorija}
-                      </span>
+                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.jmj}</span>
+                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' €' : 'cijena po dogovoru'}</span>
+                      <span style={{ background: '#F0F0EE', color: '#666', padding: '2px 8px', borderRadius: 20, fontSize: 10 }}>{p.stavka.kategorija}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        onClick={() => dodajUPredmjer(p.stavka)}
-                        style={{
-                          flex: 1, background: '#1B4332', color: '#fff', border: 'none',
-                          borderRadius: 8, padding: '8px 0', fontSize: 12, fontWeight: 700,
-                          cursor: 'pointer', fontFamily: 'inherit'
-                        }}>
-                        + Dodaj u predmjer
-                      </button>
-                      <button
-                        onClick={() => {
-                          setInput('Možeš li ovu stavku proširiti i dodati više detalja?')
-                          inputRef.current?.focus()
-                        }}
-                        style={{
-                          background: '#F5F4F0', color: '#1B4332', border: '1px solid #D8D5CC',
-                          borderRadius: 8, padding: '8px 10px', fontSize: 11, fontWeight: 600,
-                          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap'
-                        }}>
-                        ✏️ Proširi
-                      </button>
+                      <button onClick={() => dodajUPredmjer(p.stavka)} style={{ flex: 1, background: '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Dodaj u predmjer</button>
+                      <button onClick={() => { setInput('Možeš li ovu stavku proširiti i dodati više detalja?'); inputRef.current?.focus() }} style={{ background: '#F5F4F0', color: '#1B4332', border: '1px solid #D8D5CC', borderRadius: 8, padding: '8px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Proširi</button>
                     </div>
                   </div>
                 </div>
@@ -357,32 +404,18 @@ Kako mogu pomoći? Opišite šta vam treba — npr:
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E8F0EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>✨</div>
             <div style={{ background: '#F5F4F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
-                {[0,1,2].map(i => (
-                  <div key={i} style={{
-                    width: 6, height: 6, borderRadius: '50%', background: '#1B4332',
-                    animation: 'pulse 1.2s infinite', animationDelay: `${i * 0.2}s`,
-                    opacity: 0.6
-                  }} />
-                ))}
+                {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#1B4332', animation: 'pulse 1.2s infinite', animationDelay: `${i * 0.2}s`, opacity: 0.6 }} />)}
               </div>
             </div>
           </div>
         )}
 
-        {/* Brzi primjeri - samo na početku */}
         {poruke.length === 1 && !loading && (
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Brzi primjeri:</div>
             {brziPrimjeri.map((primjer, idx) => (
-              <button key={idx}
-                onClick={() => { setInput(primjer.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  background: '#F5F4F0', border: '1px solid #E0DDD5',
-                  borderRadius: 8, padding: '7px 10px', fontSize: 12,
-                  cursor: 'pointer', fontFamily: 'inherit', marginBottom: 4,
-                  color: '#1A1A18'
-                }}
+              <button key={idx} onClick={() => { setInput(primjer.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
+                style={{ display: 'block', width: '100%', textAlign: 'left', background: '#F5F4F0', border: '1px solid #E0DDD5', borderRadius: 8, padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 4, color: '#1A1A18' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#E8F0EC'}
                 onMouseLeave={e => e.currentTarget.style.background = '#F5F4F0'}>
                 {primjer}
@@ -390,58 +423,28 @@ Kako mogu pomoći? Opišite šta vam treba — npr:
             ))}
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <div style={{
-        padding: '10px 12px', borderTop: '1px solid #E8E5DC',
-        background: '#fff', flexShrink: 0
-      }}>
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', background: '#fff', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); posalji() }
-            }}
+          <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); posalji() } }}
             placeholder="Opišite šta vam treba... (Enter za slanje, Shift+Enter za novi red)"
             rows={2}
-            style={{
-              flex: 1, border: '1px solid #D8D5CC', borderRadius: 10,
-              padding: '8px 12px', fontSize: 12.5, fontFamily: 'inherit',
-              resize: 'none', lineHeight: 1.5, background: '#F5F4F0',
-              outline: 'none'
-            }}
+            style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, background: '#F5F4F0', outline: 'none' }}
             onFocus={e => e.target.style.borderColor = '#1B4332'}
-            onBlur={e => e.target.style.borderColor = '#D8D5CC'}
-          />
-          <button
-            onClick={posalji}
-            disabled={loading || !input.trim()}
-            style={{
-              background: loading || !input.trim() ? '#ccc' : '#1B4332',
-              color: '#fff', border: 'none', borderRadius: 10,
-              width: 40, height: 40, fontSize: 18, cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0
-            }}>
+            onBlur={e => e.target.style.borderColor = '#D8D5CC'} />
+          <button onClick={posalji} disabled={loading || !input.trim()}
+            style={{ background: loading || !input.trim() ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 10, width: 40, height: 40, fontSize: 18, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {loading ? '⏳' : '➤'}
           </button>
         </div>
-        <div style={{ fontSize: 10, color: '#aaa', marginTop: 5, textAlign: 'center' }}>
-          AI asistent · Uvijek provjerite stavke sa stručnjakom
-        </div>
+        <div style={{ fontSize: 10, color: '#aaa', marginTop: 5, textAlign: 'center' }}>AI asistent · Uvijek provjerite stavke sa stručnjakom</div>
       </div>
 
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
+      <style>{\`@keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }\`}</style>
     </div>
   )
 }
