@@ -1306,6 +1306,11 @@ ${sviFazeSadrzaj}
                                       defaultValue={p.naziv || ''}
                                       onBlur={e => {
                                         azurirajPoziciju(p.id, 'naziv', e.target.value)
+                                        // Sačuvaj i trenutnu visinu (hvata i ručno povlačenje ivice, ne samo dupli klik)
+                                        const trenutnaVisina = e.target.offsetHeight
+                                        if (trenutnaVisina && trenutnaVisina !== p.opis_visina) {
+                                          azurirajPoziciju(p.id, 'opis_visina', trenutnaVisina)
+                                        }
                                         e.target.style.border = '1px solid transparent'
                                         e.target.style.background = 'transparent'
                                       }}
@@ -1323,9 +1328,11 @@ ${sviFazeSadrzaj}
                                         const potrebno = Math.max(t.scrollHeight, 40)
                                         t.rows = originalRows
                                         t.style.height = potrebno + 'px'
+                                        // Odmah sačuvaj u bazu da ostane trajno podešeno
+                                        azurirajPoziciju(p.id, 'opis_visina', potrebno)
                                       }}
                                       title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40 }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
