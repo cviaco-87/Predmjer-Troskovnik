@@ -1102,10 +1102,14 @@ ${sviFazeSadrzaj}
                                       onDoubleClick={e => {
                                         e.preventDefault()
                                         const t = e.currentTarget
-                                        // KLJUČNO: prvo ukloni trenutnu (možda preveliku) visinu da bi scrollHeight
-                                        // mogao ispravno izmjeriti STVARNO potrebnu visinu za sadržaj (u jednom koraku)
+                                        const originalRows = t.rows
+                                        // KLJUČNO: 'auto' visina i dalje poštuje 'rows' atribut kao minimum,
+                                        // pa moramo privremeno spustiti rows na 1 da bi scrollHeight izmjerio
+                                        // STVARNU potrebnu visinu za sadržaj, ne procijenjenu/rezervisanu
+                                        t.rows = 1
                                         t.style.height = 'auto'
                                         const potrebno = Math.max(t.scrollHeight, 40)
+                                        t.rows = originalRows
                                         t.style.height = potrebno + 'px'
                                       }}
                                       title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
