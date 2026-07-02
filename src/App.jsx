@@ -1106,7 +1106,9 @@ ${sviFazeSadrzaj}
                                         // Ako je duplklik blizu donje ivice (zona za ručno povlačenje) — automatski zbij do teksta
                                         if (offsetY > rect.height - 16) {
                                           e.preventDefault()
-                                          // scrollHeight uvijek daje punu visinu potrebnu za sadržaj, bilo da je trenutno veća (prazan prostor) ili manja (odsječen tekst)
+                                          // KLJUČNO: prvo ukloni trenutnu (možda preveliku) visinu da bi scrollHeight
+                                          // mogao ispravno izmjeriti STVARNO potrebnu visinu za sadržaj (u jednom koraku)
+                                          t.style.height = 'auto'
                                           const potrebno = Math.max(t.scrollHeight, 40)
                                           t.style.height = potrebno + 'px'
                                         }
