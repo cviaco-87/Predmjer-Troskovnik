@@ -9,7 +9,32 @@ const BAZA = JSON.parse(atob(BAZA_B64))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtJmj = j => (j || '').replace(/m2/g, 'm²').replace(/m3/g, 'm³').replace(/m1/g, 'm¹').replace(/M2/g, 'M²').replace(/M3/g, 'M³')
+const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm¹').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
+
+// Smanji/optimizuj upload-ovanu sliku loga prije čuvanja u bazu (max širina 360px)
+const resizeSlika = (file, maxW = 360) => new Promise((resolve, reject) => {
+  if (!file.type.startsWith('image/')) { reject(new Error('Fajl mora biti slika.')); return }
+  const reader = new FileReader()
+  reader.onload = e => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxW / img.width)
+      const w = Math.max(1, Math.round(img.width * scale))
+      const h = Math.max(1, Math.round(img.height * scale))
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, w, h)
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => reject(new Error('Greška pri učitavanju slike.'))
+    img.src = e.target.result
+  }
+  reader.onerror = () => reject(new Error('Greška pri čitanju fajla.'))
+  reader.readAsDataURL(file)
+})
 const calcRow = (p, svePoz) => {
   // Ako stavka ima podstavke, ukupno je zbir podstavki
   if (svePoz) {
@@ -161,6 +186,9 @@ export default function App() {
   const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
+  const [firma, setFirma] = useState(null) // { naziv, logo } - postavke firme (logo/naziv) vezane za nalog
+  const [showFirmaModal, setShowFirmaModal] = useState(false)
+  const [firmaLoading, setFirmaLoading] = useState(false)
 
   // Auth listener
   useEffect(() => {
@@ -175,11 +203,12 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Učitaj projekte i moju bazu kad se korisnik prijavi
+  // Učitaj projekte, moju bazu i postavke firme kad se korisnik prijavi
   useEffect(() => {
     if (session) {
       ucitajProjekte()
       ucitajMojuBazu()
+      ucitajFirmu()
     }
   }, [session])
 
@@ -237,6 +266,34 @@ export default function App() {
   const ucitajMojuBazu = async () => {
     const { data } = await supabase.from('moja_baza').select('*').order('kreiran_at', { ascending: false })
     setMojaBaza(data || [])
+  }
+
+  // ── POSTAVKE FIRME (logo/naziv za PDF zaglavlje) ──
+  const ucitajFirmu = async () => {
+    const { data } = await supabase.from('firma_postavke').select('*').eq('user_id', session.user.id).maybeSingle()
+    setFirma(data || null)
+  }
+
+  const sacuvajFirmu = async (logoDataUrl, naziv) => {
+    setFirmaLoading(true)
+    try {
+      const payload = {
+        user_id: session.user.id,
+        logo: logoDataUrl !== undefined ? logoDataUrl : (firma?.logo || null),
+        naziv: naziv !== undefined ? naziv : (firma?.naziv || null),
+        updated_at: new Date().toISOString()
+      }
+      const { data } = await supabase.from('firma_postavke').upsert(payload, { onConflict: 'user_id' }).select().single()
+      setFirma(data)
+    } catch (e) {
+      alert('Greška pri čuvanju postavki firme: ' + e.message)
+    }
+    setFirmaLoading(false)
+  }
+
+  const obrisiLogo = async () => {
+    if (!confirm('Ukloniti logo firme?')) return
+    await sacuvajFirmu(null, undefined)
   }
 
   // ── PROJEKTI ──
@@ -643,7 +700,21 @@ export default function App() {
   .c { text-align:center; } .r { text-align:right; }
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
-  @page { margin:12mm; }
+  @page {
+    margin: 14mm 12mm 18mm 12mm;
+    @bottom-right {
+      content: "Strana " counter(page) " od " counter(pages);
+      font-size: 8pt;
+      color: #666666;
+      font-family: Arial, sans-serif;
+    }
+    @bottom-left {
+      content: "${(firma?.naziv || 'Predmjer i Predračun').replace(/"/g, '\\"')}";
+      font-size: 8pt;
+      color: #1B4332;
+      font-family: Arial, sans-serif;
+    }
+  }
   @media print {
     * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
     th { background:#1B4332 !important; color:#fff !important; }
@@ -653,13 +724,16 @@ export default function App() {
   }
 </style></head>
 <body>
-<div class="header">
-  <h1>PREDMJER I PREDRAČUN</h1>
-  <div class="info">
-    <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
-    <div><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
-    <div><span>Lokacija: </span>${proj.adresa||'—'}</div>
-    <div><span>Datum: </span>${proj.datum||'—'}</div>
+<div class="header" style="display:flex;align-items:center;gap:16px;">
+  ${firma?.logo ? `<img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;flex-shrink:0;" />` : ''}
+  <div style="flex:1;min-width:0;">
+    <h1>PREDMJER I PREDRAČUN</h1>
+    <div class="info">
+      <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
+      <div><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
+      <div><span>Lokacija: </span>${proj.adresa||'—'}</div>
+      <div><span>Datum: </span>${proj.datum||'—'}</div>
+    </div>
   </div>
 </div>
 ${sviFazeSadrzaj}
@@ -839,6 +913,12 @@ ${sviFazeSadrzaj}
           <span style={{ fontSize: 11, background: 'rgba(255,255,255,.15)', borderRadius: 20, padding: '3px 10px' }}>
             {session.user.email}
           </span>
+          <button onClick={() => setShowFirmaModal(true)}
+            style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {firma?.logo
+              ? <img src={firma.logo} alt="logo" style={{ height: 16, maxWidth: 40, objectFit: 'contain', borderRadius: 2, background: '#fff' }} />
+              : '🏢'} Firma
+          </button>
           <button onClick={odjava}
             style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
             Odjava
@@ -1294,6 +1374,76 @@ ${sviFazeSadrzaj}
           onDodaj={item => { dodajIzMojeBaze({ n: item.naziv, c: item.cijena, m: item.jedinica, k: item.kategorija }); setShowMojaBaza(false) }}
         />
       )}
+
+      {/* ── MODAL: POSTAVKE FIRME (logo + naziv za PDF zaglavlje) ── */}
+      {showFirmaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: 420, maxWidth: '100%', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: '#1B4332', color: '#fff', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>🏢 Postavke firme</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Logo i naziv se pojavljuju u zaglavlju PDF/Print izvještaja</div>
+              </div>
+              <button onClick={() => setShowFirmaModal(false)} style={{ background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              {/* Preview / Upload loga */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Logo firme</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 100, height: 70, border: '1px dashed #D8D5CC', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFAF8', flexShrink: 0, overflow: 'hidden' }}>
+                    {firma?.logo
+                      ? <img src={firma.logo} alt="logo firme" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                      : <span style={{ fontSize: 24, opacity: 0.3 }}>🏢</span>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                    <label style={{ background: '#1B4332', color: '#fff', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: firmaLoading ? 'not-allowed' : 'pointer', textAlign: 'center', opacity: firmaLoading ? 0.6 : 1 }}>
+                      {firmaLoading ? 'Učitavanje...' : (firma?.logo ? '📤 Promijeni sliku' : '📤 Upload slike')}
+                      <input type="file" accept="image/*" disabled={firmaLoading} style={{ display: 'none' }}
+                        onChange={async e => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          try {
+                            const dataUrl = await resizeSlika(file)
+                            await sacuvajFirmu(dataUrl, undefined)
+                          } catch (err) {
+                            alert(err.message || 'Greška pri obradi slike.')
+                          }
+                          e.target.value = ''
+                        }} />
+                    </label>
+                    {firma?.logo && (
+                      <button onClick={obrisiLogo} disabled={firmaLoading}
+                        style={{ background: 'none', border: '1px solid #f5c6c2', color: '#C0392B', borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        🗑 Ukloni logo
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 6 }}>Preporučeno: PNG sa providnom pozadinom. Slika se automatski optimizuje.</div>
+              </div>
+
+              {/* Naziv firme */}
+              <div style={{ marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Naziv firme (opciono)</div>
+                <input type="text" defaultValue={firma?.naziv || ''} placeholder="npr. Gradnja d.o.o."
+                  onBlur={e => sacuvajFirmu(undefined, e.target.value.trim() || null)}
+                  style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 6 }}>Prikazuje se u podnožju svake stranice PDF izvještaja, uz broj stranice.</div>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #E8E5DC', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowFirmaModal(false)}
+                style={{ background: '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Gotovo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
       <button
         onClick={() => setShowAI(prev => !prev)}
