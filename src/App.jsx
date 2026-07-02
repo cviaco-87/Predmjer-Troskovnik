@@ -1037,10 +1037,11 @@ ${sviFazeSadrzaj}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* LEFT PANEL */}
-        <div style={{ width: 280, minWidth: 280, background: '#fff', borderRight: '1px solid #D8D5CC', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
+        <div style={{ width: 280, minWidth: 280, background: '#F5F4F0', borderRight: '1px solid #D8D5CC', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
 
           {/* Projekti */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Projekti</div>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📁</span>Projekti</div>
           {projekti.map(p => (
             <div key={p.id} onClick={() => setAktivniProjekat(p)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
@@ -1094,10 +1095,12 @@ ${sviFazeSadrzaj}
               style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
             <button onClick={dodajProjekat} style={B('#1B4332')}>+ Dodaj</button>
           </div>
+          </div>
 
           {/* Podaci o projektu */}
           {aktivniProjekat && <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Podaci o projektu</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📋</span>Podaci o projektu</div>
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
@@ -1110,11 +1113,13 @@ ${sviFazeSadrzaj}
               <input type="date" defaultValue={aktivniProjekat.datum || ''} onBlur={e => azurirajProjekat('datum', e.target.value)}
                 style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
             </div>
+            </div>
           </>}
 
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Faza</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>🏗️</span>Faza</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
                 <div key={s.kod} onClick={() => {
@@ -1164,11 +1169,13 @@ ${sviFazeSadrzaj}
                 </button>
               )}
             </div>
+            </div>
           </>}
 
           {/* Faze */}
           {aktivniProjekat && <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Grupe radova</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📦</span>Grupe radova</div>
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
@@ -1206,10 +1213,12 @@ ${sviFazeSadrzaj}
                 style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
               <button onClick={dodajFazu} style={B('#1B4332')}>+ Dodaj</button>
             </div>
+            </div>
           </>}
 
           {/* Uvećanje */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Uvećanje / Umanjenje</div>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>⚖️</span>Uvećanje / Umanjenje</div>
           {[['Uvećanje radovi', uvR, setUvR, 'uv_radovi'], ['Uvećanje materijal', uvM, setUvM, 'uv_materijal']].map(([lbl, val, setter, db]) => (
             <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
               <span style={{ flex: 1, fontSize: 12, color: '#666' }}>{lbl} (%)</span>
@@ -1228,17 +1237,17 @@ ${sviFazeSadrzaj}
             </div>
           ))}
           </div>
-
-          {/* Moja baza dugme */}
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DC' }}>
             <button onClick={() => setShowMojaBaza(true)}
               style={{ width: '100%', background: '#F0F5F2', color: '#1B4332', border: '1px solid #4A7C65', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               ⭐ Upravljaj mojom bazom ({mojeBaza.length})
             </button>
           </div>
+          </div>
 
           {/* Rekapitulacija */}
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', margin: '14px 0 8px' }}>Rekapitulacija</div>
+          <div style={{ background: '#EEF3F1', border: '1px solid #C9DED2', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#1B4332', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📊</span>Rekapitulacija</div>
           {aktivnaFaza && pozicije.length > 0 ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <tbody>
@@ -1260,6 +1269,7 @@ ${sviFazeSadrzaj}
               </tbody>
             </table>
           ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite grupu radova.</p>}
+          </div>
         </div>
 
         {/* RIGHT PANEL */}
@@ -1327,8 +1337,9 @@ ${sviFazeSadrzaj}
                             const imadjece = djeca.length > 0
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
-                              ? { glavna: '#F6F9F7', pod: '#F0F5F1', zbir: '#E9F1EB', hover: '#EEF5F0' }
-                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F7F3', hover: '#F5FAF6' }
+                              ? { glavna: '#F6F9F7', pod: '#F0F5F1', zbir: '#E9F1EB' }
+                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F7F3' }
+                            const hoverBg = '#FDF0DB'
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -1339,7 +1350,7 @@ ${sviFazeSadrzaj}
                                   onDragOver={e => onDragOver(e, p)}
                                   onDrop={e => onDrop(e, p)}
                                   style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: paleta.glavna, cursor: 'grab' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = paleta.hover}
+                                  onMouseEnter={e => e.currentTarget.style.background = hoverBg}
                                   onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
                                   <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
