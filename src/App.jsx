@@ -1318,13 +1318,17 @@ ${sviFazeSadrzaj}
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
-                          <tr key={'k' + kat} style={{ background: '#EEF3F1' }}>
-                            <td colSpan={8} style={{ padding: '5px 8px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.04em' }}>{kat}</td>
+                          <tr key={'k' + kat} style={{ background: '#E4EEE7' }}>
+                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D6A4F' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
                             const djeca = podstavke[p.id] || []
                             const imadjece = djeca.length > 0
+                            // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
+                            const paleta = i % 2 === 1
+                              ? { glavna: '#F6F9F7', pod: '#F0F5F1', zbir: '#E9F1EB', hover: '#EEF5F0' }
+                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F7F3', hover: '#F5FAF6' }
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -1334,9 +1338,9 @@ ${sviFazeSadrzaj}
                                   onDragEnd={onDragEnd}
                                   onDragOver={e => onDragOver(e, p)}
                                   onDrop={e => onDrop(e, p)}
-                                  style={{ borderBottom: imadjece ? 'none' : '1px solid #EEECEA', background: 'white', cursor: 'grab' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = '#F8FAF8'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: paleta.glavna, cursor: 'grab' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = paleta.hover}
+                                  onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
                                   <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                       <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
@@ -1376,7 +1380,7 @@ ${sviFazeSadrzaj}
                                         azurirajPoziciju(p.id, 'opis_visina', potrebno)
                                       }}
                                       title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, color: '#2B2B26' }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
@@ -1454,7 +1458,7 @@ ${sviFazeSadrzaj}
                                 {djeca.map((d, di) => {
                                   const du = calcRowSimple(d)
                                   return (
-                                    <tr key={d.id} style={{ borderBottom: '1px solid #F0EDE8', background: '#FAFAF8' }}>
+                                    <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
                                       <td style={{ padding: '4px 8px', color: '#aaa', textAlign: 'right', fontSize: 11 }}>{i+1}.{di+1}</td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1519,7 +1523,7 @@ ${sviFazeSadrzaj}
 
                                 {/* RED SA UKUPNO PODSTAVKI */}
                                 {imadjece && (
-                                  <tr style={{ borderBottom: '1px solid #EEECEA', background: '#F5F8F6' }}>
+                                  <tr style={{ borderBottom: '2px solid #E4E1D8', background: paleta.zbir }}>
                                     <td></td>
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
                                       Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
@@ -1536,7 +1540,7 @@ ${sviFazeSadrzaj}
                           })}
                         </React.Fragment>
                       ))}
-                      <tr style={{ background: '#EEF3F1' }}>
+                      <tr style={{ background: '#E4EEE7', borderTop: '2px solid #2D6A4F' }}>
                         <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO GRUPA:</td>
                         <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
