@@ -8,6 +8,23 @@ import { BAZA_B64 } from "./baza.js"
 const BAZA = JSON.parse(atob(BAZA_B64))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
+// Podrazumijevane struke (discipline) - kod je fiksan (interna logika), naziv je promjenjiv (dupliim klikom)
+const DEFAULT_STRUKE = [
+  { kod: 'gradjevinski', naziv: 'Građevinsko-zanatski radovi' },
+  { kod: 'hidro',        naziv: 'Hidrotehnička instalacija' },
+  { kod: 'elektro',      naziv: 'Elektroinstalacije' },
+  { kod: 'masinski',     naziv: 'Mašinske instalacije' },
+  { kod: 'vanjsko',      naziv: 'Vanjsko uređenje' },
+]
+
+// Pretvori broj u rimski broj (za numeraciju struka u exportu, npr. I, II, III...)
+const toRoman = n => {
+  const vals = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]
+  let res = '', num = n
+  for (const [v, s] of vals) { while (num >= v) { res += s; num -= v } }
+  return res
+}
+
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm¹').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
 
@@ -189,6 +206,9 @@ export default function App() {
   const [firma, setFirma] = useState(null) // { naziv, logo } - postavke firme (logo/naziv) vezane za nalog
   const [showFirmaModal, setShowFirmaModal] = useState(false)
   const [firmaLoading, setFirmaLoading] = useState(false)
+  const [aktivnaStruka, setAktivnaStruka] = useState('gradjevinski')
+  const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
+  const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
 
   // Auth listener
   useEffect(() => {
@@ -220,6 +240,8 @@ export default function App() {
       setPozicije([])
       setUvR(aktivniProjekat.uv_radovi || 0)
       setUvM(aktivniProjekat.uv_materijal || 0)
+      const struke = aktivniProjekat.struke || DEFAULT_STRUKE
+      setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
     }
   }, [aktivniProjekat])
 
@@ -325,16 +347,51 @@ export default function App() {
   const dodajFazu = async () => {
     if (!novaFaza.trim() || !aktivniProjekat) return
     const { data } = await supabase.from('faze').insert({
-      projekat_id: aktivniProjekat.id, naziv: novaFaza.trim(), redoslijed: faze.length
+      projekat_id: aktivniProjekat.id, naziv: novaFaza.trim(), redoslijed: faze.length, struka_kod: aktivnaStruka
     }).select().single()
     if (data) { setNovaFaza(''); setFaze(prev => [...prev, data]); setAktivnaFaza(data) }
   }
 
   const obrisiFeazu = async (id) => {
-    if (!confirm('Obrisati fazu i sve pozicije?')) return
+    if (!confirm('Obrisati grupu radova i sve pozicije?')) return
     await supabase.from('faze').delete().eq('id', id)
     setFaze(prev => prev.filter(f => f.id !== id))
     if (aktivnaFaza?.id === id) { setAktivnaFaza(null); setPozicije([]) }
+  }
+
+  // ── STRUKE (grupisanje faza po disciplini) ──
+  const struke = aktivniProjekat?.struke || DEFAULT_STRUKE
+
+  const azurirajStruke = async (noveStruke) => {
+    if (!aktivniProjekat) return
+    await supabase.from('projekti').update({ struke: noveStruke }).eq('id', aktivniProjekat.id)
+    setAktivniProjekat(prev => ({ ...prev, struke: noveStruke }))
+    setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, struke: noveStruke } : p))
+  }
+
+  const preimenujStruku = async (kod, noviNaziv) => {
+    if (!noviNaziv.trim()) return
+    const nove = struke.map(s => s.kod === kod ? { ...s, naziv: noviNaziv.trim() } : s)
+    await azurirajStruke(nove)
+  }
+
+  const dodajStruku = async (naziv) => {
+    if (!naziv.trim()) return
+    const kod = `custom-${Date.now()}`
+    const nove = [...struke, { kod, naziv: naziv.trim() }]
+    await azurirajStruke(nove)
+    setAktivnaStruka(kod)
+  }
+
+  const obrisiStruku = async (kod) => {
+    const fazeUStruci = faze.filter(f => (f.struka_kod || 'gradjevinski') === kod)
+    if (fazeUStruci.length > 0) {
+      if (!confirm(`Ova faza sadrži ${fazeUStruci.length} grupa radova. Obrisati fazu i sve njene grupe radova i pozicije?`)) return
+      for (const f of fazeUStruci) await obrisiFeazu(f.id)
+    }
+    const nove = struke.filter(s => s.kod !== kod)
+    await azurirajStruke(nove)
+    if (aktivnaStruka === kod) setAktivnaStruka(nove[0]?.kod || 'gradjevinski')
   }
 
   // ── POZICIJE ──
@@ -545,7 +602,7 @@ export default function App() {
       const response = await fetch('/api/excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM, valutaZnak })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM, valutaZnak, struke })
       })
 
       if (!response.ok) {
@@ -607,74 +664,97 @@ export default function App() {
     const ukupno = grandTotal + uvec - uman
 
     let sviFazeSadrzaj = ''
+    const strukaSubtotali = [] // { naziv, ukupno } - za rekapitulaciju po struci
+
+    // Grupiši faze po struci (fallback 'gradjevinski' za stare faze bez struke)
+    const fazePoStruci = {}
     for (const f of faze) {
-      const poz = svePozicije[f.id] || []
-      if (!poz.length) continue
-      const byK = grupirajPozicije(poz)
-
-      let rows = ''
-      let rb = 1
-      for (const [k, stavke] of Object.entries(byK)) {
-        rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
-        for (const p of stavke) {
-          const u = calcRow(p, poz)
-          const imadjece = p.djeca.length > 0
-          const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-          rows += `<tr>
-            <td class="c">${rb++}</td>
-            <td class="opis">${naziv}</td>
-            <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-            <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
-            <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
-            <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
-            <td class="r bold">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
-          </tr>`
-          if (imadjece) {
-            p.djeca.forEach((d, di) => {
-              const du = calcRowSimple(d)
-              const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-              rows += `<tr class="pod">
-                <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
-                <td class="pod-opis">${dNaziv}</td>
-                <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-                <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
-                <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
-                <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
-                <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
-              </tr>`
-            })
-            const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
-            rows += `<tr class="pod-sum">
-              <td></td>
-              <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-              <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
-            </tr>`
-          }
-        }
-      }
-      const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO FAZA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
-
-      sviFazeSadrzaj += `
-        <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
-        <table>
-          <thead><tr>
-            <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
-            <th class="c" style="width:45px">J.mj.</th>
-            <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
-            <th class="r" style="width:65px">Količina</th>
-            <th class="r" style="width:50px">Rabat</th>
-            <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div style="margin-bottom:16px"></div>`
+      const kod = f.struka_kod || 'gradjevinski'
+      if (!fazePoStruci[kod]) fazePoStruci[kod] = []
+      fazePoStruci[kod].push(f)
     }
 
-    const rekapRows = faze.map(f => {
-      const poz = svePozicije[f.id]||[]
-      const t = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
-      return `<tr><td>${f.naziv}</td><td class="r">${fmtN(t)} ${valutaZnak}</td></tr>`
+    let brStruke = 0
+    for (const s of struke) {
+      const fazeUStruci = fazePoStruci[s.kod] || []
+      const imaSadrzaja = fazeUStruci.some(f => (svePozicije[f.id]||[]).length > 0)
+      if (!imaSadrzaja) continue
+
+      brStruke++
+      let strukaUkupno = 0
+      sviFazeSadrzaj += `<div class="struka-blok"><div class="struka-naslov">${toRoman(brStruke)}&nbsp;&nbsp;${s.naziv.toUpperCase()}</div></div>`
+
+      for (const f of fazeUStruci) {
+        const poz = svePozicije[f.id] || []
+        if (!poz.length) continue
+        const byK = grupirajPozicije(poz)
+
+        let rows = ''
+        let rb = 1
+        for (const [k, stavke] of Object.entries(byK)) {
+          rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
+          for (const p of stavke) {
+            const u = calcRow(p, poz)
+            const imadjece = p.djeca.length > 0
+            const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            rows += `<tr>
+              <td class="c">${rb++}</td>
+              <td class="opis">${naziv}</td>
+              <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+              <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
+              <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
+              <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
+              <td class="r bold">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
+            </tr>`
+            if (imadjece) {
+              p.djeca.forEach((d, di) => {
+                const du = calcRowSimple(d)
+                const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                rows += `<tr class="pod">
+                  <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
+                  <td class="pod-opis">${dNaziv}</td>
+                  <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+                  <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
+                  <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
+                  <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
+                  <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
+                </tr>`
+              })
+              const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
+              rows += `<tr class="pod-sum">
+                <td></td>
+                <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+                <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
+              </tr>`
+            }
+          }
+        }
+        const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
+        strukaUkupno += ft
+        rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
+
+        sviFazeSadrzaj += `
+          <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
+          <table>
+            <thead><tr>
+              <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
+              <th class="c" style="width:45px">J.mj.</th>
+              <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
+              <th class="r" style="width:65px">Količina</th>
+              <th class="r" style="width:50px">Rabat</th>
+              <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div style="margin-bottom:16px"></div>`
+      }
+
+      sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
+      strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaUkupno, rimski: toRoman(brStruke) })
+    }
+
+    const rekapRows = strukaSubtotali.map(s => {
+      return `<tr><td>${s.rimski}&nbsp;&nbsp;${s.naziv}</td><td class="r">${fmtN(s.ukupno)} ${valutaZnak}</td></tr>`
     }).join('')
 
     const html = `<!DOCTYPE html><html lang="bs">
@@ -686,6 +766,10 @@ export default function App() {
   .header h1 { font-size:15pt; color:#1B4332; margin-bottom:6px; }
   .info { display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; font-size:9pt; margin-top:8px; }
   .info span { color:#555; }
+  .struka-blok { page-break-after:avoid; }
+  .struka-naslov { background:#1B4332 !important; color:#fff !important; font-size:13pt; font-weight:700; padding:9px 12px; margin:18px 0 10px; letter-spacing:.03em; }
+  .struka-blok:first-child .struka-naslov { margin-top:4px; }
+  .struka-total { background:#E8F0EC !important; color:#1B4332 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 22px; border-top:2px solid #1B4332; border-bottom:2px solid #1B4332; display:flex; justify-content:space-between; }
   .faza-header h2 { font-size:11pt; color:#1B4332; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A7C65; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
   th { background:#1B4332 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
@@ -721,6 +805,8 @@ export default function App() {
     .kat td { background:#EEF3F1 !important; }
     .total td { background:#EEF3F1 !important; }
     .pod-sum td { background:#F5F8F6 !important; }
+    .struka-naslov { background:#1B4332 !important; color:#fff !important; }
+    .struka-total { background:#E8F0EC !important; color:#1B4332 !important; }
   }
 </style></head>
 <body>
@@ -1004,10 +1090,56 @@ ${sviFazeSadrzaj}
             </div>
           </>}
 
+          {/* Struke (discipline) */}
+          {aktivniProjekat && <>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Faza</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
+              {struke.map(s => (
+                <div key={s.kod} onClick={() => setAktivnaStruka(s.kod)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
+                    background: s.kod === aktivnaStruka ? '#1B4332' : 'transparent',
+                    border: s.kod === aktivnaStruka ? '1px solid #1B4332' : '1px solid #E8E5DC' }}
+                  onMouseEnter={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '#F0F5F2' }}
+                  onMouseLeave={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '' }}>
+                  {editStrukaKod === s.kod ? (
+                    <input type="text" defaultValue={s.naziv} autoFocus
+                      onClick={e => e.stopPropagation()}
+                      onBlur={e => { preimenujStruku(s.kod, e.target.value.trim() || s.naziv); setEditStrukaKod(null) }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditStrukaKod(null) }}
+                      style={{ flex: 1, border: '1px solid #4A7C65', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff' }} />
+                  ) : (
+                    <span onDoubleClick={e => { e.stopPropagation(); setEditStrukaKod(s.kod) }}
+                      title="Dvoklik za preimenovanje"
+                      style={{ flex: 1, fontSize: 12, fontWeight: 600, color: s.kod === aktivnaStruka ? '#fff' : '#333', cursor: 'text' }}>
+                      {s.naziv}
+                    </span>
+                  )}
+                  {s.kod.startsWith('custom-') && editStrukaKod !== s.kod && (
+                    <button onClick={e => { e.stopPropagation(); obrisiStruku(s.kod) }}
+                      style={{ background: 'none', border: 'none', color: s.kod === aktivnaStruka ? 'rgba(255,255,255,.6)' : '#ccc', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#E88'}
+                      onMouseLeave={e => e.currentTarget.style.color = s.kod === aktivnaStruka ? 'rgba(255,255,255,.6)' : '#ccc'}>×</button>
+                  )}
+                </div>
+              ))}
+              {dodajStrukuMod ? (
+                <input type="text" autoFocus placeholder="Naziv nove faze..."
+                  onBlur={e => { if (e.target.value.trim()) dodajStruku(e.target.value); setDodajStrukuMod(false) }}
+                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setDodajStrukuMod(false) }}
+                  style={{ border: '1px solid #4A7C65', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+              ) : (
+                <button onClick={() => setDodajStrukuMod(true)}
+                  style={{ background: 'transparent', border: '1px dashed #C8C5BD', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#888', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                  + Nova faza (vlastita)
+                </button>
+              )}
+            </div>
+          </>}
+
           {/* Faze */}
           {aktivniProjekat && <>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Faze projekta</div>
-            {faze.map(f => {
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Grupe radova</div>
+            {faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka).map(f => {
               const t = f.id === aktivnaFaza?.id ? (fazaTotali[f.id] || 0) : 0
               return (
                 <div key={f.id} onClick={() => setAktivnaFaza(f)}
@@ -1028,7 +1160,7 @@ ${sviFazeSadrzaj}
             <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 16 }}>
               <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
-                placeholder="Naziv faze..."
+                placeholder="Naziv grupe radova..."
                 style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
               <button onClick={dodajFazu} style={B('#1B4332')}>+ Dodaj</button>
             </div>
@@ -1085,7 +1217,7 @@ ${sviFazeSadrzaj}
                 </tr>
               </tbody>
             </table>
-          ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite fazu.</p>}
+          ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite grupu radova.</p>}
         </div>
 
         {/* RIGHT PANEL */}
@@ -1098,7 +1230,7 @@ ${sviFazeSadrzaj}
           ) : !aktivnaFaza ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, color: '#aaa' }}>
               <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              <p style={{ fontSize: 15 }}>Dodajte ili odaberite fazu projekta</p>
+              <p style={{ fontSize: 15 }}>Dodajte ili odaberite grupu radova</p>
             </div>
           ) : (
             <>
@@ -1354,7 +1486,7 @@ ${sviFazeSadrzaj}
                         </React.Fragment>
                       ))}
                       <tr style={{ background: '#EEF3F1' }}>
-                        <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO FAZA:</td>
+                        <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO GRUPA:</td>
                         <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
