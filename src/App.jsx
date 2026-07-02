@@ -8,7 +8,15 @@ import { BAZA_B64 } from "./baza.js"
 const BAZA = JSON.parse(atob(BAZA_B64))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
-// Podrazumijevane struke (discipline) - kod je fiksan (interna logika), naziv je promjenjiv (dupliim klikom)
+// Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
+// sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
+// vanjsko uređenje, njihove kategorije se samo dodaju ovdje)
+const KATEGORIJA_STRUKA = {
+  'Vodovod': 'hidro',
+  'Kanalizacija': 'hidro',
+  'Sanitarni uređaji': 'hidro',
+}
+const strukaZaKategoriju = k => KATEGORIJA_STRUKA[k] || 'gradjevinski'
 const DEFAULT_STRUKE = [
   { kod: 'gradjevinski', naziv: 'Građevinsko-zanatski radovi' },
   { kod: 'hidro',        naziv: 'Hidrotehnička instalacija' },
@@ -64,10 +72,17 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
+
+  // Kategorije i broj stavki relevantni samo za trenutno aktivnu strukу
+  const kategorijeZaStruku = useMemo(() => KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka), [aktivnaStruka])
+  const brojUStruci = useMemo(() => BAZA.reduce((n, item) => n + (strukaZaKategoriju(item.k) === aktivnaStruka ? 1 : 0), 0), [aktivnaStruka])
+
+  // Reset kategorije filtera ako više ne pripada aktivnoj struci (npr. korisnik promijeni fazu)
+  useEffect(() => { if (kat && !kategorijeZaStruku.includes(kat)) setKat('') }, [aktivnaStruka])
 
   const rezultati = useMemo(() => {
     if (q.trim().length < 2) return []
@@ -84,12 +99,13 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
     const out = []
     for (let i = 0; i < BAZA.length && out.length < 80; i++) {
       const item = BAZA[i]
+      if (strukaZaKategoriju(item.k) !== aktivnaStruka) continue
       if (kat && item.k !== kat) continue
       const n = item.n.toLowerCase()
       if (terms.every(t => n.includes(t))) out.push({ ...item, _idx: i })
     }
     return out
-  }, [q, kat, tab, mojeBazaStavke])
+  }, [q, kat, tab, mojeBazaStavke, aktivnaStruka])
 
   const grouped = useMemo(() => {
     const g = {}
@@ -105,7 +121,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
     <div style={{ display: 'flex', flexDirection: 'column', background: '#FAFAF8', borderBottom: '2px solid #D8D5CC', maxHeight: 280, flexShrink: 0 }}>
       {/* Tabovi */}
       <div style={{ display: 'flex', borderBottom: '1px solid #E0DDD5', background: '#fff' }}>
-        {[['glavna', '📚 Glavna baza (4.595)'], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
+        {[['glavna', `📚 Baza (${brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: '8px 16px', border: 'none', background: 'none', fontSize: 12, fontWeight: tab === t ? 700 : 400,
               color: tab === t ? '#1B4332' : '#888', borderBottom: tab === t ? '2px solid #1B4332' : '2px solid transparent',
@@ -119,12 +135,13 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
       <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #E0DDD5', background: '#fff' }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
-          style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit' }} />
-        {tab === 'glavna' && (
+          disabled={tab === 'glavna' && brojUStruci === 0}
+          style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && brojUStruci === 0) ? '#F0EFEA' : '#fff' }} />
+        {tab === 'glavna' && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
             style={{ border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
             <option value="">— Sve kategorije —</option>
-            {KATEGORIJE.map(k => <option key={k} value={k}>{k}</option>)}
+            {kategorijeZaStruku.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         )}
         {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>}
@@ -132,7 +149,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke }) {
 
       {/* Rezultati */}
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {q.trim().length < 2 ? (
+        {tab === 'glavna' && brojUStruci === 0 ? (
+          <div style={{ padding: '18px 16px', textAlign: 'center', color: '#888' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#666', marginBottom: 4 }}>Baza za "{strukaNaziv}" još nije dostupna</div>
+            <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>Za sada dodajte pozicije preko <strong>"+ Vlastita stavka"</strong> ili AI asistenta ✨. Baza za ovu fazu će biti dodana naknadno.</div>
+          </div>
+        ) : q.trim().length < 2 ? (
           <div style={{ padding: '8px 14px', fontSize: 12, color: '#aaa' }}>
             {tab === 'glavna' ? 'Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...)' : 'Unesite pojam za pretragu vaših stavki'}
           </div>
@@ -1253,6 +1275,8 @@ ${sviFazeSadrzaj}
                 onAdd={dodajPoziciju}
                 onAddFromMojaBaza={dodajIzMojeBaze}
                 mojeBazaStavke={mojeBaza}
+                aktivnaStruka={aktivnaStruka}
+                strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
               />
 
               {/* Tabela */}
