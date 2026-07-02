@@ -166,7 +166,7 @@ Mogu vam pomoći da:
 • **Procijenim cijene** za sve stavke u predmjeru (sa web pretragom aktuelnih cijena)
 • **Pregledam cijeli predmjer** i poboljšam postojeće stavke direktno (bez dodavanja novih)
 
-${aktivnaFaza ? `Trenutno radite na fazi: **${aktivnaFaza.naziv}**` : ''}
+${aktivnaFaza ? `Trenutno radite na grupi radova: **${aktivnaFaza.naziv}**` : ''}
 
 Kako mogu pomoći? Npr:
 *"Pregledaj kompletan predmjer i predloži poboljšanja"*
@@ -189,7 +189,7 @@ Kako mogu pomoći? Npr:
 
   // Puni kontekst (necenzurisan opis) - koristi se za pregled/poboljšanje dokumenta
   const getStavkeKontekstPuni = () => {
-    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
+    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
     const roditelji = pozicije.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
@@ -210,7 +210,7 @@ Kako mogu pomoći? Npr:
 
   // Skraćeni kontekst - koristi se za procjenu cijena
   const getStavkeKontekst = () => {
-    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj fazi)'
+    if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
     const roditelji = pozicije.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
@@ -340,7 +340,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
   }
 
   const dodajUPredmjer = (stavka) => {
-    if (!aktivnaFaza) { alert('Molimo odaberite fazu predmjera prije dodavanja stavke.'); return }
+    if (!aktivnaFaza) { alert('Molimo odaberite grupu radova prije dodavanja stavke.'); return }
     onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija })
   }
 
@@ -405,7 +405,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✨</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>AI Asistent</div>
-          <div style={{ fontSize: 11, opacity: 0.8 }}>{aktivnaFaza ? `Faza: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}</div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>{aktivnaFaza ? `Grupa radova: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}</div>
         </div>
         <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✕ Zatvori</button>
       </div>
