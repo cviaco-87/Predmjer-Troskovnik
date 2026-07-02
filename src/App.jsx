@@ -1117,7 +1117,15 @@ ${sviFazeSadrzaj}
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Faza</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
-                <div key={s.kod} onClick={() => setAktivnaStruka(s.kod)}
+                <div key={s.kod} onClick={() => {
+                    setAktivnaStruka(s.kod)
+                    // Ako aktivna grupa radova ne pripada novoj fazi, resetuj (izaberi prvu iz nove faze, ili ništa)
+                    if (aktivnaFaza && (aktivnaFaza.struka_kod || 'gradjevinski') !== s.kod) {
+                      const prvaUFazi = faze.find(f => (f.struka_kod || 'gradjevinski') === s.kod)
+                      setAktivnaFaza(prvaUFazi || null)
+                      if (!prvaUFazi) setPozicije([])
+                    }
+                  }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
                     background: s.kod === aktivnaStruka ? '#1B4332' : 'transparent',
                     border: s.kod === aktivnaStruka ? '1px solid #1B4332' : '1px solid #E8E5DC' }}
@@ -1161,24 +1169,36 @@ ${sviFazeSadrzaj}
           {/* Faze */}
           {aktivniProjekat && <>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#888', marginBottom: 8 }}>Grupe radova</div>
-            {faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka).map(f => {
-              const t = f.id === aktivnaFaza?.id ? (fazaTotali[f.id] || 0) : 0
-              return (
-                <div key={f.id} onClick={() => setAktivnaFaza(f)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
-                    background: f.id === aktivnaFaza?.id ? '#E8F0EC' : 'transparent',
-                    border: f.id === aktivnaFaza?.id ? '1px solid #4A7C65' : '1px solid transparent' }}
-                  onMouseEnter={e => { if (f.id !== aktivnaFaza?.id) e.currentTarget.style.background = '#F0F5F2' }}
-                  onMouseLeave={e => { if (f.id !== aktivnaFaza?.id) e.currentTarget.style.background = '' }}>
-                  <span style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{f.naziv}</span>
-                  {f.id === aktivnaFaza?.id && <span style={{ fontSize: 12, fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(t)} {valutaZnak}</span>}
-                  <button onClick={e => { e.stopPropagation(); obrisiFeazu(f.id) }}
-                    style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#C0392B'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>×</button>
+            {(() => {
+              const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
+              const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
+              return fazeUFazi.length > 0 ? (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select value={aktivnaPripada ? aktivnaFaza.id : ''}
+                      onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
+                      style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
+                      <option value="" disabled>— Odaberite grupu radova —</option>
+                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
+                    </select>
+                    {aktivnaPripada && (
+                      <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
+                        style={{ background: 'none', border: '1px solid #f5c6c2', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 13, padding: '6px 9px', fontFamily: 'inherit' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#fdf0ef'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>🗑</button>
+                    )}
+                  </div>
+                  {aktivnaPripada && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 2px 0', fontSize: 12 }}>
+                      <span style={{ color: '#888' }}>{aktivnaFaza.naziv}</span>
+                      <span style={{ fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>Još nema grupa radova u ovoj fazi.</div>
               )
-            })}
+            })()}
             <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 16 }}>
               <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
