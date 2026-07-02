@@ -1100,20 +1100,15 @@ ${sviFazeSadrzaj}
                                       rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
                                       onClick={e => e.stopPropagation()}
                                       onDoubleClick={e => {
+                                        e.preventDefault()
                                         const t = e.currentTarget
-                                        const rect = t.getBoundingClientRect()
-                                        const offsetY = e.clientY - rect.top
-                                        // Ako je duplklik blizu donje ivice (zona za ručno povlačenje) — automatski zbij do teksta
-                                        if (offsetY > rect.height - 16) {
-                                          e.preventDefault()
-                                          // KLJUČNO: prvo ukloni trenutnu (možda preveliku) visinu da bi scrollHeight
-                                          // mogao ispravno izmjeriti STVARNO potrebnu visinu za sadržaj (u jednom koraku)
-                                          t.style.height = 'auto'
-                                          const potrebno = Math.max(t.scrollHeight, 40)
-                                          t.style.height = potrebno + 'px'
-                                        }
+                                        // KLJUČNO: prvo ukloni trenutnu (možda preveliku) visinu da bi scrollHeight
+                                        // mogao ispravno izmjeriti STVARNO potrebnu visinu za sadržaj (u jednom koraku)
+                                        t.style.height = 'auto'
+                                        const potrebno = Math.max(t.scrollHeight, 40)
+                                        t.style.height = potrebno + 'px'
                                       }}
-                                      title="Dvoklik na donju ivicu za automatsko prilagođavanje visine"
+                                      title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40 }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
