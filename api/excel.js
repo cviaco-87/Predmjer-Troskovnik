@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     const CUR = String(valutaZnak).replace(/"/g, '')
     const FMT_CUR = `#,##0.00" ${CUR}";-#,##0.00" ${CUR}";"—"`
     const FMT_NUM = `#,##0.00;-#,##0.00;"—"`
-    const FMT_QTY = `#,##0.##;-#,##0.##;"—"`
+    const FMT_QTY = `#,##0.00;-#,##0.00;"—"`
 
     let row
 
