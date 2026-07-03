@@ -68,7 +68,7 @@ const calcRow = (p, svePoz) => {
   }
   return calcRowSimple(p)
 }
-const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0) * (1 - (parseFloat(p.rabat) || 0) / 100)
+const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
@@ -218,10 +218,8 @@ export default function App() {
     { kod: 'USD', znak: '$', naziv: 'Dolar' },
   ]
   const valutaZnak = VALUTE.find(v => v.kod === valuta)?.znak || '€'
-  const [uvR, setUvR] = useState(0)
-  const [uvM, setUvM] = useState(0)
-  const [umR, setUmR] = useState(0)
-  const [umM, setUmM] = useState(0)
+  const [uvecanjePct, setUvecanjePct] = useState(0)
+  const [umanjenjePct, setUmanjenjePct] = useState(0)
   const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
@@ -260,8 +258,9 @@ export default function App() {
       ucitajFaze(aktivniProjekat.id)
       setAktivnaFaza(null)
       setPozicije([])
-      setUvR(aktivniProjekat.uv_radovi || 0)
-      setUvM(aktivniProjekat.uv_materijal || 0)
+      // Novo polje ako postoji, inače saberi stare (radovi+materijal) radi kompatibilnosti sa starim projektima
+      setUvecanjePct(aktivniProjekat.uvecanje_pct ?? ((aktivniProjekat.uv_radovi || 0) + (aktivniProjekat.uv_materijal || 0)))
+      setUmanjenjePct(aktivniProjekat.umanjenje_pct ?? ((aktivniProjekat.um_radovi || 0) + (aktivniProjekat.um_materijal || 0)))
       const struke = aktivniProjekat.struke || DEFAULT_STRUKE
       setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
     }
@@ -300,7 +299,6 @@ export default function App() {
       jedinica: roditeljPoz.jedinica || 'm²',
       cijena: roditeljPoz.cijena || 0,
       kolicina: 0,
-      rabat: roditeljPoz.rabat || 0,
       kategorija: roditeljPoz.kategorija || 'Ostalo',
       redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
     }).select().single()
@@ -624,7 +622,7 @@ export default function App() {
       const response = await fetch('/api/excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvR, uvM, umR, umM, valutaZnak, struke })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvecanjePct, umanjenjePct, valutaZnak, struke })
       })
 
       if (!response.ok) {
@@ -681,8 +679,8 @@ export default function App() {
       const poz = svePozicije[f.id] || []
       grandTotal += poz.filter(p => !p.parent_id).reduce((s,p) => s+calcRow(p,poz), 0)
     }
-    const uvec = grandTotal * (uvR + uvM) / 100
-    const uman = grandTotal * (umR + umM) / 100
+    const uvec = grandTotal * uvecanjePct / 100
+    const uman = grandTotal * umanjenjePct / 100
     const ukupno = grandTotal + uvec - uman
 
     let sviFazeSadrzaj = ''
@@ -714,7 +712,7 @@ export default function App() {
         let rows = ''
         let rb = 1
         for (const [k, stavke] of Object.entries(byK)) {
-          rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
+          rows += `<tr class="kat"><td colspan="6">${k.toUpperCase()}</td></tr>`
           for (const p of stavke) {
             const u = calcRow(p, poz)
             const imadjece = p.djeca.length > 0
@@ -725,7 +723,6 @@ export default function App() {
               <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
               <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
               <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
-              <td class="r">${!imadjece&&(p.rabat||0)>0?p.rabat+'%':'—'}</td>
               <td class="r bold">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
             </tr>`
             if (imadjece) {
@@ -738,14 +735,13 @@ export default function App() {
                   <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                   <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
-                  <td class="r" style="font-size:8.5pt">${(d.rabat||0)>0?d.rabat+'%':'—'}</td>
                   <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
                 </tr>`
               })
               const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
               rows += `<tr class="pod-sum">
                 <td></td>
-                <td colspan="5" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                 <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
               </tr>`
             }
@@ -753,7 +749,7 @@ export default function App() {
         }
         const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
         strukaUkupno += ft
-        rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
+        rows += `<tr class="total"><td colspan="5" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
 
         sviFazeSadrzaj += `
           <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
@@ -763,7 +759,6 @@ export default function App() {
               <th class="c" style="width:45px">J.mj.</th>
               <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
               <th class="r" style="width:65px">Količina</th>
-              <th class="r" style="width:50px">Rabat</th>
               <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -852,8 +847,8 @@ ${sviFazeSadrzaj}
   <tbody>
     ${rekapRows}
     <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
-    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvR+uvM}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
-    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umR+umM}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
+    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
+    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
     <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
 </table>
@@ -920,8 +915,8 @@ ${sviFazeSadrzaj}
         klijent: aktivniProjekat.klijent,
         adresa: aktivniProjekat.adresa,
         datum: aktivniProjekat.datum,
-        uv_radovi: aktivniProjekat.uv_radovi,
-        uv_materijal: aktivniProjekat.uv_materijal
+        uvecanje_pct: aktivniProjekat.uvecanje_pct,
+        umanjenje_pct: aktivniProjekat.umanjenje_pct
       }).select().single()
 
       if (!noviProj) throw new Error('Greška pri kreiranju projekta')
@@ -954,7 +949,6 @@ ${sviFazeSadrzaj}
               jedinica: p.jedinica,
               cijena: p.cijena,
               kolicina: p.kolicina,
-              rabat: p.rabat,
               kategorija: p.kategorija,
               redoslijed: p.redoslijed,
               parent_id: null
@@ -973,7 +967,6 @@ ${sviFazeSadrzaj}
               jedinica: d.jedinica,
               cijena: d.cijena,
               kolicina: d.kolicina,
-              rabat: d.rabat,
               kategorija: d.kategorija,
               redoslijed: d.redoslijed,
               parent_id: noviParentId
@@ -1008,8 +1001,8 @@ ${sviFazeSadrzaj}
   })
 
   const medjuzbir = Object.values(fazaTotali).reduce((a, b) => a + b, 0)
-  const uvecanje = medjuzbir * (uvR + uvM) / 100
-  const umanjenje = medjuzbir * (umR + umM) / 100
+  const uvecanje = medjuzbir * uvecanjePct / 100
+  const umanjenje = medjuzbir * umanjenjePct / 100
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', fontSize: 13, background: '#F5F4F0', color: '#1A1A18' }}>
@@ -1219,24 +1212,20 @@ ${sviFazeSadrzaj}
           {/* Uvećanje */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>⚖️</span>Uvećanje / Umanjenje</div>
-          {[['Uvećanje radovi', uvR, setUvR, 'uv_radovi'], ['Uvećanje materijal', uvM, setUvM, 'uv_materijal']].map(([lbl, val, setter, db]) => (
-            <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ flex: 1, fontSize: 12, color: '#666' }}>{lbl} (%)</span>
-              <input type="number" value={val} min="0" step="0.5"
-                onChange={e => { const v = parseFloat(e.target.value) || 0; setter(v); azurirajProjekat(db, v) }}
-                style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
-            </div>
-          ))}
-          <div style={{ borderTop: '1px solid #E8E5DC', marginTop: 8, paddingTop: 8 }}>
-          {[['Umanjenje radovi', umR, setUmR, 'um_radovi'], ['Umanjenje materijal', umM, setUmM, 'um_materijal']].map(([lbl, val, setter, db]) => (
-            <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>{lbl} (%)</span>
-              <input type="number" value={val} min="0" max="100" step="0.5"
-                onChange={e => { const v = parseFloat(e.target.value) || 0; setter(v); azurirajProjekat(db, v) }}
-                style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
-            </div>
-          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
+            <input type="number" value={uvecanjePct} min="0" step="0.5"
+              onChange={e => { const v = parseFloat(e.target.value) || 0; setUvecanjePct(v); azurirajProjekat('uvecanje_pct', v) }}
+              style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
           </div>
+          <div style={{ fontSize: 10, color: '#aaa', marginBottom: 10 }}>npr. PDV, opšti troškovi</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+            <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>Umanjenje (%)</span>
+            <input type="number" value={umanjenjePct} min="0" max="100" step="0.5"
+              onChange={e => { const v = parseFloat(e.target.value) || 0; setUmanjenjePct(v); azurirajProjekat('umanjenje_pct', v) }}
+              style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
+          </div>
+          <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DC' }}>
             <button onClick={() => setShowMojaBaza(true)}
               style={{ width: '100%', background: '#F0F5F2', color: '#1B4332', border: '1px solid #4A7C65', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -1320,8 +1309,8 @@ ${sviFazeSadrzaj}
                   <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#1B4332', color: '#fff' }}>
-                        {['R.br.', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', 'Rabat', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 3 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                        {['R.br.', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 3 && i <= 5 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1329,7 +1318,7 @@ ${sviFazeSadrzaj}
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
                           <tr key={'k' + kat} style={{ background: '#E4EEE7' }}>
-                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D6A4F' }}>{kat}</td>
+                            <td colSpan={7} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D6A4F' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
@@ -1437,11 +1426,6 @@ ${sviFazeSadrzaj}
                                       placeholder="0" min="0" step="any"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
-                                    {!imadjece && <><input type="number" defaultValue={p.rabat || ''} onBlur={e => azurirajPoziciju(p.id, 'rabat', parseFloat(e.target.value) || 0)}
-                                      placeholder="0" min="0" max="100"
-                                      style={{ width: 42, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} /> %</>}
-                                  </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
                                     {u > 0 ? fmt(u) + ' ' + valutaZnak : '—'}
                                   </td>
@@ -1514,11 +1498,6 @@ ${sviFazeSadrzaj}
                                           placeholder="0" min="0" step="any"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                        <input type="number" defaultValue={d.rabat || ''} onBlur={e => azurirajPoziciju(d.id, 'rabat', parseFloat(e.target.value) || 0)}
-                                          placeholder="0" min="0" max="100"
-                                          style={{ width: 38, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 3px', fontSize: 10, fontFamily: 'inherit', background: '#F5F4F0' }} /> %
-                                      </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A7C65', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
                                         {du > 0 ? fmt(du) + ' ' + valutaZnak : '—'}
                                       </td>
@@ -1539,7 +1518,6 @@ ${sviFazeSadrzaj}
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
                                       Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
                                     </td>
-                                    <td></td>
                                     <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
                                       {fmt(u)} {valutaZnak}
                                     </td>
@@ -1552,7 +1530,7 @@ ${sviFazeSadrzaj}
                         </React.Fragment>
                       ))}
                       <tr style={{ background: '#E4EEE7', borderTop: '2px solid #2D6A4F' }}>
-                        <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO GRUPA:</td>
+                        <td colSpan={5} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO GRUPA:</td>
                         <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
