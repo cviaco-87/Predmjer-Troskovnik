@@ -401,7 +401,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
     <div style={{ position: 'fixed', bottom: 80, right: 20, width: 440, height: 600, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1B4332, #2D6A4F)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+      <div style={{ background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✨</div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>AI Asistent</div>
@@ -414,7 +414,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
       {modalCijene && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <div style={{ background: '#1B4332', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ background: '#1B2F43', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>💰 Prijedlog cijena — {modalCijene.valuta}</div>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Pregledajte i prihvatite ili odbijte svaku cijenu</div>
@@ -423,15 +423,15 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
               {modalCijene.stavke.map((s, i) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, marginBottom: 4, background: s.prihvacena ? '#EEF5F1' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A7C65' : '#e0e0e0'}` }}>
+                <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 8, marginBottom: 4, background: s.prihvacena ? '#EEF2F5' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A637C' : '#e0e0e0'}` }}>
                   <input type="checkbox" checked={s.prihvacena}
                     onChange={e => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))}
                     style={{ marginTop: 3, cursor: 'pointer', width: 15, height: 15 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, color: '#1B4332', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.naziv}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: '#1B2F43', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.naziv}</div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
                       <span style={{ fontSize: 11, color: '#888', textDecoration: 'line-through' }}>{fmtC(s.staraCijena, modalCijene.valuta)}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1B4332' }}>→ {fmtC(s.novaCijena, modalCijene.valuta)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1B2F43' }}>→ {fmtC(s.novaCijena, modalCijene.valuta)}</span>
                     </div>
                     {s.obrazlozenje && <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>{s.obrazlozenje}</div>}
                   </div>
@@ -443,9 +443,9 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
             </div>
             <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
               <button onClick={() => setModalCijene(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
-              <button onClick={() => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8F0EC', border: '1px solid #4A7C65', color: '#1B4332', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
+              <button onClick={() => setModalCijene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8ECF0', border: '1px solid #4A637C', color: '#1B2F43', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
               <button onClick={primijeniCijene} disabled={primjenaLoading}
-                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalCijene.stavke.filter(s=>s.prihvacena).length} cijena`}
               </button>
             </div>
@@ -457,7 +457,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
       {modalIzmjene && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <div style={{ background: '#1B4332', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ background: '#1B2F43', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>📝 Prijedlog izmjena stavki</div>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Izmjena se upisuje direktno u postojeću stavku — ništa se ne dodaje kao novo</div>
@@ -466,7 +466,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
               {modalIzmjene.stavke.map((s, i) => (
-                <div key={s.id} style={{ padding: '10px 10px', borderRadius: 8, marginBottom: 8, background: s.prihvacena ? '#EEF5F1' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A7C65' : '#e0e0e0'}` }}>
+                <div key={s.id} style={{ padding: '10px 10px', borderRadius: 8, marginBottom: 8, background: s.prihvacena ? '#EEF2F5' : '#f9f9f9', border: `1px solid ${s.prihvacena ? '#4A637C' : '#e0e0e0'}` }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
                     <input type="checkbox" checked={s.prihvacena}
                       onChange={e => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, prihvacena: e.target.checked} : x) }))}
@@ -475,7 +475,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
                       <div style={{ fontSize: 10, color: '#999', textDecoration: 'line-through', marginBottom: 4, maxHeight: 40, overflow: 'hidden' }}>
                         {(s.stariOpis || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 150)}{(s.stariOpis||'').length > 150 ? '...' : ''}
                       </div>
-                      {s.obrazlozenje && <div style={{ fontSize: 10.5, color: '#4A7C65', fontStyle: 'italic', marginBottom: 4 }}>💡 {s.obrazlozenje}</div>}
+                      {s.obrazlozenje && <div style={{ fontSize: 10.5, color: '#4A637C', fontStyle: 'italic', marginBottom: 4 }}>💡 {s.obrazlozenje}</div>}
                     </div>
                   </div>
                   {/* Ručno izmjenjiv predloženi tekst */}
@@ -489,9 +489,9 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
             </div>
             <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
               <button onClick={() => setModalIzmjene(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
-              <button onClick={() => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8F0EC', border: '1px solid #4A7C65', color: '#1B4332', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
+              <button onClick={() => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map(s => ({...s, prihvacena: true})) }))} style={{ background: '#E8ECF0', border: '1px solid #4A637C', color: '#1B2F43', borderRadius: 8, padding: '8px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>Sve ✓</button>
               <button onClick={primijeniIzmjene} disabled={primjenaLoading}
-                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalIzmjene.stavke.filter(s=>s.prihvacena).length} izmjena`}
               </button>
             </div>
@@ -503,29 +503,29 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         {poruke.map((p, idx) => (
           <div key={idx} style={{ marginBottom: 14, display: 'flex', flexDirection: p.uloga === 'korisnik' ? 'row-reverse' : 'row', gap: 8, alignItems: 'flex-start' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: p.uloga === 'korisnik' ? '#1B4332' : '#E8F0EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: p.uloga === 'korisnik' ? '#fff' : '#1B4332' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: p.uloga === 'korisnik' ? '#1B2F43' : '#E8ECF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: p.uloga === 'korisnik' ? '#fff' : '#1B2F43' }}>
               {p.uloga === 'korisnik' ? '👤' : '✨'}
             </div>
             <div style={{ maxWidth: '85%' }}>
               {p.tekst && (
-                <div style={{ background: p.uloga === 'korisnik' ? '#1B4332' : '#F5F4F0', color: p.uloga === 'korisnik' ? '#fff' : '#1A1A18', borderRadius: p.uloga === 'korisnik' ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 13px', fontSize: 12.5, lineHeight: 1.6 }}>
+                <div style={{ background: p.uloga === 'korisnik' ? '#1B2F43' : '#F5F4F0', color: p.uloga === 'korisnik' ? '#fff' : '#1A1A18', borderRadius: p.uloga === 'korisnik' ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 13px', fontSize: 12.5, lineHeight: 1.6 }}>
                   {renderTekst(p.tekst)}
                 </div>
               )}
               {p.stavka && (
-                <div style={{ marginTop: 8, background: '#fff', border: '2px solid #1B4332', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ background: '#1B4332', color: '#fff', padding: '8px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>✅ Generisana stavka</div>
+                <div style={{ marginTop: 8, background: '#fff', border: '2px solid #1B2F43', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ background: '#1B2F43', color: '#fff', padding: '8px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>✅ Generisana stavka</div>
                   <div style={{ padding: '10px 12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1B4332', marginBottom: 4 }}>{p.stavka.naziv}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1B2F43', marginBottom: 4 }}>{p.stavka.naziv}</div>
                     <div style={{ fontSize: 11.5, color: '#444', lineHeight: 1.5, marginBottom: 8 }}>{p.stavka.opis.length > 200 ? p.stavka.opis.slice(0, 200) + '...' : p.stavka.opis}</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.jmj}</span>
-                      <span style={{ background: '#E8F0EC', color: '#1B4332', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' €' : 'cijena po dogovoru'}</span>
+                      <span style={{ background: '#E8ECF0', color: '#1B2F43', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.jmj}</span>
+                      <span style={{ background: '#E8ECF0', color: '#1B2F43', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' €' : 'cijena po dogovoru'}</span>
                       <span style={{ background: '#F0F0EE', color: '#666', padding: '2px 8px', borderRadius: 20, fontSize: 10 }}>{p.stavka.kategorija}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => dodajUPredmjer(p.stavka)} style={{ flex: 1, background: '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Dodaj u predmjer</button>
-                      <button onClick={() => { setInput('Možeš li ovu stavku proširiti i dodati više detalja?'); inputRef.current?.focus() }} style={{ background: '#F5F4F0', color: '#1B4332', border: '1px solid #D8D5CC', borderRadius: 8, padding: '8px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Proširi</button>
+                      <button onClick={() => dodajUPredmjer(p.stavka)} style={{ flex: 1, background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Dodaj u predmjer</button>
+                      <button onClick={() => { setInput('Možeš li ovu stavku proširiti i dodati više detalja?'); inputRef.current?.focus() }} style={{ background: '#F5F4F0', color: '#1B2F43', border: '1px solid #D8D5CC', borderRadius: 8, padding: '8px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>✏️ Proširi</button>
                     </div>
                   </div>
                 </div>
@@ -536,10 +536,10 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
 
         {loading && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E8F0EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>✨</div>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#E8ECF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>✨</div>
             <div style={{ background: '#F5F4F0', borderRadius: '4px 16px 16px 16px', padding: '10px 14px' }}>
               <div style={{ display: 'flex', gap: 4 }}>
-                {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#1B4332', animation: 'pulse 1.2s infinite', animationDelay: `${i * 0.2}s`, opacity: 0.6 }} />)}
+                {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: '#1B2F43', animation: 'pulse 1.2s infinite', animationDelay: `${i * 0.2}s`, opacity: 0.6 }} />)}
               </div>
             </div>
           </div>
@@ -552,7 +552,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
               <button key={idx}
                 onClick={() => { setInput(primjer.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
                 style={{ display: 'block', width: '100%', textAlign: 'left', background: '#F5F4F0', border: '1px solid #E0DDD5', borderRadius: 8, padding: '7px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 4, color: '#1A1A18' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#E8F0EC'}
+                onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
                 onMouseLeave={e => e.currentTarget.style.background = '#F5F4F0'}>
                 {primjer}
               </button>
@@ -570,10 +570,10 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
             placeholder="Opišite šta vam treba... (Enter za slanje, Shift+Enter za novi red)"
             rows={2}
             style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, background: '#F5F4F0', outline: 'none' }}
-            onFocus={e => e.target.style.borderColor = '#1B4332'}
+            onFocus={e => e.target.style.borderColor = '#1B2F43'}
             onBlur={e => e.target.style.borderColor = '#D8D5CC'} />
           <button onClick={posalji} disabled={loading || !input.trim()}
-            style={{ background: loading || !input.trim() ? '#ccc' : '#1B4332', color: '#fff', border: 'none', borderRadius: 10, width: 40, height: 40, fontSize: 18, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            style={{ background: loading || !input.trim() ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 10, width: 40, height: 40, fontSize: 18, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {loading ? '⏳' : '➤'}
           </button>
         </div>
