@@ -1325,7 +1325,7 @@ ${sviFazeSadrzaj}
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
-                          <tr key={'k' + kat} style={{ background: '#E4E9EE' }}>
+                          <tr key={'k' + kat} style={{ background: '#D2DCE6' }}>
                             <td colSpan={7} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
@@ -1335,8 +1335,8 @@ ${sviFazeSadrzaj}
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
                               ? { glavna: '#D2DCE6', pod: '#C8D4E0', zbir: '#BECCDA' }
-                              : { glavna: '#E4E9EE', pod: '#DCE2E8', zbir: '#D4DCE4' }
-                            const hoverBg = '#E9E9E7'
+                              : { glavna: '#E9E9E7', pod: '#E2E2E0', zbir: '#DADAD8' }
+                            const hoverBg = '#FDF3C7'
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
