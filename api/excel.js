@@ -52,11 +52,11 @@ export default async function handler(req, res) {
       {width: 10.5},   // G - Ukupno
     ]
 
-    const Z   = '1B4332'
-    const ZS  = 'EEF3F1'
-    const SI  = 'F8FAF8'
-    const SI2 = 'FAFAF8'
-    const SI3 = 'F5F8F6'
+    const Z   = '1B2F43'
+    const ZS  = 'EEF0F3'
+    const SI  = 'F8F9FA'
+    const SI2 = 'F9FAFB'
+    const SI3 = 'F5F6F8'
 
     const fill = c => ({type:'pattern', pattern:'solid', fgColor:{argb:'FF'+c}})
     const font = (opts={}) => ({
@@ -327,7 +327,7 @@ export default async function handler(req, res) {
                 dRow.getCell('G').value     = { formula: `E${dRow.number}*F${dRow.number}`, result: jsDu }
                 dRow.getCell('G').numFmt    = FMT_CUR
                 dRow.getCell('G').fill      = fill(SI2)
-                dRow.getCell('G').font      = font({size:9, color:'4A7C65'})
+                dRow.getCell('G').font      = font({size:9, color:'4A637C'})
                 dRow.getCell('G').alignment = al('center','center',false)
                 dRow.getCell('G').border    = borderBottom('thin','EEECEA')
               })
@@ -409,7 +409,7 @@ export default async function handler(req, res) {
       strukaTotRow.getCell('B').value     = `UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}:`
       strukaTotRow.getCell('B').alignment = al('right','center',false)
       ;['B','C','D','E','F','G'].forEach(col => {
-        strukaTotRow.getCell(col).fill   = fill('E8F0EC')
+        strukaTotRow.getCell(col).fill   = fill('E8ECF0')
         strukaTotRow.getCell(col).font   = font({bold:true, size:11, color:Z})
         strukaTotRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
       })
@@ -522,7 +522,7 @@ export default async function handler(req, res) {
     ws.mergeCells(`B${svRow.number}:E${svRow.number}`)
     svRow.height = 18
     ;['B','C','D','E','F','G'].forEach(col => {
-      svRow.getCell(col).fill   = fill('E8F0EC')
+      svRow.getCell(col).fill   = fill('E8ECF0')
       svRow.getCell(col).font   = font({bold:true, size:12, color:Z})
       svRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
     })
