@@ -118,7 +118,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   }, [rezultati])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: '#FAFAF8', borderBottom: '2px solid #D8D5CC', maxHeight: 280, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', background: '#FAFAF8', maxHeight: 280, flexShrink: 0 }}>
       {/* Tabovi */}
       <div style={{ display: 'flex', borderBottom: '1px solid #E0DDD5', background: '#fff' }}>
         {[['glavna', `📚 Baza (${brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
@@ -735,14 +735,14 @@ export default function App() {
                   <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                   <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
-                  <td class="r" style="color:#4A7C65;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
+                  <td class="r" style="color:#4A637C;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
                 </tr>`
               })
               const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
               rows += `<tr class="pod-sum">
                 <td></td>
                 <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-                <td class="r" style="font-weight:bold;color:#1B4332;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
+                <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
               </tr>`
             }
           }
@@ -779,25 +779,25 @@ export default function App() {
 <style>
   * { box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
   body { font-family:Arial,sans-serif; font-size:10pt; color:#111; }
-  .header { margin-bottom:16px; border-bottom:2px solid #1B4332; padding-bottom:10px; }
-  .header h1 { font-size:15pt; color:#1B4332; margin-bottom:6px; }
+  .header { margin-bottom:16px; border-bottom:2px solid #1B2F43; padding-bottom:10px; }
+  .header h1 { font-size:15pt; color:#1B2F43; margin-bottom:6px; }
   .info { display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; font-size:9pt; margin-top:8px; }
   .info span { color:#555; }
   .struka-blok { page-break-after:avoid; }
-  .struka-naslov { background:#1B4332 !important; color:#fff !important; font-size:13pt; font-weight:700; padding:9px 12px; margin:18px 0 10px; letter-spacing:.03em; }
+  .struka-naslov { background:#1B2F43 !important; color:#fff !important; font-size:13pt; font-weight:700; padding:9px 12px; margin:18px 0 10px; letter-spacing:.03em; }
   .struka-blok:first-child .struka-naslov { margin-top:4px; }
-  .struka-total { background:#E8F0EC !important; color:#1B4332 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 22px; border-top:2px solid #1B4332; border-bottom:2px solid #1B4332; display:flex; justify-content:space-between; }
-  .faza-header h2 { font-size:11pt; color:#1B4332; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A7C65; }
+  .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 22px; border-top:2px solid #1B2F43; border-bottom:2px solid #1B2F43; display:flex; justify-content:space-between; }
+  .faza-header h2 { font-size:11pt; color:#1B2F43; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A637C; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
-  th { background:#1B4332 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
+  th { background:#1B2F43 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
   th.r { text-align:right; } th.c { text-align:center; }
   td { padding:4px 6px; border-bottom:1px solid #E5E5E0; vertical-align:top; font-size:9.5pt; }
   tr:nth-child(even) td { background:#F9F9F7 !important; }
-  .kat td { background:#EEF3F1 !important; font-weight:700; font-size:8.5pt; color:#1B4332 !important; text-transform:uppercase; }
+  .kat td { background:#EEF0F3 !important; font-weight:700; font-size:8.5pt; color:#1B2F43 !important; text-transform:uppercase; }
   .pod td { background:#FAFAF8 !important; border-bottom:none; }
   .pod-opis { padding-left:16px; font-size:9pt; color:#444; }
-  .pod-sum td { background:#F5F8F6 !important; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
-  .total td { background:#EEF3F1 !important; font-weight:700; border-top:2px solid #1B4332; }
+  .pod-sum td { background:#F5F6F8 !important; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
+  .total td { background:#EEF0F3 !important; font-weight:700; border-top:2px solid #1B2F43; }
   .c { text-align:center; } .r { text-align:right; }
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
@@ -812,18 +812,18 @@ export default function App() {
     @bottom-left {
       content: "${(firma?.naziv || 'Predmjer i Predračun').replace(/"/g, '\\"')}";
       font-size: 8pt;
-      color: #1B4332;
+      color: #1B2F43;
       font-family: Arial, sans-serif;
     }
   }
   @media print {
     * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
-    th { background:#1B4332 !important; color:#fff !important; }
-    .kat td { background:#EEF3F1 !important; }
-    .total td { background:#EEF3F1 !important; }
-    .pod-sum td { background:#F5F8F6 !important; }
-    .struka-naslov { background:#1B4332 !important; color:#fff !important; }
-    .struka-total { background:#E8F0EC !important; color:#1B4332 !important; }
+    th { background:#1B2F43 !important; color:#fff !important; }
+    .kat td { background:#EEF0F3 !important; }
+    .total td { background:#EEF0F3 !important; }
+    .pod-sum td { background:#F5F6F8 !important; }
+    .struka-naslov { background:#1B2F43 !important; color:#fff !important; }
+    .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; }
   }
 </style></head>
 <body>
@@ -841,13 +841,13 @@ export default function App() {
 </div>
 ${sviFazeSadrzaj}
 <div class="page-break"></div>
-<h2 style="color:#1B4332;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B4332">REKAPITULACIJA</h2>
+<h2 style="color:#1B2F43;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B2F43">REKAPITULACIJA</h2>
 <table style="width:400px">
   <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
   <tbody>
     ${rekapRows}
     <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
-    ${uvec>0?`<tr><td style="color:#1B4332">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B4332">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
+    ${uvec>0?`<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
     ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
     <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
@@ -1282,7 +1282,7 @@ ${sviFazeSadrzaj}
           ) : (
             <>
               {/* Toolbar */}
-              <div style={{ background: '#fff', borderBottom: '1px solid #D8D5CC', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.1)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B2F43', '1px solid #4A637C')}>+ Vlastita stavka</button>
@@ -1296,6 +1296,7 @@ ${sviFazeSadrzaj}
               </div>
 
               {/* Baza pretraga */}
+              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.1)', overflow: 'hidden', flexShrink: 0 }}>
               <BazaPanel
                 onAdd={dodajPoziciju}
                 onAddFromMojaBaza={dodajIzMojeBaze}
@@ -1303,9 +1304,10 @@ ${sviFazeSadrzaj}
                 aktivnaStruka={aktivnaStruka}
                 strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
               />
+              </div>
 
               {/* Tabela */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px 12px' }}>
                 {pozicije.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '50px 20px', color: '#888' }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#333', marginBottom: 6 }}>Faza je prazna</div>
@@ -1332,8 +1334,8 @@ ${sviFazeSadrzaj}
                             const imadjece = djeca.length > 0
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
-                              ? { glavna: '#F6F8F9', pod: '#F0F2F5', zbir: '#E9EDF1' }
-                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F4F7' }
+                              ? { glavna: '#DCE4EC', pod: '#D2DCE6', zbir: '#C8D4E0' }
+                              : { glavna: '#FFFFFF', pod: '#F7F9FB', zbir: '#EEF2F6' }
                             const hoverBg = '#E9E9E7'
                             return (
                               <React.Fragment key={p.id}>
