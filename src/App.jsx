@@ -124,7 +124,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         {[['glavna', `📚 Baza (${brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: '8px 16px', border: 'none', background: 'none', fontSize: 12, fontWeight: tab === t ? 700 : 400,
-              color: tab === t ? '#1B4332' : '#888', borderBottom: tab === t ? '2px solid #1B4332' : '2px solid transparent',
+              color: tab === t ? '#1B2F43' : '#888', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
               cursor: 'pointer', fontFamily: 'inherit' }}>
             {lbl}
           </button>
@@ -171,10 +171,10 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                 {items.map((item, i) => (
                   <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
                     style={{ padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: '1px solid #EEECEA' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#E8F0EC'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
                     onMouseLeave={e => e.currentTarget.style.background = ''}>
                     <span style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>{item.n}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1B4332', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                       {item.c > 0 ? fmt(item.c) + ' €' : '—'}
                     </span>
                     <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>/{item.m}</span>
@@ -988,7 +988,7 @@ ${sviFazeSadrzaj}
   const odjava = () => supabase.auth.signOut()
 
   if (authLoading) return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F5F4F0' }}>
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#C7C7C4' }}>
       <div style={{ fontSize: 14, color: '#888' }}>Učitavanje...</div>
     </div>
   )
@@ -1005,10 +1005,16 @@ ${sviFazeSadrzaj}
   const umanjenje = medjuzbir * umanjenjePct / 100
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', fontSize: 13, background: '#F5F4F0', color: '#1A1A18' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', fontSize: 13, background: '#C7C7C4', color: '#1A1A18' }}>
+      <style>{`
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: #C7C7C4; }
+        ::-webkit-scrollbar-thumb { background: #F2F2F0; border-radius: 8px; border: 2px solid #C7C7C4; }
+        ::-webkit-scrollbar-thumb:hover { background: #FFFFFF; }
+      `}</style>
 
       {/* HEADER */}
-      <div style={{ background: '#1B4332', color: '#fff', padding: '0 18px', height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ background: '#1B2F43', color: '#fff', padding: '0 18px', height: 46, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <span style={{ fontWeight: 700, fontSize: 15 }}>📐 Predmjer / Troškovnik</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 11, background: 'rgba(255,255,255,.15)', borderRadius: 20, padding: '3px 10px' }}>
@@ -1030,17 +1036,17 @@ ${sviFazeSadrzaj}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* LEFT PANEL */}
-        <div style={{ width: 280, minWidth: 280, background: '#F5F4F0', borderRight: '1px solid #D8D5CC', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
+        <div style={{ width: 280, minWidth: 280, background: '#C7C7C4', borderRight: '1px solid #B8B8B4', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
 
           {/* Projekti */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📁</span>Projekti</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📁</span>Projekti</div>
           {projekti.map(p => (
             <div key={p.id} onClick={() => setAktivniProjekat(p)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
-                background: p.id === aktivniProjekat?.id ? '#E8F0EC' : 'transparent',
-                border: p.id === aktivniProjekat?.id ? '1px solid #4A7C65' : '1px solid transparent' }}
-              onMouseEnter={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '#F0F5F2' }}
+                background: p.id === aktivniProjekat?.id ? '#E8ECF0' : 'transparent',
+                border: p.id === aktivniProjekat?.id ? '1px solid #4A637C' : '1px solid transparent' }}
+              onMouseEnter={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '#F0F2F5' }}
               onMouseLeave={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '' }}>
               {editNazivProjId === p.id ? (
                 <input
@@ -1057,7 +1063,7 @@ ${sviFazeSadrzaj}
                     if (e.key === 'Escape') setEditNazivProjId(null)
                   }}
                   onClick={e => e.stopPropagation()}
-                  style={{ flex: 1, border: '1px solid #4A7C65', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500, background: '#fff' }}
+                  style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500, background: '#fff' }}
                 />
               ) : (
                 <span
@@ -1073,7 +1079,7 @@ ${sviFazeSadrzaj}
                 }}
                 title="Kloniraj projekat (⧉)"
                 style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#1B4332'}
+                onMouseEnter={e => e.currentTarget.style.color = '#1B2F43'}
                 onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>⧉</button>
               <button onClick={e => { e.stopPropagation(); obrisiProjekat(p.id) }}
                 style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
@@ -1086,14 +1092,14 @@ ${sviFazeSadrzaj}
               onKeyDown={e => e.key === 'Enter' && dodajProjekat()}
               placeholder="Novi projekat..."
               style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-            <button onClick={dodajProjekat} style={B('#1B4332')}>+ Dodaj</button>
+            <button onClick={dodajProjekat} style={B('#1B2F43')}>+ Dodaj</button>
           </div>
           </div>
 
           {/* Podaci o projektu */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📋</span>Podaci o projektu</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📋</span>Podaci o projektu</div>
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
@@ -1112,7 +1118,7 @@ ${sviFazeSadrzaj}
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>🏗️</span>Faza</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 13 }}>🏗️</span>Faza</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
                 <div key={s.kod} onClick={() => {
@@ -1125,16 +1131,16 @@ ${sviFazeSadrzaj}
                     }
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                    background: s.kod === aktivnaStruka ? '#1B4332' : 'transparent',
-                    border: s.kod === aktivnaStruka ? '1px solid #1B4332' : '1px solid #E8E5DC' }}
-                  onMouseEnter={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '#F0F5F2' }}
+                    background: s.kod === aktivnaStruka ? '#1B2F43' : 'transparent',
+                    border: s.kod === aktivnaStruka ? '1px solid #1B2F43' : '1px solid #E8E5DC' }}
+                  onMouseEnter={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '#F0F2F5' }}
                   onMouseLeave={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '' }}>
                   {editStrukaKod === s.kod ? (
                     <input type="text" defaultValue={s.naziv} autoFocus
                       onClick={e => e.stopPropagation()}
                       onBlur={e => { preimenujStruku(s.kod, e.target.value.trim() || s.naziv); setEditStrukaKod(null) }}
                       onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditStrukaKod(null) }}
-                      style={{ flex: 1, border: '1px solid #4A7C65', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff' }} />
+                      style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff' }} />
                   ) : (
                     <span onDoubleClick={e => { e.stopPropagation(); setEditStrukaKod(s.kod) }}
                       title="Dvoklik za preimenovanje"
@@ -1154,7 +1160,7 @@ ${sviFazeSadrzaj}
                 <input type="text" autoFocus placeholder="Naziv nove faze..."
                   onBlur={e => { if (e.target.value.trim()) dodajStruku(e.target.value); setDodajStrukuMod(false) }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setDodajStrukuMod(false) }}
-                  style={{ border: '1px solid #4A7C65', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                  style={{ border: '1px solid #4A637C', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
               ) : (
                 <button onClick={() => setDodajStrukuMod(true)}
                   style={{ background: 'transparent', border: '1px dashed #C8C5BD', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, color: '#888', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
@@ -1168,7 +1174,7 @@ ${sviFazeSadrzaj}
           {/* Faze */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📦</span>Grupe radova</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📦</span>Grupe radova</div>
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
@@ -1191,7 +1197,7 @@ ${sviFazeSadrzaj}
                   {aktivnaPripada && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 2px 0', fontSize: 12 }}>
                       <span style={{ color: '#888' }}>{aktivnaFaza.naziv}</span>
-                      <span style={{ fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
+                      <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
                     </div>
                   )}
                 </div>
@@ -1204,14 +1210,14 @@ ${sviFazeSadrzaj}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
                 placeholder="Naziv grupe radova..."
                 style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-              <button onClick={dodajFazu} style={B('#1B4332')}>+ Dodaj</button>
+              <button onClick={dodajFazu} style={B('#1B2F43')}>+ Dodaj</button>
             </div>
             </div>
           </>}
 
           {/* Uvećanje */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A7C65', marginBottom: 10 }}><span style={{ fontSize: 13 }}>⚖️</span>Uvećanje / Umanjenje</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 13 }}>⚖️</span>Uvećanje / Umanjenje</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
             <input type="number" value={uvecanjePct} min="0" step="0.5"
@@ -1228,30 +1234,30 @@ ${sviFazeSadrzaj}
           <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DC' }}>
             <button onClick={() => setShowMojaBaza(true)}
-              style={{ width: '100%', background: '#F0F5F2', color: '#1B4332', border: '1px solid #4A7C65', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ width: '100%', background: '#F0F2F5', color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               ⭐ Upravljaj mojom bazom ({mojeBaza.length})
             </button>
           </div>
           </div>
 
           {/* Rekapitulacija */}
-          <div style={{ background: '#EEF3F1', border: '1px solid #C9DED2', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#1B4332', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📊</span>Rekapitulacija</div>
+          <div style={{ background: '#EEF0F3', border: '1px solid #C9D3DE', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#1B2F43', marginBottom: 10 }}><span style={{ fontSize: 13 }}>📊</span>Rekapitulacija</div>
           {aktivnaFaza && pozicije.length > 0 ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <tbody>
                 <tr>
                   <td style={{ padding: '3px 0', color: '#666' }}>{aktivnaFaza.naziv}</td>
-                  <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
+                  <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>
                     {fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}
                   </td>
                 </tr>
                 <tr><td colSpan={2} style={{ borderTop: '1px solid #D8D5CC', paddingTop: 5 }}></td></tr>
-                {uvecanje > 0 && <tr><td style={{ color: '#1B4332' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} {valutaZnak}</td></tr>}
+                {uvecanje > 0 && <tr><td style={{ color: '#1B2F43' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} {valutaZnak}</td></tr>}
                 {umanjenje > 0 && <tr><td style={{ color: '#C0392B' }}>− Umanjenje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#C0392B', fontVariantNumeric: 'tabular-nums' }}>−{fmt(umanjenje)} {valutaZnak}</td></tr>}
                 <tr>
                   <td style={{ fontWeight: 800, fontSize: 14 }}>UKUPNO</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
+                  <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>
                     {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje - umanjenje)} {valutaZnak}
                   </td>
                 </tr>
@@ -1279,14 +1285,14 @@ ${sviFazeSadrzaj}
               <div style={{ background: '#fff', borderBottom: '1px solid #D8D5CC', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
-                <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B4332', '1px solid #4A7C65')}>+ Vlastita stavka</button>
+                <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B2F43', '1px solid #4A637C')}>+ Vlastita stavka</button>
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => setValuta(e.target.value)}
-                  style={{ border: '1px solid #4A7C65', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F0F5F2', color: '#1B4332', fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F0F2F5', color: '#1B2F43', fontWeight: 600, cursor: 'pointer' }}>
                   {VALUTE.map(v => <option key={v.kod} value={v.kod}>Valuta ({v.kod})</option>)}
                 </select>
                 <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
-                <button onClick={exportPDF} style={B('#1B4332')}>🖨 Print/PDF</button>
+                <button onClick={exportPDF} style={B('#1B2F43')}>🖨 Print/PDF</button>
               </div>
 
               {/* Baza pretraga */}
@@ -1308,7 +1314,7 @@ ${sviFazeSadrzaj}
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ background: '#1B4332', color: '#fff' }}>
+                      <tr style={{ background: '#1B2F43', color: '#fff' }}>
                         {['R.br.', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
                           <th key={i} style={{ padding: '9px 8px', textAlign: i >= 3 && i <= 5 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
@@ -1317,8 +1323,8 @@ ${sviFazeSadrzaj}
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
-                          <tr key={'k' + kat} style={{ background: '#E4EEE7' }}>
-                            <td colSpan={7} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B4332', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D6A4F' }}>{kat}</td>
+                          <tr key={'k' + kat} style={{ background: '#E4E9EE' }}>
+                            <td colSpan={7} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
@@ -1326,9 +1332,9 @@ ${sviFazeSadrzaj}
                             const imadjece = djeca.length > 0
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
-                              ? { glavna: '#F6F9F7', pod: '#F0F5F1', zbir: '#E9F1EB' }
-                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F7F3' }
-                            const hoverBg = '#FDF0DB'
+                              ? { glavna: '#F6F8F9', pod: '#F0F2F5', zbir: '#E9EDF1' }
+                              : { glavna: '#FFFFFF', pod: '#FAFAF8', zbir: '#F2F4F7' }
+                            const hoverBg = '#E9E9E7'
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -1381,7 +1387,7 @@ ${sviFazeSadrzaj}
                                       }}
                                       title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, color: '#2B2B26' }}
-                                      onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F8FAF8' }}
+                                      onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
                                           e.preventDefault()
@@ -1426,13 +1432,13 @@ ${sviFazeSadrzaj}
                                       placeholder="0" min="0" step="any"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
                                     {u > 0 ? fmt(u) + ' ' + valutaZnak : '—'}
                                   </td>
                                   <td style={{ padding: '6px 4px', verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
                                       <button onClick={() => dodajPodstavku(p)} title="Dodaj podstavku (sprat/zona)"
-                                        style={{ background: '#E8F0EC', border: '1px solid #4A7C65', cursor: 'pointer', color: '#1B4332', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                        style={{ background: '#E8ECF0', border: '1px solid #4A637C', cursor: 'pointer', color: '#1B2F43', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                         + pod
                                       </button>
                                       <div style={{ display: 'flex', gap: 2 }}>
@@ -1473,7 +1479,7 @@ ${sviFazeSadrzaj}
                                             rows={1}
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.4, color: '#444' }}
-                                            onFocus={e => { e.target.style.border = '1px solid #4A7C65'; e.target.style.background = '#F0F5F2' }}
+                                            onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
                                          </div>
                                        </td>
@@ -1498,7 +1504,7 @@ ${sviFazeSadrzaj}
                                           placeholder="0" min="0" step="any"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A7C65', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
                                         {du > 0 ? fmt(du) + ' ' + valutaZnak : '—'}
                                       </td>
                                       <td style={{ padding: '4px 4px' }}>
@@ -1518,7 +1524,7 @@ ${sviFazeSadrzaj}
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
                                       Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
                                     </td>
-                                    <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B4332', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
+                                    <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
                                       {fmt(u)} {valutaZnak}
                                     </td>
                                     <td></td>
@@ -1529,9 +1535,9 @@ ${sviFazeSadrzaj}
                           })}
                         </React.Fragment>
                       ))}
-                      <tr style={{ background: '#E4EEE7', borderTop: '2px solid #2D6A4F' }}>
-                        <td colSpan={5} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B4332' }}>UKUPNO GRUPA:</td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
+                      <tr style={{ background: '#E4E9EE', borderTop: '2px solid #2D4B6A' }}>
+                        <td colSpan={5} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43' }}>UKUPNO GRUPA:</td>
+                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
                     </tbody>
@@ -1555,7 +1561,7 @@ ${sviFazeSadrzaj}
       {showFirmaModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: 420, maxWidth: '100%', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
-            <div style={{ background: '#1B4332', color: '#fff', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ background: '#1B2F43', color: '#fff', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>🏢 Postavke firme</div>
                 <div style={{ fontSize: 11, opacity: 0.8 }}>Logo i naziv se pojavljuju u zaglavlju PDF/Print izvještaja</div>
@@ -1574,7 +1580,7 @@ ${sviFazeSadrzaj}
                       : <span style={{ fontSize: 24, opacity: 0.3 }}>🏢</span>}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                    <label style={{ background: '#1B4332', color: '#fff', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: firmaLoading ? 'not-allowed' : 'pointer', textAlign: 'center', opacity: firmaLoading ? 0.6 : 1 }}>
+                    <label style={{ background: '#1B2F43', color: '#fff', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: firmaLoading ? 'not-allowed' : 'pointer', textAlign: 'center', opacity: firmaLoading ? 0.6 : 1 }}>
                       {firmaLoading ? 'Učitavanje...' : (firma?.logo ? '📤 Promijeni sliku' : '📤 Upload slike')}
                       <input type="file" accept="image/*" disabled={firmaLoading} style={{ display: 'none' }}
                         onChange={async e => {
@@ -1612,7 +1618,7 @@ ${sviFazeSadrzaj}
 
             <div style={{ padding: '12px 18px', borderTop: '1px solid #E8E5DC', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowFirmaModal(false)}
-                style={{ background: '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Gotovo
               </button>
             </div>
@@ -1627,7 +1633,7 @@ ${sviFazeSadrzaj}
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 299,
           width: 56, height: 56, borderRadius: '50%',
-          background: showAI ? '#14362A' : 'linear-gradient(135deg, #1B4332, #2D6A4F)',
+          background: showAI ? '#142536' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)',
           color: '#fff', border: 'none', cursor: 'pointer',
           fontSize: 24, boxShadow: '0 4px 20px rgba(27,67,50,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1643,7 +1649,7 @@ ${sviFazeSadrzaj}
       {!showAI && (
         <div style={{
           position: 'fixed', bottom: 86, right: 18, zIndex: 299,
-          background: '#1B4332', color: '#fff', borderRadius: 8,
+          background: '#1B2F43', color: '#fff', borderRadius: 8,
           padding: '5px 10px', fontSize: 11, fontWeight: 600,
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
           whiteSpace: 'nowrap'
