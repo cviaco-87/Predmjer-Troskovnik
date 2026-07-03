@@ -1336,7 +1336,7 @@ ${sviFazeSadrzaj}
                             const paleta = i % 2 === 1
                               ? { glavna: '#D2DCE6', pod: '#C8D4E0', zbir: '#BECCDA' }
                               : { glavna: '#E9E9E7', pod: '#E2E2E0', zbir: '#DADAD8' }
-                            const hoverBg = '#FDF3C7'
+                            const hoverBg = '#FFFBEA'
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
