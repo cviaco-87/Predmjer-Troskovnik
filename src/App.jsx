@@ -118,13 +118,13 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   }, [rezultati])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: '#FAFAF8', maxHeight: 280, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', maxHeight: 280, flexShrink: 0 }}>
       {/* Tabovi */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #E0DDD5', background: '#fff' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
         {[['glavna', `📚 Baza (${brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: '8px 16px', border: 'none', background: 'none', fontSize: 12, fontWeight: tab === t ? 700 : 400,
-              color: tab === t ? '#1B2F43' : '#888', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
+              color: tab === t ? '#1B2F43' : '#666', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
               cursor: 'pointer', fontFamily: 'inherit' }}>
             {lbl}
           </button>
@@ -132,19 +132,19 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       </div>
 
       {/* Search */}
-      <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #E0DDD5', background: '#fff' }}>
+      <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
           disabled={tab === 'glavna' && brojUStruci === 0}
-          style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && brojUStruci === 0) ? '#F0EFEA' : '#fff' }} />
+          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && brojUStruci === 0) ? '#DCE0E3' : '#fff' }} />
         {tab === 'glavna' && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
-            style={{ border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
             <option value="">— Sve kategorije —</option>
             {kategorijeZaStruku.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         )}
-        {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>}
+        {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>×</button>}
       </div>
 
       {/* Rezultati */}
@@ -1282,17 +1282,17 @@ ${sviFazeSadrzaj}
           ) : (
             <>
               {/* Toolbar */}
-              <div style={{ background: '#fff', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.1)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>{aktivnaFaza.naziv}</span>
+              <div style={{ background: '#1B2F43', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
-                <button onClick={dodajVlastitupoziciju} style={B('transparent', '#1B2F43', '1px solid #4A637C')}>+ Vlastita stavka</button>
+                <button onClick={dodajVlastitupoziciju} style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>+ Vlastita stavka</button>
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => setValuta(e.target.value)}
-                  style={{ border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F0F2F5', color: '#1B2F43', fontWeight: 600, cursor: 'pointer' }}>
-                  {VALUTE.map(v => <option key={v.kod} value={v.kod}>Valuta ({v.kod})</option>)}
+                  style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                  {VALUTE.map(v => <option key={v.kod} value={v.kod} style={{ color: '#1B2F43' }}>Valuta ({v.kod})</option>)}
                 </select>
                 <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
-                <button onClick={exportPDF} style={B('#1B2F43')}>🖨 Print/PDF</button>
+                <button onClick={exportPDF} style={B('#fff', '#1B2F43')}>🖨 Print/PDF</button>
               </div>
 
               {/* Baza pretraga */}
@@ -1334,8 +1334,8 @@ ${sviFazeSadrzaj}
                             const imadjece = djeca.length > 0
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
-                              ? { glavna: '#DCE4EC', pod: '#D2DCE6', zbir: '#C8D4E0' }
-                              : { glavna: '#FFFFFF', pod: '#F7F9FB', zbir: '#EEF2F6' }
+                              ? { glavna: '#D2DCE6', pod: '#C8D4E0', zbir: '#BECCDA' }
+                              : { glavna: '#E4E9EE', pod: '#DCE2E8', zbir: '#D4DCE4' }
                             const hoverBg = '#E9E9E7'
                             return (
                               <React.Fragment key={p.id}>
@@ -1349,7 +1349,7 @@ ${sviFazeSadrzaj}
                                   style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: paleta.glavna, cursor: 'grab' }}
                                   onMouseEnter={e => e.currentTarget.style.background = hoverBg}
                                   onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
-                                  <td style={{ padding: '6px 8px', color: '#888', width: 28, verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                       <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                       <span style={{ fontSize: 11, color: '#aaa' }}>{i + 1}</span>
@@ -1449,9 +1449,9 @@ ${sviFazeSadrzaj}
                                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                           onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}>⭐</button>
                                         <button onClick={() => obrisiPoziciju(p.id)}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 18, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
-                                          onMouseLeave={e => { e.currentTarget.style.color = '#bbb'; e.currentTarget.style.background = '' }}>×</button>
+                                          onMouseLeave={e => { e.currentTarget.style.color = '#333'; e.currentTarget.style.background = '' }}>×</button>
                                       </div>
                                     </div>
                                   </td>
@@ -1462,7 +1462,7 @@ ${sviFazeSadrzaj}
                                   const du = calcRowSimple(d)
                                   return (
                                     <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
-                                      <td style={{ padding: '4px 8px', color: '#aaa', textAlign: 'right', fontSize: 11 }}>{i+1}.{di+1}</td>
+                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>{i+1}.{di+1}</td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
@@ -1511,9 +1511,9 @@ ${sviFazeSadrzaj}
                                       </td>
                                       <td style={{ padding: '4px 4px' }}>
                                         <button onClick={() => obrisiPoziciju(d.id)}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: 16, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 16, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
-                                          onMouseLeave={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.background = '' }}>×</button>
+                                          onMouseLeave={e => { e.currentTarget.style.color = '#333'; e.currentTarget.style.background = '' }}>×</button>
                                       </td>
                                     </tr>
                                   )
