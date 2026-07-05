@@ -12,9 +12,11 @@ const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 // sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
 // vanjsko uređenje, njihove kategorije se samo dodaju ovdje)
 const KATEGORIJA_STRUKA = {
-  'Vodovod': 'hidro',
-  'Kanalizacija': 'hidro',
+  'Vodovod i kanalizacija': 'hidro',
   'Sanitarni uređaji': 'hidro',
+  'Elektroinstalacije': 'elektro',
+  'Mašinske instalacije': 'masinski',
+  'Vanjsko uređenje': 'vanjsko',
 }
 const strukaZaKategoriju = k => KATEGORIJA_STRUKA[k] || 'gradjevinski'
 const DEFAULT_STRUKE = [
