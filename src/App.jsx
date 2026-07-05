@@ -226,6 +226,15 @@ export default function App() {
     { kod: 'USD', znak: '$', naziv: 'Dolar' },
   ]
   const valutaZnak = VALUTE.find(v => v.kod === valuta)?.znak || '€'
+
+  // Kursevi — koliko 1 EUR vrijedi u toj valuti. KM je fiksno vezan za EUR (1,95583), nikad se ne mijenja.
+  // RSD i USD su približni tržišni kursevi (ažurirano jul 2026.) — dovoljno tačno za potrebe predmjera.
+  const KURSEVI = { EUR: 1, KM: 1.95583, RSD: 117.34, USD: 1.1437 }
+  const konvertujCijenu = (iznos, izValute, uValutu) => {
+    if (izValute === uValutu) return iznos
+    const uEUR = iznos / (KURSEVI[izValute] || 1)
+    return uEUR * (KURSEVI[uValutu] || 1)
+  }
   const [uvecanjePct, setUvecanjePct] = useState(0)
   const [umanjenjePct, setUmanjenjePct] = useState(0)
   const [editPoz, setEditPoz] = useState(null)
@@ -436,12 +445,14 @@ export default function App() {
     const item = BAZA[idx]
     const roditelji = pozicije.filter(p => !p.parent_id)
     const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+    // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
+    const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: item.c, kategorija: item.k, redoslijed: red
+      cijena: cijenaUValuti, kategorija: item.k, redoslijed: red
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
-  }, [aktivnaFaza, pozicije])
+  }, [aktivnaFaza, pozicije, valuta])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
     if (!aktivnaFaza) return
@@ -536,6 +547,39 @@ export default function App() {
     })
     ucitajMojuBazu()
     alert('Stavka sačuvana u vašu bazu!')
+  }
+
+  // ── PROMJENA VALUTE — konvertuje sve postojeće cijene u projektu po tekućem kursu ──
+  const promijeniValutu = async (novaValuta) => {
+    if (novaValuta === valuta) return
+    if (!aktivniProjekat) { setValuta(novaValuta); return }
+
+    const potvrda = confirm(
+      `Promijeniti valutu sa ${valuta} na ${novaValuta}?\n\n` +
+      `Sve postojeće cijene u OVOM projektu (u svim fazama) će se preračunati po kursu ` +
+      `1 EUR = ${KURSEVI[novaValuta]} ${novaValuta} (odnosno odgovarajućem odnosu ${valuta}/${novaValuta}).\n\n` +
+      `Ovo mijenja stvarne upisane iznose, ne samo oznaku valute.`
+    )
+    if (!potvrda) return
+
+    setLoading(true)
+    try {
+      const { data: sveFaze } = await supabase.from('faze').select('id').eq('projekat_id', aktivniProjekat.id)
+      for (const f of (sveFaze || [])) {
+        const { data: svePoz } = await supabase.from('pozicije').select('id, cijena').eq('faza_id', f.id)
+        for (const p of (svePoz || [])) {
+          if (p.cijena == null) continue
+          const novaCijena = Math.round(konvertujCijenu(p.cijena, valuta, novaValuta) * 100) / 100
+          await supabase.from('pozicije').update({ cijena: novaCijena }).eq('id', p.id)
+        }
+      }
+      // Osvježi trenutno prikazanu fazu odmah
+      if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+    } catch (e) {
+      alert('Greška pri konverziji cijena: ' + e.message)
+    }
+    setLoading(false)
+    setValuta(novaValuta)
   }
 
   // ── AI PROCJENA CIJENA ──
@@ -1295,7 +1339,7 @@ ${sviFazeSadrzaj}
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>+ Vlastita stavka</button>
                 {/* Valutni meni */}
-                <select value={valuta} onChange={e => setValuta(e.target.value)}
+                <select value={valuta} onChange={e => promijeniValutu(e.target.value)}
                   style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
                   {VALUTE.map(v => <option key={v.kod} value={v.kod} style={{ color: '#1B2F43' }}>Valuta ({v.kod})</option>)}
                 </select>
