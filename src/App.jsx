@@ -1091,7 +1091,7 @@ ${sviFazeSadrzaj}
             <input type="text" value={noviProjekat} onChange={e => setNoviProjekat(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && dodajProjekat()}
               placeholder="Novi projekat..."
-              style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+              style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
             <button onClick={dodajProjekat} style={B('#1B2F43')}>+ Dodaj</button>
           </div>
           </div>
@@ -1209,7 +1209,7 @@ ${sviFazeSadrzaj}
               <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
                 placeholder="Naziv grupe radova..."
-                style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
               <button onClick={dodajFazu} style={B('#1B2F43')}>+ Dodaj</button>
             </div>
             </div>
@@ -1335,7 +1335,7 @@ ${sviFazeSadrzaj}
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
                               ? { glavna: '#D2DCE6', pod: '#C8D4E0', zbir: '#BECCDA' }
-                              : { glavna: '#EAF0F6', pod: '#E2E9F0', zbir: '#DAE3EC' }
+                              : { glavna: '#F1F5F9', pod: '#EBF0F5', zbir: '#E4EAF1' }
                             const hoverBg = '#FFFBEA'
                             return (
                               <React.Fragment key={p.id}>
