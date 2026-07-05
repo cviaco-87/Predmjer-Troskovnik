@@ -1352,7 +1352,7 @@ ${sviFazeSadrzaj}
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                       <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
-                                      <span style={{ fontSize: 11, color: '#aaa' }}>{i + 1}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
                                     </div>
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
