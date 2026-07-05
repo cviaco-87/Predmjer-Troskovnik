@@ -89,9 +89,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   useEffect(() => { if (kat && !kategorijeZaStruku.includes(kat)) setKat('') }, [aktivnaStruka])
 
   const rezultati = useMemo(() => {
-    if (q.trim().length < 2) return []
-    const terms = q.trim().toLowerCase().split(/\s+/).filter(t => t.length > 1)
+    const imaTekst = q.trim().length >= 2
+    const imaKategoriju = !!kat
+    if (!imaTekst && !imaKategoriju) return []
+    const terms = imaTekst ? q.trim().toLowerCase().split(/\s+/).filter(t => t.length > 1) : []
     if (tab === 'moja') {
+      if (!imaTekst) return []
       return mojeBazaStavke
         .filter(s => {
           const n = s.naziv.toLowerCase()
@@ -101,12 +104,13 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija, _moja: true, _id: s.id }))
     }
     const out = []
-    for (let i = 0; i < BAZA.length && out.length < 80; i++) {
+    const limit = imaTekst ? 80 : 200
+    for (let i = 0; i < BAZA.length && out.length < limit; i++) {
       const item = BAZA[i]
       if (strukaZaKategoriju(item.k) !== aktivnaStruka) continue
       if (kat && item.k !== kat) continue
       const n = item.n.toLowerCase()
-      if (terms.every(t => n.includes(t))) out.push({ ...item, _idx: i })
+      if (terms.length === 0 || terms.every(t => n.includes(t))) out.push({ ...item, _idx: i })
     }
     return out
   }, [q, kat, tab, mojeBazaStavke, aktivnaStruka])
@@ -158,12 +162,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             <div style={{ fontSize: 13, fontWeight: 600, color: '#666', marginBottom: 4 }}>Baza za "{strukaNaziv}" još nije dostupna</div>
             <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>Za sada dodajte pozicije preko <strong>"+ Vlastita stavka"</strong> ili AI asistenta ✨. Baza za ovu fazu će biti dodana naknadno.</div>
           </div>
-        ) : q.trim().length < 2 ? (
+        ) : (q.trim().length < 2 && !kat) ? (
           <div style={{ padding: '8px 14px', fontSize: 12, color: '#aaa' }}>
-            {tab === 'glavna' ? 'Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...)' : 'Unesite pojam za pretragu vaših stavki'}
+            {tab === 'glavna' ? 'Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...) ili izaberite kategoriju da vidite sve stavke' : 'Unesite pojam za pretragu vaših stavki'}
           </div>
         ) : rezultati.length === 0 ? (
-          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>Nema rezultata za "{q}"</div>
+          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>{q.trim() ? `Nema rezultata za "${q}"` : 'Nema stavki u ovoj kategoriji'}</div>
         ) : (
           <>
             <div style={{ padding: '4px 14px', fontSize: 11, color: '#666', background: '#f0f0ee', borderBottom: '1px solid #E0DDD5' }}>
