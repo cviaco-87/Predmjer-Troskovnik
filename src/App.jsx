@@ -1189,9 +1189,9 @@ ${sviFazeSadrzaj}
                     </select>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
-                        style={{ background: 'none', border: '1px solid #f5c6c2', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 13, padding: '6px 9px', fontFamily: 'inherit' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#fdf0ef'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>🗑</button>
+                        style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
                     )}
                   </div>
                   {aktivnaPripada && (
