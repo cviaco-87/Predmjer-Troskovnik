@@ -5,7 +5,9 @@ import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
 import { BAZA_B64 } from "./baza.js"
 
-const BAZA = JSON.parse(atob(BAZA_B64))
+// atob() sam tretira svaki bajt kao Latin-1 karakter, što lomi UTF-8 slova (č,ć,š,ž,đ).
+// TextDecoder ispravno sastavlja višebajtne UTF-8 sekvence nazad u prava slova.
+const BAZA = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(BAZA_B64), c => c.charCodeAt(0))))
 const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
 
 // Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
