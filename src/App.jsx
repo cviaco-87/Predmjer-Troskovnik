@@ -81,9 +81,13 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
 
-  // Kategorije i broj stavki relevantni samo za trenutno aktivnu strukу
-  const kategorijeZaStruku = useMemo(() => KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka), [aktivnaStruka])
-  const brojUStruci = useMemo(() => BAZA.reduce((n, item) => n + (strukaZaKategoriju(item.k) === aktivnaStruka ? 1 : 0), 0), [aktivnaStruka])
+  // Prilagođene (korisnički dodane) faze nemaju unaprijed poznato mapiranje kategorija baze,
+  // pa im NE ograničavamo pretragu — vide cijelu bazu i sami biraju šta je relevantno.
+  const jePoznataStruka = ['gradjevinski','hidro','elektro','masinski','vanjsko'].includes(aktivnaStruka)
+
+  // Kategorije i broj stavki relevantni za trenutno aktivnu strukу (ili sve, ako je prilagođena faza)
+  const kategorijeZaStruku = useMemo(() => jePoznataStruka ? KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka) : KATEGORIJE, [aktivnaStruka, jePoznataStruka])
+  const brojUStruci = useMemo(() => jePoznataStruka ? BAZA.reduce((n, item) => n + (strukaZaKategoriju(item.k) === aktivnaStruka ? 1 : 0), 0) : BAZA.length, [aktivnaStruka, jePoznataStruka])
 
   // Reset kategorije filtera ako više ne pripada aktivnoj struci (npr. korisnik promijeni fazu)
   useEffect(() => { if (kat && !kategorijeZaStruku.includes(kat)) setKat('') }, [aktivnaStruka])
@@ -107,7 +111,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
     const limit = imaTekst ? 80 : 200
     for (let i = 0; i < BAZA.length && out.length < limit; i++) {
       const item = BAZA[i]
-      if (strukaZaKategoriju(item.k) !== aktivnaStruka) continue
+      if (jePoznataStruka && strukaZaKategoriju(item.k) !== aktivnaStruka) continue
       if (kat && item.k !== kat) continue
       const n = item.n.toLowerCase()
       if (terms.length === 0 || terms.every(t => n.includes(t))) out.push({ ...item, _idx: i })
