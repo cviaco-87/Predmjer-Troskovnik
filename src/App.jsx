@@ -879,16 +879,14 @@ export default function App() {
   }
 </style></head>
 <body>
-<div class="header" style="display:flex;align-items:center;gap:16px;">
-  ${firma?.logo ? `<img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;flex-shrink:0;" />` : ''}
-  <div style="flex:1;min-width:0;">
-    <h1>PREDMJER I PREDRAČUN</h1>
-    <div class="info">
-      <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
-      <div><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
-      <div><span>Lokacija: </span>${proj.adresa||'—'}</div>
-      <div><span>Datum: </span>${proj.datum||'—'}</div>
-    </div>
+<div class="header">
+  ${firma?.logo ? `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>` : ''}
+  <h1 style="text-align:center;">PREDMJER I PREDRAČUN</h1>
+  <div class="info">
+    <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
+    <div style="text-align:right;"><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
+    <div><span>Datum: </span>${proj.datum||'—'}</div>
+    <div style="text-align:right;"><span>Lokacija: </span>${proj.adresa||'—'}</div>
   </div>
 </div>
 ${sviFazeSadrzaj}
