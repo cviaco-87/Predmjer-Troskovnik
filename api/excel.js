@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { projekat, faze, svePozicije, uvecanjePct=0, umanjenjePct=0, valutaZnak='€', struke=[] } = req.body
+    const { projekat, faze, svePozicije, uvecanjePct=0, umanjenjePct=0, valutaZnak='€', struke=[], filtrirajStruku=null } = req.body
 
     const calcSimple = p => (parseFloat(p.kolicina)||0)*(parseFloat(p.cijena)||0)
     const calcRow = (p, poz) => {
@@ -41,11 +41,11 @@ export default async function handler(req, res) {
     wb.creator = 'Predmjer/Troškovnik'
     const ws = wb.addWorksheet('Predmjer', { views:[{showGridLines:false}] })
 
-    // ── KOLONE: B-G (Rabat kolona uklonjena, Ukupno je sad G) ──
+    // ── KOLONE: B-G ──
     ws.columns = [
       {width: 2.5},    // A - spacer
       {width: 8.0},    // B - R.br.
-      {width: 55.0},   // C - Opis pozicije (proširena da popuni prostor bivše Rabat kolone)
+      {width: 55.0},   // C - Opis pozicije
       {width: 4.86},   // D - J.mj.
       {width: 10.71},  // E - Jed. cijena
       {width: 8.86},   // F - Količina
@@ -73,7 +73,6 @@ export default async function handler(req, res) {
       bottom: {style:botStyle||topStyle, color:{argb:'FF'+(botColor||topColor)}}
     })
 
-    // Dinamički format broja sa izabranom valutom - 3 sekcije: pozitivno;negativno;nula(prikaži crticu)
     const CUR = String(valutaZnak).replace(/"/g, '')
     const FMT_CUR = `#,##0.00" ${CUR}";-#,##0.00" ${CUR}";"—"`
     const FMT_NUM = `#,##0.00;-#,##0.00;"—"`
@@ -89,7 +88,17 @@ export default async function handler(req, res) {
     row.getCell('B').font  = font({bold:true, size:15, color:Z})
     row.getCell('B').alignment = al('center','center',false)
 
-    // ── RED 2: Projekat / Investitor ──
+    // ── Podnaslov ako je export filtriran na jednu struku ──
+    if (filtrirajStruku) {
+      const nazivStruke = struke.find(s => s.kod === filtrirajStruku)?.naziv || ''
+      const podNas = ws.addRow(['', `— ${nazivStruke} —`,'','','','',''])
+      ws.mergeCells(`B${podNas.number}:G${podNas.number}`)
+      podNas.height = 14
+      podNas.getCell('B').font = font({size:10, color:'4A637C', italic:true})
+      podNas.getCell('B').alignment = al('center','center',false)
+    }
+
+    // ── RED: Projekat / Investitor ──
     row = ws.addRow(['','Projekat:', projekat.naziv||'','','Investitor:', projekat.klijent||'',''])
     ws.mergeCells(`F${row.number}:G${row.number}`)
     row.height = 12.95
@@ -100,7 +109,7 @@ export default async function handler(req, res) {
     row.getCell('F').font = font({bold:true, size:9})
     row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
-    // ── RED 3: Lokacija / Datum ──
+    // ── RED: Lokacija / Datum ──
     const datumTekst = formatDatum(projekat.datum)
     row = ws.addRow(['','Lokacija:', projekat.adresa||'','','Datum:', datumTekst,''])
     ws.mergeCells(`F${row.number}:G${row.number}`)
@@ -117,14 +126,13 @@ export default async function handler(req, res) {
     row = ws.addRow([])
     row.height = 8.1
 
-    // Rezultati potrebni za 'result' keš formula (prikaz prije prvog Excel recalculate-a)
+    // Ukupno CIJELOG projekta (uvijek, bez obzira na filter — potrebno za rekapitulaciju na kraju)
     let grandTotalJS = 0
     for (const f of faze) {
       const poz = svePozicije[f.id]||[]
       grandTotalJS += poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
     }
 
-    // Grupiši faze po struci (fallback 'gradjevinski' za stare faze bez struke)
     const fazePoStruci = {}
     for (const f of faze) {
       const kod = f.struka_kod || 'gradjevinski'
@@ -132,10 +140,9 @@ export default async function handler(req, res) {
       fazePoStruci[kod].push(f)
     }
 
-    // Adrese G-ćelija "UKUPNO STRUKA" po struci, za rekapitulaciju
-    const strukaTotalInfo = [] // { naziv, addr, jsValue, rimski }
+    // { naziv, addr (null ako nije detaljno prikazano), jsValue, rimski }
+    const strukaTotalInfo = []
 
-    // ── STRUKE → FAZE ──
     let brStruke = 0
     for (const s of struke) {
       const fazeUStruci = fazePoStruci[s.kod] || []
@@ -143,16 +150,20 @@ export default async function handler(req, res) {
       if (!imaSadrzaja) continue
 
       brStruke++
+      const prikaziDetalj = !filtrirajStruku || filtrirajStruku === s.kod
       const strukaFazaGAddrs = []
       let strukaUkupnoJS = 0
+      const grupaSubtotali = [] // zbirna rekapitulacija grupa radova (faza) unutar OVE struke
 
-      // ── NASLOV STRUKE ──
-      row = ws.addRow(['', `${toRoman(brStruke)}   ${s.naziv.toUpperCase()}`,'','','','',''])
-      ws.mergeCells(`B${row.number}:G${row.number}`)
-      row.height = 22
-      row.getCell('B').font  = font({bold:true, size:13, color:'FFFFFF'})
-      row.getCell('B').alignment = al('left','center',false)
-      row.eachCell({includeEmpty:true}, c => { c.fill = fill(Z) })
+      if (prikaziDetalj) {
+        // ── NASLOV STRUKE ──
+        row = ws.addRow(['', `${toRoman(brStruke)}   ${s.naziv.toUpperCase()}`,'','','','',''])
+        ws.mergeCells(`B${row.number}:G${row.number}`)
+        row.height = 22
+        row.getCell('B').font  = font({bold:true, size:13, color:'FFFFFF'})
+        row.getCell('B').alignment = al('left','center',false)
+        row.eachCell({includeEmpty:true}, c => { c.fill = fill(Z) })
+      }
 
       for (const f of fazeUStruci) {
         const poz = svePozicije[f.id]||[]
@@ -173,46 +184,54 @@ export default async function handler(req, res) {
           byK[k].push(p)
         }
 
-        // ── NASLOV FAZE ──
-        row = ws.addRow(['', f.naziv.toUpperCase(),'','','','',''])
-        ws.mergeCells(`B${row.number}:G${row.number}`)
-        row.height = 18
-        row.getCell('B').value = f.naziv.toUpperCase()
-        row.getCell('B').font  = font({bold:true, size:11, color:Z})
-        row.getCell('B').alignment = al('left','center',false)
-        row.getCell('B').border = borderBottom('medium', Z)
-        row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+        let topLevelGAddrs = []
 
-        // ── ZAGLAVLJE KOLONA ──
-        row = ws.addRow(['','R.br.','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
-        row.height = 27.95
-        const thCols = ['B','C','D','E','F','G']
-        const thAligns = ['center','left','center','center','center','center']
-        thCols.forEach((col, i) => {
-          const c = row.getCell(col)
-          c.fill      = fill(Z)
-          c.font      = font({bold:true, size:9, color:'FFFFFF'})
-          c.alignment = al(thAligns[i], 'center', true)
-          c.border    = borderBottom('medium', '145229')
-        })
+        if (prikaziDetalj) {
+          // ── NASLOV FAZE ──
+          row = ws.addRow(['', f.naziv.toUpperCase(),'','','','',''])
+          ws.mergeCells(`B${row.number}:G${row.number}`)
+          row.height = 18
+          row.getCell('B').value = f.naziv.toUpperCase()
+          row.getCell('B').font  = font({bold:true, size:11, color:Z})
+          row.getCell('B').alignment = al('left','center',false)
+          row.getCell('B').border = borderBottom('medium', Z)
+          row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+
+          // ── ZAGLAVLJE KOLONA ──
+          row = ws.addRow(['','R.br.','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
+          row.height = 27.95
+          const thCols = ['B','C','D','E','F','G']
+          const thAligns = ['center','left','center','center','center','center']
+          thCols.forEach((col, i) => {
+            const c = row.getCell(col)
+            c.fill      = fill(Z)
+            c.font      = font({bold:true, size:9, color:'FFFFFF'})
+            c.alignment = al(thAligns[i], 'center', true)
+            c.border    = borderBottom('medium', '145229')
+          })
+        }
 
         let rb=1; let par=0
-        const topLevelGAddrs = [] // G-ćelije svih glavnih (roditelj) stavki u ovoj fazi
 
         for (const [k, stavke] of Object.entries(byK)) {
-          // ── KATEGORIJA ──
-          row = ws.addRow(['', k.toUpperCase(),'','','','',''])
-          ws.mergeCells(`B${row.number}:G${row.number}`)
-          row.height = 14.1
-          row.getCell('B').value = k.toUpperCase()
-          row.getCell('B').fill  = fill(ZS)
-          row.getCell('B').font  = font({bold:true, size:9, color:Z})
-          row.getCell('B').alignment = al('left','center',false)
-          row.getCell('B').border = borderBottom('thin','C8C5BD')
+          if (prikaziDetalj) {
+            // ── KATEGORIJA ──
+            row = ws.addRow(['', k.toUpperCase(),'','','','',''])
+            ws.mergeCells(`B${row.number}:G${row.number}`)
+            row.height = 14.1
+            row.getCell('B').value = k.toUpperCase()
+            row.getCell('B').fill  = fill(ZS)
+            row.getCell('B').font  = font({bold:true, size:9, color:Z})
+            row.getCell('B').alignment = al('left','center',false)
+            row.getCell('B').border = borderBottom('thin','C8C5BD')
+          }
 
           for (const p of stavke) {
             const djeca   = djecaMap[p.id]||[]
             const imadjece = djeca.length > 0
+
+            if (!prikaziDetalj) { rb++; par++; continue }
+
             const ispar   = par%2===1
             const bg      = ispar ? SI : 'FFFFFF'
             const naziv   = strip(p.naziv||'')
@@ -223,21 +242,18 @@ export default async function handler(req, res) {
             row.height = visina
             const mainRowNum = row.number
 
-            // R.br.
             row.getCell('B').value     = String(rb)
             row.getCell('B').fill      = fill(bg)
             row.getCell('B').font      = font({size:9, color:'666666'})
             row.getCell('B').alignment = al('center','top',false)
             row.getCell('B').border    = borderBottom('thin','EEECEA')
 
-            // Opis
             row.getCell('C').value     = naziv
             row.getCell('C').fill      = fill(bg)
             row.getCell('C').font      = font({size:9.5, italic: imadjece})
             row.getCell('C').alignment = al('left','top',true)
             row.getCell('C').border    = borderBottom('thin','EEECEA')
 
-            // J.mj.
             row.getCell('D').value     = fmtJmj(p.jedinica)
             row.getCell('D').fill      = fill(bg)
             row.getCell('D').font      = font({size:9, color:'555555'})
@@ -280,7 +296,6 @@ export default async function handler(req, res) {
               topLevelGAddrs.push(`G${mainRowNum}`)
             }
 
-            // ── PODSTAVKE ──
             if (imadjece) {
               const childRowNums = []
 
@@ -339,7 +354,6 @@ export default async function handler(req, res) {
               parentGCell.value = { formula: `SUM(G${firstChild}:G${lastChild})`, result: jsParentTotal }
               topLevelGAddrs.push(`G${mainRowNum}`)
 
-              // ── RED "Ukupno: X.XX jed." — živa formula (SUM količina djece) ──
               const sumRow = ws.addRow(['','','','','','',''])
               ws.mergeCells(`C${sumRow.number}:F${sumRow.number}`)
               sumRow.height = 12.95
@@ -373,61 +387,92 @@ export default async function handler(req, res) {
           }
         }
 
-        // ── UKUPNO FAZA — formula: SUM svih glavnih G-ćelija (mogu biti nekontinuirane) ──
         const jsFazaTotal = roditelji.reduce((s,p)=>s+calcRow(p,poz),0)
-        const totRow = ws.addRow(['','','','','','',''])
-        ws.mergeCells(`B${totRow.number}:F${totRow.number}`)
-        totRow.height = 15.95
+        grupaSubtotali.push({ naziv: f.naziv, ukupno: jsFazaTotal })
 
-        totRow.getCell('B').value     = `UKUPNO ${f.naziv.toUpperCase()}:`
-        totRow.getCell('B').alignment = al('right','center',false)
-        ;['B','C','D','E','F','G'].forEach(col => {
-          totRow.getCell(col).fill   = fill(ZS)
-          totRow.getCell(col).font   = font({bold:true, size:10})
-          totRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
-        })
-        totRow.getCell('G').value = {
-          formula: topLevelGAddrs.length > 0 ? `SUM(${topLevelGAddrs.join(',')})` : '0',
-          result: jsFazaTotal
+        if (prikaziDetalj) {
+          const totRow = ws.addRow(['','','','','','',''])
+          ws.mergeCells(`B${totRow.number}:F${totRow.number}`)
+          totRow.height = 15.95
+
+          totRow.getCell('B').value     = `UKUPNO ${f.naziv.toUpperCase()}:`
+          totRow.getCell('B').alignment = al('right','center',false)
+          ;['B','C','D','E','F','G'].forEach(col => {
+            totRow.getCell(col).fill   = fill(ZS)
+            totRow.getCell(col).font   = font({bold:true, size:10})
+            totRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
+          })
+          totRow.getCell('G').value = {
+            formula: topLevelGAddrs.length > 0 ? `SUM(${topLevelGAddrs.join(',')})` : '0',
+            result: jsFazaTotal
+          }
+          totRow.getCell('G').numFmt    = FMT_CUR
+          totRow.getCell('G').font      = font({bold:true, size:10, color:Z})
+          totRow.getCell('G').alignment = al('center','center',false)
+
+          strukaFazaGAddrs.push(`G${totRow.number}`)
+
+          const prazan = ws.addRow([])
+          prazan.height = 8.1
         }
-        totRow.getCell('G').numFmt    = FMT_CUR
-        totRow.getCell('G').font      = font({bold:true, size:10, color:Z})
-        totRow.getCell('G').alignment = al('center','center',false)
-
-        strukaFazaGAddrs.push(`G${totRow.number}`)
         strukaUkupnoJS += jsFazaTotal
-
-        // Prazan red između faza
-        const prazan = ws.addRow([])
-        prazan.height = 8.1
       }
 
-      // ── UKUPNO STRUKA — formula: SUM svih "UKUPNO FAZA" ćelija unutar ove struke ──
-      const strukaTotRow = ws.addRow(['','','','','','',''])
-      ws.mergeCells(`B${strukaTotRow.number}:F${strukaTotRow.number}`)
-      strukaTotRow.height = 17
-      strukaTotRow.getCell('B').value     = `UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}:`
-      strukaTotRow.getCell('B').alignment = al('right','center',false)
-      ;['B','C','D','E','F','G'].forEach(col => {
-        strukaTotRow.getCell(col).fill   = fill('E8ECF0')
-        strukaTotRow.getCell(col).font   = font({bold:true, size:11, color:Z})
-        strukaTotRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
-      })
-      strukaTotRow.getCell('G').value = {
-        formula: strukaFazaGAddrs.length > 0 ? `SUM(${strukaFazaGAddrs.join(',')})` : '0',
-        result: strukaUkupnoJS
+      if (prikaziDetalj) {
+        // ── Zbirna rekapitulacija grupa radova unutar ove struke (ako ih ima više od jedne) ──
+        if (grupaSubtotali.length > 1) {
+          const zbRekNas = ws.addRow(['', `ZBIRNA REKAPITULACIJA — ${s.naziv.toUpperCase()}`,'','','','',''])
+          ws.mergeCells(`B${zbRekNas.number}:G${zbRekNas.number}`)
+          zbRekNas.height = 16
+          zbRekNas.getCell('B').font   = font({bold:true, size:10, color:Z})
+          zbRekNas.getCell('B').border = borderBottom('thin', '4A637C')
+          zbRekNas.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+
+          for (const g of grupaSubtotali) {
+            const gRow = ws.addRow(['', g.naziv,'','','','',''])
+            ws.mergeCells(`B${gRow.number}:F${gRow.number}`)
+            gRow.height = 13.5
+            gRow.getCell('B').font   = font({size:9.5})
+            gRow.getCell('B').border = borderBottom('thin','EEECEA')
+            gRow.getCell('G').value  = g.ukupno
+            gRow.getCell('G').numFmt = FMT_CUR
+            gRow.getCell('G').font   = font({size:9.5, color:Z})
+            gRow.getCell('G').alignment = al('center','center',false)
+            gRow.getCell('G').border    = borderBottom('thin','EEECEA')
+          }
+          const prazan2 = ws.addRow([])
+          prazan2.height = 8
+        }
+
+        // ── UKUPNO STRUKA ──
+        const strukaTotRow = ws.addRow(['','','','','','',''])
+        ws.mergeCells(`B${strukaTotRow.number}:F${strukaTotRow.number}`)
+        strukaTotRow.height = 17
+        strukaTotRow.getCell('B').value     = `UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}:`
+        strukaTotRow.getCell('B').alignment = al('right','center',false)
+        ;['B','C','D','E','F','G'].forEach(col => {
+          strukaTotRow.getCell(col).fill   = fill('E8ECF0')
+          strukaTotRow.getCell(col).font   = font({bold:true, size:11, color:Z})
+          strukaTotRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
+        })
+        strukaTotRow.getCell('G').value = {
+          formula: strukaFazaGAddrs.length > 0 ? `SUM(${strukaFazaGAddrs.join(',')})` : '0',
+          result: strukaUkupnoJS
+        }
+        strukaTotRow.getCell('G').numFmt    = FMT_CUR
+        strukaTotRow.getCell('G').alignment = al('center','center',false)
+
+        strukaTotalInfo.push({ naziv: s.naziv, addr: `G${strukaTotRow.number}`, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+
+        const prazanStruka = ws.addRow([])
+        prazanStruka.height = 10
+      } else {
+        // Struka nije detaljno prikazana (filtrirana) — nema ćelije za referencirati, samo JS vrijednost
+        strukaTotalInfo.push({ naziv: s.naziv, addr: null, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
       }
-      strukaTotRow.getCell('G').numFmt    = FMT_CUR
-      strukaTotRow.getCell('G').alignment = al('center','center',false)
-
-      strukaTotalInfo.push({ naziv: s.naziv, addr: `G${strukaTotRow.number}`, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
-
-      // Prazan red između struka
-      const prazanStruka = ws.addRow([])
-      prazanStruka.height = 10
     }
 
-    // ── REKAPITULACIJA ──
+    // ── REKAPITULACIJA (uvijek prikazuje SVE struke, bez obzira na filter) ──
     const rekNas = ws.addRow(['','REKAPITULACIJA','','','','',''])
     ws.mergeCells(`B${rekNas.number}:G${rekNas.number}`)
     rekNas.height = 18
@@ -447,7 +492,6 @@ export default async function handler(req, res) {
     })
     rekHdr.getCell('G').alignment = al('center','center',false)
 
-    // Redovi struka u rekapitulaciji — G referencira "UKUPNO STRUKA" ćeliju (živo)
     const rekapGAddrs = []
     for (const info of strukaTotalInfo) {
       const fRow = ws.addRow(['', `${info.rimski}   ${info.naziv}`,'','','','',''])
@@ -455,7 +499,11 @@ export default async function handler(req, res) {
       fRow.height = 14.1
       fRow.getCell('B').font      = font({size:10})
       fRow.getCell('B').border    = borderBottom('thin','EEECEA')
-      fRow.getCell('G').value     = { formula: info.addr, result: info.jsValue }
+      if (info.addr) {
+        fRow.getCell('G').value = { formula: info.addr, result: info.jsValue }
+      } else {
+        fRow.getCell('G').value = info.jsValue
+      }
       fRow.getCell('G').numFmt    = FMT_CUR
       fRow.getCell('G').font      = font({bold:true, color:Z})
       fRow.getCell('G').alignment = al('center','center',false)
@@ -463,7 +511,6 @@ export default async function handler(req, res) {
       rekapGAddrs.push(`G${fRow.number}`)
     }
 
-    // Međuzbir — SUM svih rekap redova (živo)
     const mbRow = ws.addRow(['','','','','','Međuzbir:',''])
     ws.mergeCells(`B${mbRow.number}:E${mbRow.number}`)
     mbRow.height = 14.1
@@ -482,7 +529,6 @@ export default async function handler(req, res) {
     mbRow.getCell('G').alignment = al('center','center',false)
     const medjuzbirAddr = `G${mbRow.number}`
 
-    // Uvećanje/Umanjenje — formula: Međuzbir * procenat/100 (živo prati Međuzbir)
     let uvecAddr = null
     let umanAddr = null
 
@@ -512,7 +558,6 @@ export default async function handler(req, res) {
       umanAddr = `G${umRow.number}`
     }
 
-    // Sveukupno — formula: Međuzbir (+ Uvećanje) (- Umanjenje), sve živo povezano
     let sveukupnoFormula = medjuzbirAddr
     if (uvecAddr) sveukupnoFormula += `+${uvecAddr}`
     if (umanAddr) sveukupnoFormula += `-${umanAddr}`
