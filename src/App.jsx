@@ -848,6 +848,25 @@ export default function App() {
       return `<tr><td>${s.rimski}&nbsp;&nbsp;${s.naziv}</td><td class="r">${fmtN(s.ukupno)} ${valutaZnak}</td></tr>`
     }).join('')
 
+    // Finalna rekapitulacija SVIH faza projekta se prikazuje samo za kompletan export
+    // ili kad se izvozi Građevinsko-zanatski (glavni/koordinacioni dokument projekta).
+    // Ostale pojedinačne faze (ViK, Elektro, Mašinske, Vanjsko) su samostalni dokumenti
+    // za tog izvođača i ne treba da otkrivaju cijene drugih struka.
+    const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
+    const globalnaRekapitulacijaHtml = prikaziGlobalnuRekapitulaciju ? `
+<div class="page-break"></div>
+<h2 style="color:#1B2F43;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B2F43">REKAPITULACIJA</h2>
+<table style="width:400px">
+  <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
+  <tbody>
+    ${rekapRows}
+    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
+    ${uvec>0?`<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
+    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
+    <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
+  </tbody>
+</table>` : ''
+
     const html = `<!DOCTYPE html><html lang="bs">
 <head><meta charset="UTF-8"><title>Predmjer — ${proj.naziv||''}</title>
 <style>
@@ -913,18 +932,7 @@ export default function App() {
   </div>
 </div>
 ${sviFazeSadrzaj}
-<div class="page-break"></div>
-<h2 style="color:#1B2F43;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B2F43">REKAPITULACIJA</h2>
-<table style="width:400px">
-  <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
-  <tbody>
-    ${rekapRows}
-    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
-    ${uvec>0?`<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
-    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
-    <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
-  </tbody>
-</table>
+${globalnaRekapitulacijaHtml}
 </body></html>`
 
     // Otvori print prozor
