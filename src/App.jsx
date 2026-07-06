@@ -216,6 +216,7 @@ export default function App() {
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [exportMeni, setExportMeni] = useState(null) // null | 'excel' | 'pdf'
   const [valuta, setValuta] = useState('EUR') // EUR | KM | RSD | USD
   const [revizija, setRevizija] = useState(0) // brojač koji se povećava samo pri AI grupnim izmjenama (forsira osvježenje polja)
 
@@ -661,7 +662,7 @@ export default function App() {
 
 
   // ── EXCEL EXPORT ──
-  const exportExcel = async () => {
+  const exportExcel = async (filtrirajStruku = null) => {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export.'); return }
 
     try {
@@ -674,7 +675,7 @@ export default function App() {
       const response = await fetch('/api/excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvecanjePct, umanjenjePct, valutaZnak, struke })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvecanjePct, umanjenjePct, valutaZnak, struke, filtrirajStruku })
       })
 
       if (!response.ok) {
@@ -696,7 +697,7 @@ export default function App() {
   }
 
   // ── PDF PRINT ──
-  const exportPDF = async () => {
+  const exportPDF = async (filtrirajStruku = null) => {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za štampu.'); return }
 
     const svePozicije = {}
@@ -754,7 +755,12 @@ export default function App() {
 
       brStruke++
       let strukaUkupno = 0
-      sviFazeSadrzaj += `<div class="struka-blok"><div class="struka-naslov">${toRoman(brStruke)}&nbsp;&nbsp;${s.naziv.toUpperCase()}</div></div>`
+      const grupaSubtotali = [] // zbirna rekapitulacija grupa radova unutar OVE struke
+      const prikaziDetalj = !filtrirajStruku || filtrirajStruku === s.kod
+
+      if (prikaziDetalj) {
+        sviFazeSadrzaj += `<div class="struka-blok"><div class="struka-naslov">${toRoman(brStruke)}&nbsp;&nbsp;${s.naziv.toUpperCase()}</div></div>`
+      }
 
       for (const f of fazeUStruci) {
         const poz = svePozicije[f.id] || []
@@ -801,24 +807,40 @@ export default function App() {
         }
         const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
         strukaUkupno += ft
+        grupaSubtotali.push({ naziv: f.naziv, ukupno: ft })
         rows += `<tr class="total"><td colspan="5" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
 
-        sviFazeSadrzaj += `
-          <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
-          <table>
-            <thead><tr>
-              <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
-              <th class="c" style="width:45px">J.mj.</th>
-              <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
-              <th class="r" style="width:65px">Količina</th>
-              <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-          <div style="margin-bottom:16px"></div>`
+        if (prikaziDetalj) {
+          sviFazeSadrzaj += `
+            <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
+            <table>
+              <thead><tr>
+                <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
+                <th class="c" style="width:45px">J.mj.</th>
+                <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
+                <th class="r" style="width:65px">Količina</th>
+                <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+            <div style="margin-bottom:16px"></div>`
+        }
       }
 
-      sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
+      if (prikaziDetalj) {
+        // Zbirna rekapitulacija grupa radova unutar ove struke (samo ako ih ima više od jedne)
+        if (grupaSubtotali.length > 1) {
+          const grupaRekapRows = grupaSubtotali.map(g =>
+            `<tr><td>${g.naziv}</td><td class="r">${fmtN(g.ukupno)} ${valutaZnak}</td></tr>`
+          ).join('')
+          sviFazeSadrzaj += `
+            <div class="faza-header"><h2>ZBIRNA REKAPITULACIJA — ${s.naziv.toUpperCase()}</h2></div>
+            <table><tbody>${grupaRekapRows}</tbody></table>
+            <div style="margin-bottom:16px"></div>`
+        }
+        sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
+      }
+
       strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaUkupno, rimski: toRoman(brStruke) })
     }
 
@@ -882,6 +904,7 @@ export default function App() {
 <div class="header">
   ${firma?.logo ? `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>` : ''}
   <h1 style="text-align:center;">PREDMJER I PREDRAČUN</h1>
+  ${filtrirajStruku ? `<div style="text-align:center;font-size:10pt;color:#4A637C;margin-top:-4px;margin-bottom:6px;">— ${struke.find(s=>s.kod===filtrirajStruku)?.naziv || ''} —</div>` : ''}
   <div class="info">
     <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
     <div style="text-align:right;"><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
@@ -1341,8 +1364,41 @@ ${sviFazeSadrzaj}
                   style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
                   {VALUTE.map(v => <option key={v.kod} value={v.kod} style={{ color: '#1B2F43' }}>Valuta ({v.kod})</option>)}
                 </select>
-                <button onClick={exportExcel} style={B('#217346')}>📊 Excel</button>
-                <button onClick={exportPDF} style={B('#fff', '#1B2F43')}>🖨 Print/PDF</button>
+                {/* Export dugmad sa padajućim menijem */}
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setExportMeni(m => m === 'excel' ? null : 'excel')} style={B('#217346')}>📊 Excel ▾</button>
+                  {exportMeni === 'excel' && (
+                    <div style={{ position: 'absolute', top: '110%', right: 0, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.2)', overflow: 'hidden', zIndex: 20, minWidth: 220 }}>
+                      <button onClick={() => { setExportMeni(null); exportExcel(aktivnaStruka) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: '#fff', color: '#1B2F43', fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F0F2F5'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                        Izvezi izabranu fazu <span style={{ color: '#888' }}>({struke.find(s => s.kod === aktivnaStruka)?.naziv})</span>
+                      </button>
+                      <button onClick={() => { setExportMeni(null); exportExcel(null) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderTop: '1px solid #E5E2D8', background: '#fff', color: '#1B2F43', fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F0F2F5'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                        Izvezi kompletan predmjer
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setExportMeni(m => m === 'pdf' ? null : 'pdf')} style={B('#fff', '#1B2F43')}>🖨 Print/PDF ▾</button>
+                  {exportMeni === 'pdf' && (
+                    <div style={{ position: 'absolute', top: '110%', right: 0, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.2)', overflow: 'hidden', zIndex: 20, minWidth: 220 }}>
+                      <button onClick={() => { setExportMeni(null); exportPDF(aktivnaStruka) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: '#fff', color: '#1B2F43', fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F0F2F5'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                        Štampaj izabranu fazu <span style={{ color: '#888' }}>({struke.find(s => s.kod === aktivnaStruka)?.naziv})</span>
+                      </button>
+                      <button onClick={() => { setExportMeni(null); exportPDF(null) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderTop: '1px solid #E5E2D8', background: '#fff', color: '#1B2F43', fontSize: 12.5, fontFamily: 'inherit', cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#F0F2F5'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                        Štampaj kompletan predmjer
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Baza pretraga */}
