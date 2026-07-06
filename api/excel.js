@@ -472,7 +472,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── REKAPITULACIJA (uvijek prikazuje SVE struke, bez obzira na filter) ──
+    // ── REKAPITULACIJA — samo za kompletan export ili Građevinsko-zanatski (glavni dokument projekta).
+    // Ostale pojedinačne faze su samostalni dokumenti za tog izvođača, ne otkrivaju cijene drugih struka.
+    const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
+    if (prikaziGlobalnuRekapitulaciju) {
     const rekNas = ws.addRow(['','REKAPITULACIJA','','','','',''])
     ws.mergeCells(`B${rekNas.number}:G${rekNas.number}`)
     rekNas.height = 18
@@ -575,6 +578,7 @@ export default async function handler(req, res) {
     svRow.getCell('G').value     = { formula: sveukupnoFormula, result: jsSveukupno }
     svRow.getCell('G').numFmt    = FMT_CUR
     svRow.getCell('G').alignment = al('center','center',false)
+    } // kraj prikaziGlobalnuRekapitulaciju bloka
 
     // ── SLANJE FAJLA ──
     const buffer = await wb.xlsx.writeBuffer()
