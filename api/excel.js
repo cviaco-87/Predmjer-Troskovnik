@@ -41,11 +41,11 @@ export default async function handler(req, res) {
     wb.creator = 'Predmjer/Troškovnik'
     const ws = wb.addWorksheet('Predmjer', { views:[{showGridLines:false}] })
 
-    // ── KOLONE: A-G (A je sad Šifra umjesto praznog spacera, Ukupno je i dalje G) ──
+    // ── KOLONE: A-G (A je sad R.br., B je Šifra, ostalo nepromijenjeno) ──
     ws.columns = [
-      {width: 9.5},    // A - Šifra
-      {width: 8.0},    // B - R.br.
-      {width: 50.0},   // C - Opis pozicije (blago suzena za prostor koji je uzela šifra)
+      {width: 8.0},    // A - R.br.
+      {width: 9.5},    // B - Šifra
+      {width: 50.0},   // C - Opis pozicije
       {width: 4.86},   // D - J.mj.
       {width: 10.71},  // E - Jed. cijena
       {width: 8.86},   // F - Količina
@@ -198,7 +198,7 @@ export default async function handler(req, res) {
           row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
 
           // ── ZAGLAVLJE KOLONA ──
-          row = ws.addRow(['Šifra','R.br.','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
+          row = ws.addRow(['R.br.','Šifra','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
           row.height = 27.95
           const thCols = ['A','B','C','D','E','F','G']
           const thAligns = ['center','center','left','center','center','center','center']
@@ -242,17 +242,18 @@ export default async function handler(req, res) {
             row.height = visina
             const mainRowNum = row.number
 
-            // Šifra
-            row.getCell('A').value     = p.sifra || ''
-            row.getCell('A').numFmt    = '@'
+            // R.br.
+            row.getCell('A').value     = String(rb)
             row.getCell('A').fill      = fill(bg)
-            row.getCell('A').font      = font({size:8.5, color:'8A94A0'})
+            row.getCell('A').font      = font({size:9, color:'666666'})
             row.getCell('A').alignment = al('center','top',false)
             row.getCell('A').border    = borderBottom('thin','EEECEA')
 
-            row.getCell('B').value     = String(rb)
+            // Šifra
+            row.getCell('B').value     = p.sifra || ''
+            row.getCell('B').numFmt    = '@'
             row.getCell('B').fill      = fill(bg)
-            row.getCell('B').font      = font({size:9, color:'666666'})
+            row.getCell('B').font      = font({size:8.5, color:'8A94A0'})
             row.getCell('B').alignment = al('center','top',false)
             row.getCell('B').border    = borderBottom('thin','EEECEA')
 
@@ -313,14 +314,14 @@ export default async function handler(req, res) {
                 dRow.height = Math.max(14, Math.ceil(dNaziv.length/58)*11+4)
                 childRowNums.push(dRow.number)
 
+                dRow.getCell('A').value     = `${rb}.${di+1}`
+                dRow.getCell('A').numFmt    = '@'
                 dRow.getCell('A').fill      = fill(SI2)
+                dRow.getCell('A').font      = font({size:9, color:'AAAAAA'})
+                dRow.getCell('A').alignment = al('center','top',false)
                 dRow.getCell('A').border    = borderBottom('thin','EEECEA')
 
-                dRow.getCell('B').value     = `${rb}.${di+1}`
-                dRow.getCell('B').numFmt    = '@'
                 dRow.getCell('B').fill      = fill(SI2)
-                dRow.getCell('B').font      = font({size:9, color:'AAAAAA'})
-                dRow.getCell('B').alignment = al('center','top',false)
                 dRow.getCell('B').border    = borderBottom('thin','EEECEA')
 
                 dRow.getCell('C').value     = dNaziv
