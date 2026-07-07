@@ -618,6 +618,18 @@ export default function App() {
     setValuta(novaValuta)
   }
 
+  // Kad AI asistent postavi cijene direktno u određenoj valuti (nije konverzija postojećih,
+  // već svježa procjena), treba samo zapamtiti tu valutu na projektu — bez pokretanja
+  // konverzije postojećih cijena (one su već ispravno upisane od strane AI-ja).
+  const postaviValutuNakonAI = async (novaValuta) => {
+    setValuta(novaValuta)
+    if (aktivniProjekat) {
+      const { error } = await supabase.from('projekti').update({ valuta: novaValuta }).eq('id', aktivniProjekat.id)
+      if (!error) setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
+      else console.error('Valuta nakon AI procjene nije zapamćena na projektu:', error)
+    }
+  }
+
   // ── AI PROCJENA CIJENA ──
   const procijeniCijene = async (stavkeNoveCijene) => {
     // stavkeNoveCijene = [{id, cijena}]
@@ -1818,7 +1830,7 @@ ${globalnaRekapitulacijaHtml}
           onDodajStavku={dodajStavkuIzAI}
           onProcijeniCijene={procijeniCijene}
           onPrimijeniIzmjene={primijeniIzmjene}
-          onSetValuta={setValuta}
+          onSetValuta={postaviValutuNakonAI}
           onClose={() => setShowAI(false)}
         />
       )}
