@@ -36,13 +36,13 @@ const REDOSLIJED_KATEGORIJA = [
   { sifra: '22', naziv: 'Kamenorezački radovi',       grupa: 'zavrsni' },
   { sifra: '23', naziv: 'Konzervatorski radovi',      grupa: 'zavrsni' },
   { sifra: '24', naziv: 'Staklorezački radovi',       grupa: 'zavrsni' },
-  { sifra: '25', naziv: 'Protivpožarna zaštita',      grupa: 'zavrsni' },
   // ── OSTALE STRUKE (van građevinsko-zanatskih; svrstane u svoje strukе, ne prikazuju se u ova tri podnaslova) ──
   { sifra: '15', naziv: 'Sanitarni uređaji' },
   { sifra: '16', naziv: 'Vodovod i kanalizacija' },
   { sifra: '17', naziv: 'Elektroinstalacije' },
   { sifra: '18', naziv: 'Mašinske instalacije' },
   { sifra: '19', naziv: 'Vanjsko uređenje' },
+  { sifra: '25', naziv: 'Protivpožarna zaštita' },
 ]
 const REDOSLIJED_MAP = new Map(REDOSLIJED_KATEGORIJA.map((r, i) => [r.naziv, i]))
 const GRUPA_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.grupa]))
@@ -203,7 +203,27 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <select value={kat} onChange={e => setKat(e.target.value)}
             style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
             <option value="">— Sve kategorije —</option>
-            {aktivnaStruka === 'gradjevinski' ? (
+            {jePoznataStruka ? (
+              aktivnaStruka === 'gradjevinski' ? (
+                <>
+                  <optgroup label="Pripremni radovi i rušenje">
+                    {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'pripremni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
+                  </optgroup>
+                  <optgroup label="Grubi građevinski radovi">
+                    {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'grubi').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
+                  </optgroup>
+                  <optgroup label="Završni građevinsko-zanatski radovi">
+                    {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
+                  </optgroup>
+                </>
+              ) : (
+                kategorijeZaStruku.map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)
+              )
+            ) : (
+              // Vlastita (prilagođena) faza — pristup kompletnoj bazi: građevinsko-zanatski dio
+              // zadržava istu podjelu na tri podnaslova, a svaka od preostalih kategorija
+              // (Sanitarni, Vodovod, Elektro, Mašinske, Vanjsko, Protivpožarna) prikazuje se
+              // kao svoj vlastiti bold podnaslov, uočljivo odvojen, s jednom stavkom ispod.
               <>
                 <optgroup label="Pripremni radovi i rušenje">
                   {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'pripremni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
@@ -214,9 +234,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                 <optgroup label="Završni građevinsko-zanatski radovi">
                   {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
                 </optgroup>
+                {kategorijeZaStruku.filter(k => !GRUPA_MAP.get(k)).map(k => (
+                  <optgroup key={k} label={k}>
+                    <option value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>
+                  </optgroup>
+                ))}
               </>
-            ) : (
-              kategorijeZaStruku.map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)
             )}
           </select>
         )}
