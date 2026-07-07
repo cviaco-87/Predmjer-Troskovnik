@@ -1399,6 +1399,10 @@ ${globalnaRekapitulacijaHtml}
                       {s.naziv}
                     </span>
                   )}
+                  {(s.uvecanjePct > 0 || s.umanjenjePct > 0) && (
+                    <span title={`Uvećanje ${s.uvecanjePct||0}% / Umanjenje ${s.umanjenjePct||0}%`}
+                      style={{ fontSize: 10, opacity: s.kod === aktivnaStruka ? 0.85 : 0.55, flexShrink: 0 }}>⚖️</span>
+                  )}
                   {s.kod.startsWith('custom-') && editStrukaKod !== s.kod && (
                     <button onClick={e => { e.stopPropagation(); obrisiStruku(s.kod) }}
                       style={{ background: 'none', border: 'none', color: s.kod === aktivnaStruka ? 'rgba(255,255,255,.6)' : '#ccc', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px' }}
@@ -1474,15 +1478,15 @@ ${globalnaRekapitulacijaHtml}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
-            <input type="number" value={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
-              onChange={e => { const v = parseFloat(e.target.value) || 0; postaviUvecanjeStruke(aktivnaStruka, v) }}
+            <input type="number" key={`uvec-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
+              onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUvecanjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa', marginBottom: 10 }}>npr. PDV, opšti troškovi</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>Umanjenje (%)</span>
-            <input type="number" value={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
-              onChange={e => { const v = parseFloat(e.target.value) || 0; postaviUmanjenjeStruke(aktivnaStruka, v) }}
+            <input type="number" key={`uman-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
+              onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUmanjenjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
