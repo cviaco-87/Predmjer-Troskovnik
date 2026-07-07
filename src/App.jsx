@@ -590,17 +590,26 @@ export default function App() {
         )
         const neuspjesno = rezultati.filter(r => r.error)
         if (neuspjesno.length > 0) {
+          console.error('Neuspjeli update pozicija:', neuspjesno.map(r => r.error))
           throw new Error(`${neuspjesno.length} od ${rezultati.length} stavki nije konvertovano. Valuta NIJE promijenjena — pokušajte ponovo.`)
         }
       }
 
-      // Tek nakon što su SVE stavke uspješno konvertovane, trajno upiši novu valutu na projekat u bazi
-      const { error: projErr } = await supabase.from('projekti').update({ valuta: novaValuta }).eq('id', aktivniProjekat.id)
-      if (projErr) throw projErr
-
+      // Cijene su uspješno konvertovane u bazi — odmah osvježi prikaz i lokalno stanje,
+      // bez obzira na to da li uspije sljedeći (sporedni) korak čuvanja oznake valute.
       if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
-      setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
       setValuta(novaValuta)
+
+      // Pokušaj trajno zapamtiti izabranu valutu na projektu (za sljedeći put kad se otvori).
+      // Ako ovo ne uspije (npr. baza još nema tu kolonu), cijene su svejedno ispravno konvertovane
+      // i korisnik to vidi — samo se izbor valute neće zapamtiti nakon osvježavanja stranice.
+      const { error: projErr } = await supabase.from('projekti').update({ valuta: novaValuta }).eq('id', aktivniProjekat.id)
+      if (projErr) {
+        console.error('Valuta konvertovana, ali nije zapamćena na projektu:', projErr)
+        alert('Cijene su uspješno konvertovane. Napomena: izbor valute se ovaj put nije trajno zapamtio (tehnički detalj) — javite ovo Claude-u.')
+      } else {
+        setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
+      }
     } catch (e) {
       alert('Greška pri konverziji cijena — valuta NIJE promijenjena da se izbjegne pogrešno stanje: ' + e.message)
     }
