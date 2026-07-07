@@ -630,7 +630,7 @@ export default async function handler(req, res) {
       const napRow = ws.addRow(['','','','','','',''])
       ws.mergeCells(`A${napRow.number}:G${napRow.number}`)
       napRow.height = 11
-      napRow.getCell('B').value     = '* iznosi po struci već uključuju eventualno uvećanje/umanjenje te struke'
+      napRow.getCell('B').value     = '* iznosi po fazi već uključuju eventualno uvećanje/umanjenje te faze'
       napRow.getCell('B').font      = font({size:7.5, italic:true, color:'999999'})
       napRow.getCell('B').alignment = al('left','center',false)
       napRow.eachCell({includeEmpty:true}, c => { if (!c.fill) c.fill = fill('FFFFFF') })
