@@ -13,17 +13,17 @@ const BAZA = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(BAZ
 // grubi (konstruktivni) građevinski radovi i završni (zanatski/instalaterski) radovi,
 // u skladu sa uobičajenim redoslijedom izvođenja na gradilištu.
 const REDOSLIJED_KATEGORIJA = [
-  // ── GRUBI GRAĐEVINSKI RADOVI ──
-  { sifra: '01', naziv: 'Pripremno-završni radovi',  grupa: 'grubi' },
+  // ── PRIPREMNI RADOVI I RUŠENJE (prethode grubim radovima — priprema gradilišta,
+  // uklanjanje postojećih konstrukcija/instalacija prije nove gradnje ili sanacije) ──
+  { sifra: '01', naziv: 'Pripremno-završni radovi',  grupa: 'pripremni' },
+  { sifra: '20', naziv: 'Demontaže i rušenja',       grupa: 'pripremni' },
+  // ── GRUBI GRAĐEVINSKI RADOVI (nosiva konstrukcija i omotač objekta) ──
   { sifra: '02', naziv: 'Zemljani radovi',           grupa: 'grubi' },
   { sifra: '03', naziv: 'Betonski i AB radovi',      grupa: 'grubi' },
   { sifra: '04', naziv: 'Zidarski radovi',           grupa: 'grubi' },
   { sifra: '05', naziv: 'Izolaterski radovi',        grupa: 'grubi' },
   { sifra: '07', naziv: 'Tesarski radovi',           grupa: 'grubi' },
   { sifra: '08', naziv: 'Pokrivački radovi',         grupa: 'grubi' },
-  { sifra: '20', naziv: 'Demontaže i rušenja',       grupa: 'grubi' },
-  { sifra: '22', naziv: 'Kamenorezački radovi',      grupa: 'grubi' },
-  { sifra: '23', naziv: 'Konzervatorski radovi',     grupa: 'grubi' },
   // ── ZAVRŠNI GRAĐEVINSKO-ZANATSKI RADOVI ──
   { sifra: '06', naziv: 'Fasaderski radovi',          grupa: 'zavrsni' },
   { sifra: '09', naziv: 'Limarski radovi',            grupa: 'zavrsni' },
@@ -33,9 +33,11 @@ const REDOSLIJED_KATEGORIJA = [
   { sifra: '13', naziv: 'Podopolagački radovi',       grupa: 'zavrsni' },
   { sifra: '14', naziv: 'Molersko-farbarski radovi',  grupa: 'zavrsni' },
   { sifra: '21', naziv: 'Stolarski radovi',           grupa: 'zavrsni' },
+  { sifra: '22', naziv: 'Kamenorezački radovi',       grupa: 'zavrsni' },
+  { sifra: '23', naziv: 'Konzervatorski radovi',      grupa: 'zavrsni' },
   { sifra: '24', naziv: 'Staklorezački radovi',       grupa: 'zavrsni' },
   { sifra: '25', naziv: 'Protivpožarna zaštita',      grupa: 'zavrsni' },
-  // ── OSTALE STRUKE (van građevinsko-zanatskih; svrstane u svoje strukе, ne prikazuju se u ova dva podnaslova) ──
+  // ── OSTALE STRUKE (van građevinsko-zanatskih; svrstane u svoje strukе, ne prikazuju se u ova tri podnaslova) ──
   { sifra: '15', naziv: 'Sanitarni uređaji' },
   { sifra: '16', naziv: 'Vodovod i kanalizacija' },
   { sifra: '17', naziv: 'Elektroinstalacije' },
@@ -44,6 +46,9 @@ const REDOSLIJED_KATEGORIJA = [
 ]
 const REDOSLIJED_MAP = new Map(REDOSLIJED_KATEGORIJA.map((r, i) => [r.naziv, i]))
 const GRUPA_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.grupa]))
+// Broj kategorije (prefiks šifre, npr. '01', '04') za prikaz uz naziv u padajućem meniju —
+// ista numeracija koja se koristi u šiframa pozicija unutar te kategorije (npr. 04.01.001).
+const SIFRA_KATEGORIJE_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.sifra]))
 
 // Kategorije iz baze poredane po šifarniku; kategorija koje slučajno nema u REDOSLIJED_KATEGORIJA
 // (npr. nova dodana kategorija koju smo zaboravili upisati ovdje) ide na kraj, abecedno, da se ne izgubi.
@@ -200,15 +205,18 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             <option value="">— Sve kategorije —</option>
             {aktivnaStruka === 'gradjevinski' ? (
               <>
+                <optgroup label="Pripremni radovi i rušenje">
+                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'pripremni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
+                </optgroup>
                 <optgroup label="Grubi građevinski radovi">
-                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'grubi').map(k => <option key={k} value={k}>{k}</option>)}
+                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'grubi').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
                 </optgroup>
                 <optgroup label="Završni građevinsko-zanatski radovi">
-                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(k => <option key={k} value={k}>{k}</option>)}
+                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)}
                 </optgroup>
               </>
             ) : (
-              kategorijeZaStruku.map(k => <option key={k} value={k}>{k}</option>)
+              kategorijeZaStruku.map(k => <option key={k} value={k}>{SIFRA_KATEGORIJE_MAP.get(k) || ''} · {k}</option>)
             )}
           </select>
         )}
@@ -1023,7 +1031,7 @@ export default function App() {
   <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
   <tbody>
     ${rekapRows}
-    ${imaBiloKakvuKorekciju ? `<tr><td colspan="2" style="font-size:8pt;color:#888;font-style:italic;padding-top:2px">* iznosi po struci već uključuju eventualno uvećanje/umanjenje te struke</td></tr>` : ''}
+    ${imaBiloKakvuKorekciju ? `<tr><td colspan="2" style="font-size:8pt;color:#888;font-style:italic;padding-top:2px">* iznosi po fazi već uključuju eventualno uvećanje/umanjenje te faze</td></tr>` : ''}
     <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
 </table>` : ''
@@ -1470,11 +1478,11 @@ ${globalnaRekapitulacijaHtml}
             </div>
           </>}
 
-          {/* Uvećanje / Umanjenje — podešava se po struci, ne globalno za cijeli projekat */}
+          {/* Uvećanje / Umanjenje — podešava se po fazi, ne globalno za cijeli projekat */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 4 }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
           <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>
-            za strukу: <strong style={{ color: '#4A637C' }}>{struke.find(s => s.kod === aktivnaStruka)?.naziv || aktivnaStruka}</strong>
+            za fazu: <strong style={{ color: '#4A637C' }}>{struke.find(s => s.kod === aktivnaStruka)?.naziv || aktivnaStruka}</strong>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
