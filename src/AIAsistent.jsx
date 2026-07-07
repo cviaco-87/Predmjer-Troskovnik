@@ -83,38 +83,39 @@ PRAVILA ZA PREGLED/POBOLJŠANJE:
 - Piši isključivo na srpskom jeziku, ijekavica
 - Ne mijenjaj cijene u ovom formatu, samo tekst opisa
 
+KADA KORISNIK PRILOŽI POSTOJEĆE STAVKE BEZ POTPUNO JASNOG FORMATA ZAHTJEVA:
+Ako uz poruku dobiješ listu postojećih stavki iz predmjera, ali korisnikova formulacija nije eksplicitno "procijeni/ažuriraj cijene" niti "pregledaj/poboljšaj opise", sam odluči na osnovu konteksta rečenice:
+- Ako korisnik spominje cijene, iznose, troškove, tržišne vrijednosti → koristi ---CIJENE--- format
+- Ako korisnik spominje opise, tekst, formulacije, kvalitet, propuste, standarde → koristi ---IZMJENE--- format
+- Ako je i dalje nejasno, radije pitaj kratko jedno pojašnjavajuće pitanje nego da nagađaš i vratiš pogrešan format
+U svakom od ova dva formata MORAŠ obuhvatiti SVE priložene stavke koje odgovaraju traženoj radnji, ne samo dio njih.
+
 KATEGORIJE koje postoje:
-- Pripremno završni radovi
-- Istraživački radovi
+- Pripremno-završni radovi
 - Demontaže i rušenja
 - Zemljani radovi
+- Betonski i AB radovi
 - Zidarski radovi
-- Betonski i arm. betonski
+- Izolaterski radovi
 - Tesarski radovi
 - Pokrivački radovi
-- Izolaterski radovi
-- Građevinska stolarija
-- Stolarski radovi
-- Limarski radovi
-- Staklorezački radovi
-- Keramičarski radovi
-- Teracerski radovi
-- Kamenorezački radovi
-- Parketarski radovi
-- Podopolagački radovi
-- Gipsarski radovi
 - Fasaderski radovi
-- Likorezački radovi
-- Molersko-farbarski radovi
-- Tapetarski radovi
-- Livački radovi
-- Razni zanatski radovi
+- Limarski radovi
+- Građevinska stolarija
 - Bravarski radovi
-- Roletnarski radovi
-- Suvomontažni radovi
-- Vodovod
-- Kanalizacija
+- Gipsarski radovi
+- Podopolagački radovi
+- Molersko-farbarski radovi
+- Stolarski radovi
+- Kamenorezački radovi
+- Konzervatorski radovi
+- Staklorezački radovi
+- Protivpožarna zaštita
 - Sanitarni uređaji
+- Vodovod i kanalizacija
+- Elektroinstalacije
+- Mašinske instalacije
+- Vanjsko uređenje
 
 Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 
@@ -238,8 +239,16 @@ Kako mogu pomoći? Npr:
     setInput('')
     setLoading(true)
 
-    const trazeCijene = /procijen|ažuriraj cijene|update cijene|cijene za sve|sve cijene|procjeni cijene/i.test(tekst)
-    const trazeIzmjene = /pregledaj|pregled (cijelog|kompletnog|dokumenta|predmjera)|poboljšaj|poboljšanj|predlo[žz]i? izmjen|analiziraj (cijeli|kompletan|dokument|predmjer)|nedostac|propust/i.test(tekst) && !trazeCijene
+    const trazeCijene = /procijen|procjen\w*(\s+\w+){0,2}\s+cijen|ažuriraj cijen|azuriraj cijen|update cijen|updateuj cijen|cijene za sve|sve cijene|nove cijene|osvježi cijen|osvjezi cijen|korigu?j cijen/i.test(tekst)
+    const trazeIzmjene = /pregledaj|pregled\s|poboljšaj|poboljsaj|poboljšanj|poboljsanj|predlo[žz]i?\s*izmjen|analiziraj|nedostac|propust|recenzij|korigu?j(?!\s*cijen)|dopuni|nadopuni|uredi\b|sredi\b/i.test(tekst) && !trazeCijene
+
+    // Fallback: korisnik često samo kaže "sve stavke iz X", "kompletnu fazu", "cijelu grupu Y" i sl.,
+    // bez ijedne od gornjih ključnih riječi (procijeni/pregledaj/poboljšaj...). Ako poruka jasno
+    // upućuje na masovnu/skupu radnju nad postojećim stavkama (a ne na kreiranje nove stavke od
+    // nule), radije priloži skraćeni kontekst pozicija nego da asistent ostane bez uvida u dokument.
+    const spominjeMasovnost = /\bsve\b|\bsva\b|\bsvih\b|\bkompletn|\bcijel|\bcel\w*\b|\bfaz[ue]\b|\bgrup[ue]\b|\bdokument|\bpredmjer/i.test(tekst)
+    const trazeNovuStavku = /napravi\s+(novu|jednu)\s+stavk|dodaj\s+(novu|jednu)\s+stavk|kreiraj\s+(novu|jednu)\s+stavk/i.test(tekst)
+    const trazeMasovnuRadnju = !trazeCijene && !trazeIzmjene && spominjeMasovnost && !trazeNovuStavku
 
     let userContent = tekst
     if (trazeCijene && pozicije && pozicije.length > 0) {
@@ -256,6 +265,16 @@ POSTOJEĆE STAVKE U PREDMJERU (pregledaj svaku i predloži poboljšanja gdje je 
 ${getStavkeKontekstPuni()}
 
 Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaju izmjenu.`
+    } else if (trazeMasovnuRadnju && pozicije && pozicije.length > 0) {
+      // Nismo sigurni traži li korisnik cijene ili tekstualne izmjene — prilažemo pun kontekst
+      // i prepuštamo modelu da po svom nahođenju (na osnovu SYSTEM_PROMPT uputstava) odluči
+      // koji format odgovora (---CIJENE--- ili ---IZMJENE---) odgovara traženoj radnji.
+      userContent = `${tekst}
+
+POSTOJEĆE STAVKE U PREDMJERU (ovo je kompletan sadržaj trenutne grupe radova "${aktivnaFaza?.naziv || ''}"):
+${getStavkeKontekstPuni()}
+
+Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJENE--- ako se traži ažuriranje/procjena cijena, ili ---IZMJENE--- ako se traži poboljšanje/dopuna opisa. Obuhvati SVE navedene stavke, ne samo dio.`
     }
 
     const novaHistorija = [...historija, { role: 'user', content: userContent }]
@@ -264,7 +283,7 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene })
+        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju })
       })
 
       let data
