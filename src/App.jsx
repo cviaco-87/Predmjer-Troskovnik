@@ -598,6 +598,7 @@ export default function App() {
       // Cijene su uspješno konvertovane u bazi — odmah osvježi prikaz i lokalno stanje,
       // bez obzira na to da li uspije sljedeći (sporedni) korak čuvanja oznake valute.
       if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+      setRevizija(r => r + 1) // forsira polja cijene da prikažu novu (konvertovanu) vrijednost
       setValuta(novaValuta)
 
       // Pokušaj trajno zapamtiti izabranu valutu na projektu (za sljedeći put kad se otvori).
