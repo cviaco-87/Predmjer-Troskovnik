@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const { projekat, faze, svePozicije, uvecanjePct=0, umanjenjePct=0, valutaZnak='€', struke=[], filtrirajStruku=null } = req.body
+    const { projekat, faze, svePozicije, valutaZnak='€', struke=[], filtrirajStruku=null } = req.body
 
     const calcSimple = p => (parseFloat(p.kolicina)||0)*(parseFloat(p.cijena)||0)
     const calcRow = (p, poz) => {
@@ -498,41 +498,47 @@ export default async function handler(req, res) {
         let strukaUvecAddr = null
         let strukaUmanAddr = null
 
-        // ── Uvećanje/umanjenje primijenjeno i na nivou pojedinačne struke,
-        // da svaki izvođač (kad izvozi samo svoju fazu) vidi svoju konačnu, korigovanu cifru ──
-        if (uvecanjePct > 0) {
-          const suvRow = ws.addRow(['','','','','',`+ Uvećanje (${uvecanjePct}%):`,''])
+        // ── Uvećanje/umanjenje se podešava PO STRUCI (svaki izvođač može imati
+        // drugačiju maržu/popust), ne globalno za cijeli projekat. ──
+        const strukaUvecPct = s.uvecanjePct || 0
+        const strukaUmanPct = s.umanjenjePct || 0
+
+        if (strukaUvecPct > 0) {
+          const suvRow = ws.addRow(['','','','','',`+ Uvećanje (${strukaUvecPct}%):`,''])
           ws.mergeCells(`A${suvRow.number}:E${suvRow.number}`)
           suvRow.height = 13.5
           suvRow.getCell('F').font      = font({size:9.5, color:Z})
           suvRow.getCell('F').alignment = al('center','center',false)
-          suvRow.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${uvecanjePct}/100`, result: strukaUkupnoJS*uvecanjePct/100 }
+          suvRow.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${strukaUvecPct}/100`, result: strukaUkupnoJS*strukaUvecPct/100 }
           suvRow.getCell('G').numFmt    = FMT_CUR
           suvRow.getCell('G').font      = font({size:9.5, color:Z})
           suvRow.getCell('G').alignment = al('center','center',false)
           strukaUvecAddr = `G${suvRow.number}`
         }
 
-        if (umanjenjePct > 0) {
-          const sumRow2 = ws.addRow(['','','','','',`− Umanjenje (${umanjenjePct}%):`,''])
+        if (strukaUmanPct > 0) {
+          const sumRow2 = ws.addRow(['','','','','',`− Umanjenje (${strukaUmanPct}%):`,''])
           ws.mergeCells(`A${sumRow2.number}:E${sumRow2.number}`)
           sumRow2.height = 13.5
           sumRow2.getCell('F').font      = font({size:9.5, color:'C0392B'})
           sumRow2.getCell('F').alignment = al('center','center',false)
-          sumRow2.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${umanjenjePct}/100`, result: strukaUkupnoJS*umanjenjePct/100 }
+          sumRow2.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${strukaUmanPct}/100`, result: strukaUkupnoJS*strukaUmanPct/100 }
           sumRow2.getCell('G').numFmt    = FMT_CUR
           sumRow2.getCell('G').font      = font({size:9.5, color:'C0392B'})
           sumRow2.getCell('G').alignment = al('center','center',false)
           strukaUmanAddr = `G${sumRow2.number}`
         }
 
-        if (uvecanjePct > 0 || umanjenjePct > 0) {
+        // jsStrukaSveukupno se računa uvijek (i kad nema korekcije, jednako je strukaUkupnoJS) —
+        // koristi se niže za agregaciju u globalnu rekapitulaciju.
+        const jsStrukaSveukupno = strukaUkupnoJS
+          + (strukaUvecPct>0 ? strukaUkupnoJS*strukaUvecPct/100 : 0)
+          - (strukaUmanPct>0 ? strukaUkupnoJS*strukaUmanPct/100 : 0)
+
+        if (strukaUvecPct > 0 || strukaUmanPct > 0) {
           let strukaSveukupnoFormula = strukaMedjuzbirAddr
           if (strukaUvecAddr) strukaSveukupnoFormula += `+${strukaUvecAddr}`
           if (strukaUmanAddr) strukaSveukupnoFormula += `-${strukaUmanAddr}`
-          const jsStrukaSveukupno = strukaUkupnoJS
-            + (uvecanjePct>0 ? strukaUkupnoJS*uvecanjePct/100 : 0)
-            - (umanjenjePct>0 ? strukaUkupnoJS*umanjenjePct/100 : 0)
 
           const ssvRow = ws.addRow(['','','','','',`SVEUKUPNO ${toRoman(brStruke)}:`,''])
           ws.mergeCells(`A${ssvRow.number}:E${ssvRow.number}`)
@@ -547,21 +553,28 @@ export default async function handler(req, res) {
           ssvRow.getCell('G').numFmt    = FMT_CUR
           ssvRow.getCell('G').alignment = al('center','center',false)
 
-          // Prikazna adresa (za "Faza" red u globalnoj rekapitulaciji) mora referencirati SIROV
-          // zbir struke (strukaMedjuzbirAddr), ne korigovani SVEUKUPNO red — jer se korekcija
-          // (uvećanje/umanjenje) primjenjuje samo JEDNOM, na nivou cijelog projekta niže u
-          // globalnoj rekapitulaciji. Ako bi ovdje ušla već korigovana vrijednost, ispalo bi
-          // duplo uvećanje/umanjenje (jednom po struci, jednom globalno).
-          strukaTotalInfo.push({ naziv: s.naziv, addr: strukaMedjuzbirAddr, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+          // Globalna rekapitulacija sad koristi VEĆ KORIGOVANU vrijednost ove struke
+          // (jsStrukaSveukupno) — korekcija (uvećanje/umanjenje) se od sada primjenjuje
+          // isključivo na nivou pojedinačne struke, ne dodatno globalno na cijeli projekat.
+          // Time se izbjegava da korisnik vidi npr. "970,08 + 10% = 1.067,09" po struci,
+          // a onda opet "970,08 (nekorigovano) + 10%" u globalnoj rekapitulaciji.
+          strukaTotalInfo.push({ naziv: s.naziv, addr: `G${ssvRow.number}`, jsValue: jsStrukaSveukupno, rimski: toRoman(brStruke) })
         } else {
-          strukaTotalInfo.push({ naziv: s.naziv, addr: strukaMedjuzbirAddr, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+          strukaTotalInfo.push({ naziv: s.naziv, addr: strukaMedjuzbirAddr, jsValue: jsStrukaSveukupno, rimski: toRoman(brStruke) })
         }
 
         const prazanStruka = ws.addRow([])
         prazanStruka.height = 10
       } else {
-        // Struka nije detaljno prikazana (filtrirana) — nema ćelije za referencirati, samo JS vrijednost
-        strukaTotalInfo.push({ naziv: s.naziv, addr: null, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+        // Struka nije detaljno prikazana (filtrirana) — nema ćelije za referencirati.
+        // Izračunaj korigovanu vrijednost i ovdje (petlja za prazan/filtriran slučaj nema
+        // pristup jsStrukaSveukupno definisanom gore jer je taj blok unutar prikaziDetalj).
+        const skrivenaUvecPct = s.uvecanjePct || 0
+        const skrivenaUmanPct = s.umanjenjePct || 0
+        const jsSkrivenaSveukupno = strukaUkupnoJS
+          + (skrivenaUvecPct>0 ? strukaUkupnoJS*skrivenaUvecPct/100 : 0)
+          - (skrivenaUmanPct>0 ? strukaUkupnoJS*skrivenaUmanPct/100 : 0)
+        strukaTotalInfo.push({ naziv: s.naziv, addr: null, jsValue: jsSkrivenaSveukupno, rimski: toRoman(brStruke) })
       }
     }
 
@@ -607,57 +620,21 @@ export default async function handler(req, res) {
       rekapGAddrs.push(`G${fRow.number}`)
     }
 
-    const mbRow = ws.addRow(['','','','','','Međuzbir:',''])
-    ws.mergeCells(`A${mbRow.number}:E${mbRow.number}`)
-    mbRow.height = 14.1
-    ;['A','B','C','D','E','F','G'].forEach(col => {
-      mbRow.getCell(col).fill   = fill(ZS)
-      mbRow.getCell(col).font   = font({bold:true, size:10})
-      mbRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
-    })
-    mbRow.getCell('F').alignment = al('center','center',false)
-    mbRow.getCell('G').value = {
-      formula: rekapGAddrs.length > 0 ? `SUM(${rekapGAddrs.join(',')})` : '0',
-      result: grandTotalJS
+    // ── SVEUKUPNO — prost zbir već korigovanih iznosa po struci. Svaka struka je
+    // obračunata sa svojim vlastitim uvećanjem/umanjenjem (vidi petlju iznad), pa se
+    // ovdje ništa dodatno ne primjenjuje — time se izbjegava dvostruko računanje
+    // korekcije (jednom po struci, pa opet globalno na cijeli projekat). ──
+    const imaBiloKakvuKorekciju = struke.some(s => (s.uvecanjePct||0) > 0 || (s.umanjenjePct||0) > 0)
+
+    if (imaBiloKakvuKorekciju) {
+      const napRow = ws.addRow(['','','','','','',''])
+      ws.mergeCells(`A${napRow.number}:G${napRow.number}`)
+      napRow.height = 11
+      napRow.getCell('B').value     = '* iznosi po struci već uključuju eventualno uvećanje/umanjenje te struke'
+      napRow.getCell('B').font      = font({size:7.5, italic:true, color:'999999'})
+      napRow.getCell('B').alignment = al('left','center',false)
+      napRow.eachCell({includeEmpty:true}, c => { if (!c.fill) c.fill = fill('FFFFFF') })
     }
-    mbRow.getCell('G').numFmt    = FMT_CUR
-    mbRow.getCell('G').font      = font({bold:true, size:10, color:Z})
-    mbRow.getCell('G').alignment = al('center','center',false)
-    const medjuzbirAddr = `G${mbRow.number}`
-
-    let uvecAddr = null
-    let umanAddr = null
-
-    if (uvecanjePct > 0) {
-      const uvRow = ws.addRow(['','','','','',`+ Uvećanje (${uvecanjePct}%):`,''])
-      ws.mergeCells(`A${uvRow.number}:E${uvRow.number}`)
-      uvRow.height = 14.1
-      uvRow.getCell('F').font      = font({size:10, color:Z})
-      uvRow.getCell('F').alignment = al('center','center',false)
-      uvRow.getCell('G').value     = { formula: `${medjuzbirAddr}*${uvecanjePct}/100`, result: grandTotalJS*uvecanjePct/100 }
-      uvRow.getCell('G').numFmt    = FMT_CUR
-      uvRow.getCell('G').font      = font({size:10, color:Z})
-      uvRow.getCell('G').alignment = al('center','center',false)
-      uvecAddr = `G${uvRow.number}`
-    }
-
-    if (umanjenjePct > 0) {
-      const umRow = ws.addRow(['','','','','',`− Umanjenje (${umanjenjePct}%):`,''])
-      ws.mergeCells(`A${umRow.number}:E${umRow.number}`)
-      umRow.height = 14.1
-      umRow.getCell('F').font      = font({size:10, color:'C0392B'})
-      umRow.getCell('F').alignment = al('center','center',false)
-      umRow.getCell('G').value     = { formula: `${medjuzbirAddr}*${umanjenjePct}/100`, result: grandTotalJS*umanjenjePct/100 }
-      umRow.getCell('G').numFmt    = FMT_CUR
-      umRow.getCell('G').font      = font({size:10, color:'C0392B'})
-      umRow.getCell('G').alignment = al('center','center',false)
-      umanAddr = `G${umRow.number}`
-    }
-
-    let sveukupnoFormula = medjuzbirAddr
-    if (uvecAddr) sveukupnoFormula += `+${uvecAddr}`
-    if (umanAddr) sveukupnoFormula += `-${umanAddr}`
-    const jsSveukupno = grandTotalJS + (uvecanjePct>0 ? grandTotalJS*uvecanjePct/100 : 0) - (umanjenjePct>0 ? grandTotalJS*umanjenjePct/100 : 0)
 
     const svRow = ws.addRow(['','','','','','SVEUKUPNO:',''])
     ws.mergeCells(`A${svRow.number}:E${svRow.number}`)
@@ -668,7 +645,10 @@ export default async function handler(req, res) {
       svRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
     })
     svRow.getCell('F').alignment = al('center','center',false)
-    svRow.getCell('G').value     = { formula: sveukupnoFormula, result: jsSveukupno }
+    svRow.getCell('G').value     = {
+      formula: rekapGAddrs.length > 0 ? `SUM(${rekapGAddrs.join(',')})` : '0',
+      result: strukaTotalInfo.reduce((s, x) => s + x.jsValue, 0)
+    }
     svRow.getCell('G').numFmt    = FMT_CUR
     svRow.getCell('G').alignment = al('center','center',false)
     } // kraj prikaziGlobalnuRekapitulaciju bloka
