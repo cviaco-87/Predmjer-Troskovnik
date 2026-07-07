@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       {width: 4.86},   // D - J.mj.
       {width: 10.71},  // E - Jed. cijena
       {width: 13.86},  // F - Količina
-      {width: 13.14},  // G - Ukupno
+      {width: 16.5},   // G - Ukupno (proširena za velike iznose s formatom valute, npr. milionske sume)
     ]
 
     const Z   = '1B2F43'
