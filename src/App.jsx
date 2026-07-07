@@ -951,6 +951,23 @@ export default function App() {
             <div style="margin-bottom:16px"></div>`
         }
         sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
+
+        // ── Uvećanje/umanjenje i za pojedinačnu struku, da izvođač koji dobije samo
+        // svoju fazu (npr. samo Elektro) vidi i svoju konačnu, korigovanu cifru ──
+        const strukaUvec = strukaUkupno * uvecanjePct / 100
+        const strukaUman = strukaUkupno * umanjenjePct / 100
+        if (uvecanjePct > 0 || umanjenjePct > 0) {
+          sviFazeSadrzaj += `<table class="struka-korekcija"><tbody>`
+          if (strukaUvec > 0) {
+            sviFazeSadrzaj += `<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(strukaUvec)} ${valutaZnak}</td></tr>`
+          }
+          if (strukaUman > 0) {
+            sviFazeSadrzaj += `<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(strukaUman)} ${valutaZnak}</td></tr>`
+          }
+          const strukaSveukupno = strukaUkupno + strukaUvec - strukaUman
+          sviFazeSadrzaj += `<tr class="total"><td><strong>SVEUKUPNO ${toRoman(brStruke)}</strong></td><td class="r bold">${fmtN(strukaSveukupno)} ${valutaZnak}</td></tr>`
+          sviFazeSadrzaj += `</tbody></table>`
+        }
       }
 
       strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaUkupno, rimski: toRoman(brStruke) })
@@ -991,7 +1008,9 @@ export default function App() {
   .struka-blok { page-break-after:avoid; }
   .struka-naslov { background:#1B2F43 !important; color:#fff !important; font-size:13pt; font-weight:700; padding:9px 12px; margin:18px 0 10px; letter-spacing:.03em; }
   .struka-blok:first-child .struka-naslov { margin-top:4px; }
-  .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 22px; border-top:2px solid #1B2F43; border-bottom:2px solid #1B2F43; display:flex; justify-content:space-between; }
+  .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 10px; border-top:2px solid #1B2F43; border-bottom:2px solid #1B2F43; display:flex; justify-content:space-between; }
+  .struka-korekcija { margin:0 0 22px; }
+  .struka-korekcija td { font-size:9.5pt; padding:4px 12px; border-bottom:none; }
   .faza-header h2 { font-size:11pt; color:#1B2F43; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A637C; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
   th { background:#1B2F43 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
