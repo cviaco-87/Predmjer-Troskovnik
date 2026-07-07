@@ -288,7 +288,7 @@ export default function App() {
       const struke = aktivniProjekat.struke || DEFAULT_STRUKE
       setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
     }
-  }, [aktivniProjekat])
+  }, [aktivniProjekat?.id])
 
   // Učitaj pozicije kad se promijeni faza
   useEffect(() => {
