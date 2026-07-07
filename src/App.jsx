@@ -283,6 +283,8 @@ export default function App() {
       // Novo polje ako postoji, inače saberi stare (radovi+materijal) radi kompatibilnosti sa starim projektima
       setUvecanjePct(aktivniProjekat.uvecanje_pct ?? ((aktivniProjekat.uv_radovi || 0) + (aktivniProjekat.uv_materijal || 0)))
       setUmanjenjePct(aktivniProjekat.umanjenje_pct ?? ((aktivniProjekat.um_radovi || 0) + (aktivniProjekat.um_materijal || 0)))
+      // Vrati stvarnu valutu OVOG projekta (u kojoj su cijene stvarno upisane), ne uvijek EUR
+      setValuta(aktivniProjekat.valuta || 'EUR')
       const struke = aktivniProjekat.struke || DEFAULT_STRUKE
       setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
     }
@@ -569,19 +571,38 @@ export default function App() {
 
     setLoading(true)
     try {
-      const { data: sveFaze } = await supabase.from('faze').select('id').eq('projekat_id', aktivniProjekat.id)
-      for (const f of (sveFaze || [])) {
-        const { data: svePoz } = await supabase.from('pozicije').select('id, cijena').eq('faza_id', f.id)
-        for (const p of (svePoz || [])) {
-          if (p.cijena == null) continue
-          const novaCijena = Math.round(konvertujCijenu(p.cijena, valuta, novaValuta) * 100) / 100
-          await supabase.from('pozicije').update({ cijena: novaCijena }).eq('id', p.id)
+      const { data: sveFaze, error: fazeErr } = await supabase.from('faze').select('id').eq('projekat_id', aktivniProjekat.id)
+      if (fazeErr) throw fazeErr
+      const fazaIds = (sveFaze || []).map(f => f.id)
+
+      if (fazaIds.length > 0) {
+        const { data: svePoz, error: pozErr } = await supabase.from('pozicije').select('id, cijena').in('faza_id', fazaIds)
+        if (pozErr) throw pozErr
+
+        // Paketno (paralelno) ažuriranje svih stavki odjednom — brže i pouzdanije od jedne-po-jedne
+        const rezultati = await Promise.all(
+          (svePoz || [])
+            .filter(p => p.cijena != null)
+            .map(p => {
+              const novaCijena = Math.round(konvertujCijenu(p.cijena, valuta, novaValuta) * 100) / 100
+              return supabase.from('pozicije').update({ cijena: novaCijena }).eq('id', p.id)
+            })
+        )
+        const neuspjesno = rezultati.filter(r => r.error)
+        if (neuspjesno.length > 0) {
+          throw new Error(`${neuspjesno.length} od ${rezultati.length} stavki nije konvertovano. Valuta NIJE promijenjena — pokušajte ponovo.`)
         }
       }
-      // Osvježi trenutno prikazanu fazu odmah
+
+      // Tek nakon što su SVE stavke uspješno konvertovane, trajno upiši novu valutu na projekat u bazi
+      const { error: projErr } = await supabase.from('projekti').update({ valuta: novaValuta }).eq('id', aktivniProjekat.id)
+      if (projErr) throw projErr
+
       if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+      setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
+      setValuta(novaValuta)
     } catch (e) {
-      alert('Greška pri konverziji cijena: ' + e.message)
+      alert('Greška pri konverziji cijena — valuta NIJE promijenjena da se izbjegne pogrešno stanje: ' + e.message)
     }
     setLoading(false)
     setValuta(novaValuta)
@@ -1001,7 +1022,8 @@ ${globalnaRekapitulacijaHtml}
         adresa: aktivniProjekat.adresa,
         datum: aktivniProjekat.datum,
         uvecanje_pct: aktivniProjekat.uvecanje_pct,
-        umanjenje_pct: aktivniProjekat.umanjenje_pct
+        umanjenje_pct: aktivniProjekat.umanjenje_pct,
+        valuta: aktivniProjekat.valuta || 'EUR'
       }).select().single()
 
       if (!noviProj) throw new Error('Greška pri kreiranju projekta')
