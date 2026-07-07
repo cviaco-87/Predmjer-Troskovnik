@@ -39,17 +39,35 @@ export default async function handler(req, res) {
 
     const wb = new ExcelJS.Workbook()
     wb.creator = 'Predmjer/Troškovnik'
-    const ws = wb.addWorksheet('Predmjer', { views:[{showGridLines:false}] })
+    const ws = wb.addWorksheet('Predmjer', {
+      views: [{ showGridLines: false }],
+      pageSetup: {
+        orientation: 'portrait',
+        paperSize: 9,           // A4
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,         // 0 = koliko god stranica po visini treba (ne stišći na 1 stranicu visine)
+        scale: 83,
+        horizontalCentered: false,
+        verticalCentered: false,
+        margins: {
+          top: 0.5905511811023623, bottom: 0.5905511811023623,
+          left: 0.984251968503937, right: 0.3937007874015748,
+          header: 0.31496062992125984, footer: 0.31496062992125984,
+        },
+      },
+    })
 
     // ── KOLONE: A-G (A je sad R.br., B je Šifra, ostalo nepromijenjeno) ──
+    // Širine usklađene s ručno finaliziranom štampanom verzijom predmjera.
     ws.columns = [
-      {width: 8.0},    // A - R.br.
-      {width: 9.5},    // B - Šifra
-      {width: 50.0},   // C - Opis pozicije
+      {width: 6.71},   // A - R.br.
+      {width: 9.43},   // B - Šifra
+      {width: 46.71},  // C - Opis pozicije
       {width: 4.86},   // D - J.mj.
       {width: 10.71},  // E - Jed. cijena
-      {width: 8.86},   // F - Količina
-      {width: 10.5},   // G - Ukupno
+      {width: 13.86},  // F - Količina
+      {width: 13.14},  // G - Ukupno
     ]
 
     const Z   = '1B2F43'
@@ -476,7 +494,68 @@ export default async function handler(req, res) {
         strukaTotRow.getCell('G').numFmt    = FMT_CUR
         strukaTotRow.getCell('G').alignment = al('center','center',false)
 
-        strukaTotalInfo.push({ naziv: s.naziv, addr: `G${strukaTotRow.number}`, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+        const strukaMedjuzbirAddr = `G${strukaTotRow.number}`
+        let strukaUvecAddr = null
+        let strukaUmanAddr = null
+
+        // ── Uvećanje/umanjenje primijenjeno i na nivou pojedinačne struke,
+        // da svaki izvođač (kad izvozi samo svoju fazu) vidi svoju konačnu, korigovanu cifru ──
+        if (uvecanjePct > 0) {
+          const suvRow = ws.addRow(['','','','','',`+ Uvećanje (${uvecanjePct}%):`,''])
+          ws.mergeCells(`A${suvRow.number}:E${suvRow.number}`)
+          suvRow.height = 13.5
+          suvRow.getCell('F').font      = font({size:9.5, color:Z})
+          suvRow.getCell('F').alignment = al('center','center',false)
+          suvRow.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${uvecanjePct}/100`, result: strukaUkupnoJS*uvecanjePct/100 }
+          suvRow.getCell('G').numFmt    = FMT_CUR
+          suvRow.getCell('G').font      = font({size:9.5, color:Z})
+          suvRow.getCell('G').alignment = al('center','center',false)
+          strukaUvecAddr = `G${suvRow.number}`
+        }
+
+        if (umanjenjePct > 0) {
+          const sumRow2 = ws.addRow(['','','','','',`− Umanjenje (${umanjenjePct}%):`,''])
+          ws.mergeCells(`A${sumRow2.number}:E${sumRow2.number}`)
+          sumRow2.height = 13.5
+          sumRow2.getCell('F').font      = font({size:9.5, color:'C0392B'})
+          sumRow2.getCell('F').alignment = al('center','center',false)
+          sumRow2.getCell('G').value     = { formula: `${strukaMedjuzbirAddr}*${umanjenjePct}/100`, result: strukaUkupnoJS*umanjenjePct/100 }
+          sumRow2.getCell('G').numFmt    = FMT_CUR
+          sumRow2.getCell('G').font      = font({size:9.5, color:'C0392B'})
+          sumRow2.getCell('G').alignment = al('center','center',false)
+          strukaUmanAddr = `G${sumRow2.number}`
+        }
+
+        if (uvecanjePct > 0 || umanjenjePct > 0) {
+          let strukaSveukupnoFormula = strukaMedjuzbirAddr
+          if (strukaUvecAddr) strukaSveukupnoFormula += `+${strukaUvecAddr}`
+          if (strukaUmanAddr) strukaSveukupnoFormula += `-${strukaUmanAddr}`
+          const jsStrukaSveukupno = strukaUkupnoJS
+            + (uvecanjePct>0 ? strukaUkupnoJS*uvecanjePct/100 : 0)
+            - (umanjenjePct>0 ? strukaUkupnoJS*umanjenjePct/100 : 0)
+
+          const ssvRow = ws.addRow(['','','','','',`SVEUKUPNO ${toRoman(brStruke)}:`,''])
+          ws.mergeCells(`A${ssvRow.number}:E${ssvRow.number}`)
+          ssvRow.height = 15.95
+          ;['A','B','C','D','E','F','G'].forEach(col => {
+            ssvRow.getCell(col).fill   = fill('E8ECF0')
+            ssvRow.getCell(col).font   = font({bold:true, size:10.5, color:Z})
+            ssvRow.getCell(col).border = borderTopBottom('medium',Z,'medium',Z)
+          })
+          ssvRow.getCell('F').alignment = al('center','center',false)
+          ssvRow.getCell('G').value     = { formula: strukaSveukupnoFormula, result: jsStrukaSveukupno }
+          ssvRow.getCell('G').numFmt    = FMT_CUR
+          ssvRow.getCell('G').alignment = al('center','center',false)
+
+          // Prikazna adresa (za "Faza" red u globalnoj rekapitulaciji) mora referencirati SIROV
+          // zbir struke (strukaMedjuzbirAddr), ne korigovani SVEUKUPNO red — jer se korekcija
+          // (uvećanje/umanjenje) primjenjuje samo JEDNOM, na nivou cijelog projekta niže u
+          // globalnoj rekapitulaciji. Ako bi ovdje ušla već korigovana vrijednost, ispalo bi
+          // duplo uvećanje/umanjenje (jednom po struci, jednom globalno).
+          strukaTotalInfo.push({ naziv: s.naziv, addr: strukaMedjuzbirAddr, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+        } else {
+          strukaTotalInfo.push({ naziv: s.naziv, addr: strukaMedjuzbirAddr, jsValue: strukaUkupnoJS, rimski: toRoman(brStruke) })
+        }
 
         const prazanStruka = ws.addRow([])
         prazanStruka.height = 10
