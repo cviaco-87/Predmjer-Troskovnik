@@ -1068,7 +1068,8 @@ ${globalnaRekapitulacijaHtml}
         const { data: novaFaza } = await supabase.from('faze').insert({
           projekat_id: noviProj.id,
           naziv: f.naziv,
-          redoslijed: f.redoslijed
+          redoslijed: f.redoslijed,
+          struka_kod: f.struka_kod
         }).select().single()
 
         if (!novaFaza) continue
