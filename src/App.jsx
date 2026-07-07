@@ -8,7 +8,51 @@ import { BAZA_B64 } from "./baza.js"
 // atob() sam tretira svaki bajt kao Latin-1 karakter, što lomi UTF-8 slova (č,ć,š,ž,đ).
 // TextDecoder ispravno sastavlja višebajtne UTF-8 sekvence nazad u prava slova.
 const BAZA = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(BAZA_B64), c => c.charCodeAt(0))))
-const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort()
+
+// Redoslijed kategorija prema šifarniku baze (01, 02, 03...) i podjela na dvije faze izvođenja:
+// grubi (konstruktivni) građevinski radovi i završni (zanatski/instalaterski) radovi,
+// u skladu sa uobičajenim redoslijedom izvođenja na gradilištu.
+const REDOSLIJED_KATEGORIJA = [
+  // ── GRUBI GRAĐEVINSKI RADOVI ──
+  { sifra: '01', naziv: 'Pripremno-završni radovi',  grupa: 'grubi' },
+  { sifra: '02', naziv: 'Zemljani radovi',           grupa: 'grubi' },
+  { sifra: '03', naziv: 'Betonski i AB radovi',      grupa: 'grubi' },
+  { sifra: '04', naziv: 'Zidarski radovi',           grupa: 'grubi' },
+  { sifra: '05', naziv: 'Izolaterski radovi',        grupa: 'grubi' },
+  { sifra: '07', naziv: 'Tesarski radovi',           grupa: 'grubi' },
+  { sifra: '08', naziv: 'Pokrivački radovi',         grupa: 'grubi' },
+  { sifra: '20', naziv: 'Demontaže i rušenja',       grupa: 'grubi' },
+  { sifra: '22', naziv: 'Kamenorezački radovi',      grupa: 'grubi' },
+  { sifra: '23', naziv: 'Konzervatorski radovi',     grupa: 'grubi' },
+  // ── ZAVRŠNI GRAĐEVINSKO-ZANATSKI RADOVI ──
+  { sifra: '06', naziv: 'Fasaderski radovi',          grupa: 'zavrsni' },
+  { sifra: '09', naziv: 'Limarski radovi',            grupa: 'zavrsni' },
+  { sifra: '10', naziv: 'Građevinska stolarija',      grupa: 'zavrsni' },
+  { sifra: '11', naziv: 'Bravarski radovi',           grupa: 'zavrsni' },
+  { sifra: '12', naziv: 'Gipsarski radovi',           grupa: 'zavrsni' },
+  { sifra: '13', naziv: 'Podopolagački radovi',       grupa: 'zavrsni' },
+  { sifra: '14', naziv: 'Molersko-farbarski radovi',  grupa: 'zavrsni' },
+  { sifra: '21', naziv: 'Stolarski radovi',           grupa: 'zavrsni' },
+  { sifra: '24', naziv: 'Staklorezački radovi',       grupa: 'zavrsni' },
+  { sifra: '25', naziv: 'Protivpožarna zaštita',      grupa: 'zavrsni' },
+  // ── OSTALE STRUKE (van građevinsko-zanatskih; svrstane u svoje strukе, ne prikazuju se u ova dva podnaslova) ──
+  { sifra: '15', naziv: 'Sanitarni uređaji' },
+  { sifra: '16', naziv: 'Vodovod i kanalizacija' },
+  { sifra: '17', naziv: 'Elektroinstalacije' },
+  { sifra: '18', naziv: 'Mašinske instalacije' },
+  { sifra: '19', naziv: 'Vanjsko uređenje' },
+]
+const REDOSLIJED_MAP = new Map(REDOSLIJED_KATEGORIJA.map((r, i) => [r.naziv, i]))
+const GRUPA_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.grupa]))
+
+// Kategorije iz baze poredane po šifarniku; kategorija koje slučajno nema u REDOSLIJED_KATEGORIJA
+// (npr. nova dodana kategorija koju smo zaboravili upisati ovdje) ide na kraj, abecedno, da se ne izgubi.
+const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort((a, b) => {
+  const ia = REDOSLIJED_MAP.has(a) ? REDOSLIJED_MAP.get(a) : 999
+  const ib = REDOSLIJED_MAP.has(b) ? REDOSLIJED_MAP.get(b) : 999
+  if (ia !== ib) return ia - ib
+  return a.localeCompare(b)
+})
 
 // Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
 // sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
@@ -154,7 +198,18 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <select value={kat} onChange={e => setKat(e.target.value)}
             style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
             <option value="">— Sve kategorije —</option>
-            {kategorijeZaStruku.map(k => <option key={k} value={k}>{k}</option>)}
+            {aktivnaStruka === 'gradjevinski' ? (
+              <>
+                <optgroup label="Grubi građevinski radovi">
+                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'grubi').map(k => <option key={k} value={k}>{k}</option>)}
+                </optgroup>
+                <optgroup label="Završni građevinsko-zanatski radovi">
+                  {kategorijeZaStruku.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(k => <option key={k} value={k}>{k}</option>)}
+                </optgroup>
+              </>
+            ) : (
+              kategorijeZaStruku.map(k => <option key={k} value={k}>{k}</option>)
+            )}
           </select>
         )}
         {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>×</button>}
