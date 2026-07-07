@@ -299,8 +299,6 @@ export default function App() {
     const uEUR = iznos / (KURSEVI[izValute] || 1)
     return uEUR * (KURSEVI[uValutu] || 1)
   }
-  const [uvecanjePct, setUvecanjePct] = useState(0)
-  const [umanjenjePct, setUmanjenjePct] = useState(0)
   const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
@@ -339,12 +337,19 @@ export default function App() {
       ucitajFaze(aktivniProjekat.id)
       setAktivnaFaza(null)
       setPozicije([])
-      // Novo polje ako postoji, inače saberi stare (radovi+materijal) radi kompatibilnosti sa starim projektima
-      setUvecanjePct(aktivniProjekat.uvecanje_pct ?? ((aktivniProjekat.uv_radovi || 0) + (aktivniProjekat.uv_materijal || 0)))
-      setUmanjenjePct(aktivniProjekat.umanjenje_pct ?? ((aktivniProjekat.um_radovi || 0) + (aktivniProjekat.um_materijal || 0)))
       // Vrati stvarnu valutu OVOG projekta (u kojoj su cijene stvarno upisane), ne uvijek EUR
       setValuta(aktivniProjekat.valuta || 'EUR')
-      const struke = aktivniProjekat.struke || DEFAULT_STRUKE
+      let struke = aktivniProjekat.struke || DEFAULT_STRUKE
+      // Migracija starih projekata: ako postoji stara projekt-nivo vrijednost uvećanja/umanjenja
+      // a nijedna struka još nema svoju vlastitu, prebaci staru vrijednost na prvu (glavnu) struku
+      // kako korisnik ne bi izgubio već podešenu korekciju prelaskom na po-struci logiku.
+      const staroUvecanje = aktivniProjekat.uvecanje_pct ?? ((aktivniProjekat.uv_radovi || 0) + (aktivniProjekat.uv_materijal || 0))
+      const staroUmanjenje = aktivniProjekat.umanjenje_pct ?? ((aktivniProjekat.um_radovi || 0) + (aktivniProjekat.um_materijal || 0))
+      const nijednaStrukaNemaVlastitu = struke.every(s => s.uvecanjePct == null && s.umanjenjePct == null)
+      if (nijednaStrukaNemaVlastitu && (staroUvecanje > 0 || staroUmanjenje > 0) && struke.length > 0) {
+        struke = struke.map((s, i) => i === 0 ? { ...s, uvecanjePct: staroUvecanje, umanjenjePct: staroUmanjenje } : s)
+        supabase.from('projekti').update({ struke }).eq('id', aktivniProjekat.id).then(() => {})
+      }
       setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
     }
   }, [aktivniProjekat?.id])
@@ -475,6 +480,18 @@ export default function App() {
   const preimenujStruku = async (kod, noviNaziv) => {
     if (!noviNaziv.trim()) return
     const nove = struke.map(s => s.kod === kod ? { ...s, naziv: noviNaziv.trim() } : s)
+    await azurirajStruke(nove)
+  }
+
+  // Uvećanje/umanjenje se podešava PO STRUCI (ne globalno za cijeli projekat), jer različiti
+  // izvođači (građevinski, elektro, ViK...) često imaju različitu maržu/popust.
+  const postaviUvecanjeStruke = async (kod, pct) => {
+    const nove = struke.map(s => s.kod === kod ? { ...s, uvecanjePct: pct } : s)
+    await azurirajStruke(nove)
+  }
+
+  const postaviUmanjenjeStruke = async (kod, pct) => {
+    const nove = struke.map(s => s.kod === kod ? { ...s, umanjenjePct: pct } : s)
     await azurirajStruke(nove)
   }
 
@@ -781,7 +798,7 @@ export default function App() {
       const response = await fetch('/api/excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, uvecanjePct, umanjenjePct, valutaZnak, struke, filtrirajStruku })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku })
       })
 
       if (!response.ok) {
@@ -838,9 +855,9 @@ export default function App() {
       const poz = svePozicije[f.id] || []
       grandTotal += poz.filter(p => !p.parent_id).reduce((s,p) => s+calcRow(p,poz), 0)
     }
-    const uvec = grandTotal * uvecanjePct / 100
-    const uman = grandTotal * umanjenjePct / 100
-    const ukupno = grandTotal + uvec - uman
+    // Napomena: uvećanje/umanjenje se sada računa PO STRUCI (vidi petlju niže), ne globalno.
+    // "ukupno" (finalni zbir za SVEUKUPNO na dnu) se gradi kao zbir već korigovanih iznosa
+    // svake pojedinačne struke — postavlja se tek nakon petlje kroz struke.
 
     let sviFazeSadrzaj = ''
     const strukaSubtotali = [] // { naziv, ukupno } - za rekapitulaciju po struci
@@ -952,25 +969,36 @@ export default function App() {
         }
         sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
 
-        // ── Uvećanje/umanjenje i za pojedinačnu struku, da izvođač koji dobije samo
-        // svoju fazu (npr. samo Elektro) vidi i svoju konačnu, korigovanu cifru ──
-        const strukaUvec = strukaUkupno * uvecanjePct / 100
-        const strukaUman = strukaUkupno * umanjenjePct / 100
-        if (uvecanjePct > 0 || umanjenjePct > 0) {
+        // ── Uvećanje/umanjenje se podešava PO STRUCI (svaki izvođač može imati drugačiju
+        // maržu/popust), ne globalno za cijeli projekat. ──
+        const strukaUvecPct = s.uvecanjePct || 0
+        const strukaUmanPct = s.umanjenjePct || 0
+        const strukaUvec = strukaUkupno * strukaUvecPct / 100
+        const strukaUman = strukaUkupno * strukaUmanPct / 100
+        const strukaSveukupno = strukaUkupno + strukaUvec - strukaUman
+        if (strukaUvecPct > 0 || strukaUmanPct > 0) {
           sviFazeSadrzaj += `<table class="struka-korekcija"><tbody>`
           if (strukaUvec > 0) {
-            sviFazeSadrzaj += `<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(strukaUvec)} ${valutaZnak}</td></tr>`
+            sviFazeSadrzaj += `<tr><td style="color:#1B2F43">+ Uvećanje (${strukaUvecPct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(strukaUvec)} ${valutaZnak}</td></tr>`
           }
           if (strukaUman > 0) {
-            sviFazeSadrzaj += `<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(strukaUman)} ${valutaZnak}</td></tr>`
+            sviFazeSadrzaj += `<tr><td style="color:#C0392B">− Umanjenje (${strukaUmanPct}%)</td><td class="r" style="color:#C0392B">−${fmtN(strukaUman)} ${valutaZnak}</td></tr>`
           }
-          const strukaSveukupno = strukaUkupno + strukaUvec - strukaUman
           sviFazeSadrzaj += `<tr class="total"><td><strong>SVEUKUPNO ${toRoman(brStruke)}</strong></td><td class="r bold">${fmtN(strukaSveukupno)} ${valutaZnak}</td></tr>`
           sviFazeSadrzaj += `</tbody></table>`
         }
-      }
 
-      strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaUkupno, rimski: toRoman(brStruke) })
+        // Globalna rekapitulacija zbraja VEĆ KORIGOVANE iznose po struci (ne primjenjuje
+        // dodatnu korekciju na nivou cijelog projekta — svaka struka je već obračunata).
+        strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaSveukupno, rimski: toRoman(brStruke) })
+      } else {
+        // Struka nije detaljno prikazana (filtriran export samo za jednu drugu struku) —
+        // i dalje treba njena korigovana vrijednost radi tačnosti eventualne agregacije.
+        const strukaUvecPct = s.uvecanjePct || 0
+        const strukaUmanPct = s.umanjenjePct || 0
+        const strukaSveukupno = strukaUkupno + strukaUkupno*strukaUvecPct/100 - strukaUkupno*strukaUmanPct/100
+        strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaSveukupno, rimski: toRoman(brStruke) })
+      }
     }
 
     const rekapRows = strukaSubtotali.map(s => {
@@ -981,6 +1009,12 @@ export default function App() {
     // ili kad se izvozi Građevinsko-zanatski (glavni/koordinacioni dokument projekta).
     // Ostale pojedinačne faze (ViK, Elektro, Mašinske, Vanjsko) su samostalni dokumenti
     // za tog izvođača i ne treba da otkrivaju cijene drugih struka.
+    // Sveukupno projekta je prost zbir već korigovanih iznosa po struci — svaka struka
+    // je obračunata sa svojim vlastitim uvećanjem/umanjenjem, pa se ovdje ništa dodatno
+    // ne primjenjuje (izbjegava dvostruko računanje korekcije).
+    const ukupno = strukaSubtotali.reduce((s, x) => s + x.ukupno, 0)
+    const imaBiloKakvuKorekciju = struke.some(s => (s.uvecanjePct||0) > 0 || (s.umanjenjePct||0) > 0)
+
     const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
     const globalnaRekapitulacijaHtml = prikaziGlobalnuRekapitulaciju ? `
 <div class="page-break"></div>
@@ -989,9 +1023,7 @@ export default function App() {
   <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
   <tbody>
     ${rekapRows}
-    <tr class="total"><td>Međuzbir</td><td class="r bold">${fmtN(grandTotal)} ${valutaZnak}</td></tr>
-    ${uvec>0?`<tr><td style="color:#1B2F43">+ Uvećanje (${uvecanjePct}%)</td><td class="r" style="color:#1B2F43">+${fmtN(uvec)} ${valutaZnak}</td></tr>`:''}
-    ${uman>0?`<tr><td style="color:#C0392B">− Umanjenje (${umanjenjePct}%)</td><td class="r" style="color:#C0392B">−${fmtN(uman)} ${valutaZnak}</td></tr>`:''}
+    ${imaBiloKakvuKorekciju ? `<tr><td colspan="2" style="font-size:8pt;color:#888;font-style:italic;padding-top:2px">* iznosi po struci već uključuju eventualno uvećanje/umanjenje te struke</td></tr>` : ''}
     <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
 </table>` : ''
@@ -1216,9 +1248,12 @@ ${globalnaRekapitulacijaHtml}
     cursor: 'pointer', fontFamily: 'inherit', background: bg, color, whiteSpace: 'nowrap'
   })
 
-  const medjuzbir = Object.values(fazaTotali).reduce((a, b) => a + b, 0)
-  const uvecanje = medjuzbir * uvecanjePct / 100
-  const umanjenje = medjuzbir * umanjenjePct / 100
+  const aktivnaFazaStruka = aktivnaFaza ? struke.find(s => (aktivnaFaza.struka_kod || 'gradjevinski') === s.kod) : null
+  const aktivnaFazaUvecanjePct = aktivnaFazaStruka?.uvecanjePct || 0
+  const aktivnaFazaUmanjenjePct = aktivnaFazaStruka?.umanjenjePct || 0
+  const fazaVlastitiZbir = aktivnaFaza ? (fazaTotali[aktivnaFaza.id] || 0) : 0
+  const uvecanje = fazaVlastitiZbir * aktivnaFazaUvecanjePct / 100
+  const umanjenje = fazaVlastitiZbir * aktivnaFazaUmanjenjePct / 100
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'system-ui,-apple-system,sans-serif', fontSize: 13, background: '#C7C7C4', color: '#1A1A18' }}>
@@ -1431,20 +1466,23 @@ ${globalnaRekapitulacijaHtml}
             </div>
           </>}
 
-          {/* Uvećanje */}
+          {/* Uvećanje / Umanjenje — podešava se po struci, ne globalno za cijeli projekat */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 4 }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>
+            za strukу: <strong style={{ color: '#4A637C' }}>{struke.find(s => s.kod === aktivnaStruka)?.naziv || aktivnaStruka}</strong>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
-            <input type="number" value={uvecanjePct} min="0" step="0.5"
-              onChange={e => { const v = parseFloat(e.target.value) || 0; setUvecanjePct(v); azurirajProjekat('uvecanje_pct', v) }}
+            <input type="number" value={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
+              onChange={e => { const v = parseFloat(e.target.value) || 0; postaviUvecanjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa', marginBottom: 10 }}>npr. PDV, opšti troškovi</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>Umanjenje (%)</span>
-            <input type="number" value={umanjenjePct} min="0" max="100" step="0.5"
-              onChange={e => { const v = parseFloat(e.target.value) || 0; setUmanjenjePct(v); azurirajProjekat('umanjenje_pct', v) }}
+            <input type="number" value={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
+              onChange={e => { const v = parseFloat(e.target.value) || 0; postaviUmanjenjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
