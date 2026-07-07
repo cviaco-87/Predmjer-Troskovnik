@@ -114,7 +114,8 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       if (jePoznataStruka && strukaZaKategoriju(item.k) !== aktivnaStruka) continue
       if (kat && item.k !== kat) continue
       const n = item.n.toLowerCase()
-      if (terms.length === 0 || terms.every(t => n.includes(t))) out.push({ ...item, _idx: i })
+      const s = (item.s || '').toLowerCase()
+      if (terms.length === 0 || terms.every(t => n.includes(t) || s.includes(t))) out.push({ ...item, _idx: i })
     }
     return out
   }, [q, kat, tab, mojeBazaStavke, aktivnaStruka])
@@ -185,6 +186,9 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                     style={{ padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: '1px solid #EEECEA' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
                     onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    {item.s && (
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8A94A0', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', minWidth: 68 }}>{item.s}</span>
+                    )}
                     <span style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>{item.n}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                       {item.c > 0 ? fmt(item.c) + ' €' : '—'}
@@ -456,7 +460,7 @@ export default function App() {
     const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
     const { data } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: cijenaUValuti, kategorija: item.k, redoslijed: red
+      cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
   }, [aktivnaFaza, pozicije, valuta])
@@ -817,13 +821,15 @@ export default function App() {
         let rows = ''
         let rb = 1
         for (const [k, stavke] of Object.entries(byK)) {
-          rows += `<tr class="kat"><td colspan="6">${k.toUpperCase()}</td></tr>`
+          rows += `<tr class="kat"><td colspan="7">${k.toUpperCase()}</td></tr>`
           for (const p of stavke) {
             const u = calcRow(p, poz)
             const imadjece = p.djeca.length > 0
             const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            const sifra = (p.sifra||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             rows += `<tr>
               <td class="c">${rb++}</td>
+              <td class="c" style="font-size:8.5pt;color:#555">${sifra||'—'}</td>
               <td class="opis">${naziv}</td>
               <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
               <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
@@ -836,6 +842,7 @@ export default function App() {
                 const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
                 rows += `<tr class="pod">
                   <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
+                  <td></td>
                   <td class="pod-opis">${dNaziv}</td>
                   <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
@@ -846,6 +853,7 @@ export default function App() {
               const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
               rows += `<tr class="pod-sum">
                 <td></td>
+                <td></td>
                 <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
                 <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
               </tr>`
@@ -855,14 +863,16 @@ export default function App() {
         const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
         strukaUkupno += ft
         grupaSubtotali.push({ naziv: f.naziv, ukupno: ft })
-        rows += `<tr class="total"><td colspan="5" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
+        rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
 
         if (prikaziDetalj) {
           sviFazeSadrzaj += `
             <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
             <table>
               <thead><tr>
-                <th class="c" style="width:30px">R.br.</th><th>Opis pozicije</th>
+                <th class="c" style="width:30px">R.br.</th>
+                <th class="c" style="width:60px">Šifra</th>
+                <th>Opis pozicije</th>
                 <th class="c" style="width:45px">J.mj.</th>
                 <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
                 <th class="r" style="width:65px">Količina</th>
@@ -1080,6 +1090,7 @@ ${globalnaRekapitulacijaHtml}
               kolicina: p.kolicina,
               kategorija: p.kategorija,
               redoslijed: p.redoslijed,
+              sifra: p.sifra || null,
               parent_id: null
             }).select().single()
             if (novaPoz) idMapa[p.id] = novaPoz.id
@@ -1098,6 +1109,7 @@ ${globalnaRekapitulacijaHtml}
               kolicina: d.kolicina,
               kategorija: d.kategorija,
               redoslijed: d.redoslijed,
+              sifra: d.sifra || null,
               parent_id: noviParentId
             })
           }
@@ -1479,8 +1491,8 @@ ${globalnaRekapitulacijaHtml}
                   <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#1B2F43', color: '#fff' }}>
-                        {['R.br.', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 3 && i <= 5 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                        {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1488,7 +1500,7 @@ ${globalnaRekapitulacijaHtml}
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
                           <tr key={'k' + kat} style={{ background: '#D2DCE6' }}>
-                            <td colSpan={7} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
+                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
@@ -1516,6 +1528,18 @@ ${globalnaRekapitulacijaHtml}
                                       <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
                                     </div>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82 }}>
+                                    <input
+                                      type="text"
+                                      key={`sif-${p.id}-${revizija}`}
+                                      defaultValue={p.sifra || ''}
+                                      placeholder="—"
+                                      onBlur={e => azurirajPoziciju(p.id, 'sifra', e.target.value.trim())}
+                                      onClick={e => e.stopPropagation()}
+                                      style={{ width: '100%', border: '1px solid transparent', background: 'transparent', fontSize: 11, fontWeight: 600, color: '#6B7480', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', padding: '2px 4px', borderRadius: 4 }}
+                                      onFocus={e => { e.target.style.border = '1px solid #C2CDD8'; e.target.style.background = '#fff' }}
+                                      title="Šifra pozicije" />
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
                                     <textarea
@@ -1625,6 +1649,7 @@ ${globalnaRekapitulacijaHtml}
                                   return (
                                     <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>{i+1}.{di+1}</td>
+                                      <td></td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
@@ -1685,6 +1710,7 @@ ${globalnaRekapitulacijaHtml}
                                 {imadjece && (
                                   <tr style={{ borderBottom: '2px solid #E4E1D8', background: paleta.zbir }}>
                                     <td></td>
+                                    <td></td>
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
                                       Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
                                     </td>
@@ -1700,7 +1726,7 @@ ${globalnaRekapitulacijaHtml}
                         </React.Fragment>
                       ))}
                       <tr style={{ background: '#E4E9EE', borderTop: '2px solid #2D4B6A' }}>
-                        <td colSpan={5} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43' }}>UKUPNO GRUPA:</td>
+                        <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43' }}>UKUPNO GRUPA:</td>
                         <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
