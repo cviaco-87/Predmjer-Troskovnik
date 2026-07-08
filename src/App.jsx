@@ -1324,8 +1324,9 @@ ${globalnaRekapitulacijaHtml}
         <div style={{ width: 280, minWidth: 280, background: '#C7C7C4', borderRight: '1px solid #B8B8B4', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
 
           {/* Projekti */}
-          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #1B2F43', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #1B2F43', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#E7ECF1', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
+          <div style={{ padding: '12px 12px 14px' }}>
           {projekti.map(p => (
             <div key={p.id} onClick={() => setAktivniProjekat(p)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
@@ -1380,11 +1381,13 @@ ${globalnaRekapitulacijaHtml}
             <button onClick={dodajProjekat} style={B('#1B2F43')}>+ Dodaj</button>
           </div>
           </div>
+          </div>
 
           {/* Podaci o projektu */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #4A637C', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #4A637C', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#3D5468', background: '#E9EDF1', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
+            <div style={{ padding: '12px 12px 14px' }}>
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
@@ -1398,12 +1401,14 @@ ${globalnaRekapitulacijaHtml}
                 style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
             </div>
             </div>
+            </div>
           </>}
 
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #6B8299', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #6B8299', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#425A70', background: '#EAEDF0', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
+            <div style={{ padding: '12px 12px 14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
                 <div key={s.kod} onClick={() => {
@@ -1458,12 +1463,14 @@ ${globalnaRekapitulacijaHtml}
               )}
             </div>
             </div>
+            </div>
           </>}
 
           {/* Faze */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #8A9BAC', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #8A9BAC', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4C5E6E', background: '#ECEEF0', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
+            <div style={{ padding: '12px 12px 14px' }}>
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
@@ -1502,12 +1509,14 @@ ${globalnaRekapitulacijaHtml}
               <button onClick={dodajFazu} style={B('#1B2F43')}>+ Dodaj</button>
             </div>
             </div>
+            </div>
           </>}
 
           {/* Uvećanje / Umanjenje — podešava se po fazi, ne globalno za cijeli projekat */}
-          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #C9954E', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 4, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 10, marginTop: 6 }}>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #C9954E', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#8A6524', background: '#F4ECDD', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
+          <div style={{ padding: '12px 12px 14px' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>
             za fazu: <strong style={{ color: '#4A637C' }}>{struke.find(s => s.kod === aktivnaStruka)?.naziv || aktivnaStruka}</strong>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
@@ -1531,10 +1540,12 @@ ${globalnaRekapitulacijaHtml}
             </button>
           </div>
           </div>
+          </div>
 
           {/* Rekapitulacija */}
-          <div style={{ background: '#EEF0F3', border: '1px solid #C9D3DE', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', marginBottom: 10 }}><span style={{ fontSize: 15 }}>📊</span>Rekapitulacija</div>
+          <div style={{ background: '#EEF0F3', border: '1px solid #C9D3DE', borderRadius: 10, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#DCE2E8', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📊</span>Rekapitulacija</div>
+          <div style={{ padding: '12px 12px 14px' }}>
           {aktivnaFaza && pozicije.length > 0 ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <tbody>
@@ -1556,6 +1567,7 @@ ${globalnaRekapitulacijaHtml}
               </tbody>
             </table>
           ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite grupu radova.</p>}
+          </div>
           </div>
         </div>
 
