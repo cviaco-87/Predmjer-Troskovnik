@@ -1343,7 +1343,7 @@ ${globalnaRekapitulacijaHtml}
 
           {/* Projekti */}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #1B2F43', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#E7ECF1', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#CDD1D6', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
           <div style={{ padding: '12px 12px 14px' }}>
           {projekti.map(p => (
             <div key={p.id} onClick={() => setAktivniProjekat(p)}
@@ -1404,7 +1404,7 @@ ${globalnaRekapitulacijaHtml}
           {/* Podaci o projektu */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #4A637C', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#3D5468', background: '#E9EDF1', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#3D5468', background: '#D7DDE2', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
             <div style={{ padding: '12px 12px 14px' }}>
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
@@ -1425,7 +1425,7 @@ ${globalnaRekapitulacijaHtml}
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #6B8299', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#425A70', background: '#EAEDF0', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#425A70', background: '#DEE4E9', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
             <div style={{ padding: '12px 12px 14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
@@ -1489,7 +1489,7 @@ ${globalnaRekapitulacijaHtml}
           {/* Faze */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #8A9BAC', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4C5E6E', background: '#ECEEF0', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4C5E6E', background: '#E5E9ED', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
             <div style={{ padding: '12px 12px 14px' }}>
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
@@ -1564,7 +1564,7 @@ ${globalnaRekapitulacijaHtml}
 
           {/* Rekapitulacija */}
           <div style={{ background: '#EEF0F3', border: '1px solid #C9D3DE', borderRadius: 10, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#DCE2E8', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📊</span>Rekapitulacija</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#DDE0E3', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📊</span>Rekapitulacija</div>
           <div style={{ padding: '12px 12px 14px' }}>
           {aktivnaFaza && pozicije.length > 0 ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
