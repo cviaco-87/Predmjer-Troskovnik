@@ -1396,7 +1396,7 @@ ${globalnaRekapitulacijaHtml}
               onKeyDown={e => e.key === 'Enter' && dodajProjekat()}
               placeholder="Novi projekat..."
               style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-            <button onClick={dodajProjekat} style={B('#1B2F43')}>+ Dodaj</button>
+            <button onClick={dodajProjekat} style={B('#72808E')}>+ Dodaj</button>
           </div>
           </div>
           </div>
@@ -1441,8 +1441,8 @@ ${globalnaRekapitulacijaHtml}
                     if (!prvaUFazi) setPozicije([])
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
-                    background: s.kod === aktivnaStruka ? '#1B2F43' : 'transparent',
-                    border: s.kod === aktivnaStruka ? '1px solid #1B2F43' : '1px solid #E8E5DC' }}
+                    background: s.kod === aktivnaStruka ? '#72808E' : 'transparent',
+                    border: s.kod === aktivnaStruka ? '1px solid #72808E' : '1px solid #E8E5DC' }}
                   onMouseEnter={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '#F0F2F5' }}
                   onMouseLeave={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '' }}>
                   {editStrukaKod === s.kod ? (
@@ -1511,7 +1511,7 @@ ${globalnaRekapitulacijaHtml}
                     )}
                   </div>
                   {aktivnaPripada && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 2px 0', fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
                       <span style={{ color: '#888' }}>{aktivnaFaza.naziv}</span>
                       <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
                     </div>
@@ -1526,7 +1526,7 @@ ${globalnaRekapitulacijaHtml}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
                 placeholder="Naziv grupe radova..."
                 style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-              <button onClick={dodajFazu} style={B('#1B2F43')}>+ Dodaj</button>
+              <button onClick={dodajFazu} style={B('#72808E')}>+ Dodaj</button>
             </div>
             </div>
             </div>
@@ -1606,7 +1606,7 @@ ${globalnaRekapitulacijaHtml}
           ) : (
             <>
               {/* Toolbar */}
-              <div style={{ background: '#1B2F43', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div style={{ background: '#72808E', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>+ Vlastita stavka</button>
@@ -1673,7 +1673,7 @@ ${globalnaRekapitulacijaHtml}
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ background: '#1B2F43', color: '#fff' }}>
+                      <tr style={{ background: '#72808E', color: '#fff' }}>
                         {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
                           <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
@@ -1682,8 +1682,8 @@ ${globalnaRekapitulacijaHtml}
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
-                          <tr key={'k' + kat} style={{ background: '#D2DCE6' }}>
-                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
+                          <tr key={'k' + kat} style={{ background: '#72808E' }}>
+                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#fff', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #4A5866' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
