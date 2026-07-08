@@ -365,11 +365,6 @@ export default function App() {
   // Učitaj faze kad se promijeni projekat
   useEffect(() => {
     if (aktivniProjekat) {
-      ucitajFaze(aktivniProjekat.id)
-      setAktivnaFaza(null)
-      setPozicije([])
-      // Vrati stvarnu valutu OVOG projekta (u kojoj su cijene stvarno upisane), ne uvijek EUR
-      setValuta(aktivniProjekat.valuta || 'EUR')
       let struke = aktivniProjekat.struke || DEFAULT_STRUKE
       // Migracija starih projekata: ako postoji stara projekt-nivo vrijednost uvećanja/umanjenja
       // a nijedna struka još nema svoju vlastitu, prebaci staru vrijednost na prvu (glavnu) struku
@@ -381,7 +376,12 @@ export default function App() {
         struke = struke.map((s, i) => i === 0 ? { ...s, uvecanjePct: staroUvecanje, umanjenjePct: staroUmanjenje } : s)
         supabase.from('projekti').update({ struke }).eq('id', aktivniProjekat.id).then(() => {})
       }
-      setAktivnaStruka(struke[0]?.kod || 'gradjevinski')
+      const pocetnaStruka = struke[0]?.kod || 'gradjevinski'
+      setAktivnaStruka(pocetnaStruka)
+      ucitajFaze(aktivniProjekat.id, pocetnaStruka)
+      setPozicije([])
+      // Vrati stvarnu valutu OVOG projekta (u kojoj su cijene stvarno upisane), ne uvijek EUR
+      setValuta(aktivniProjekat.valuta || 'EUR')
     }
   }, [aktivniProjekat?.id])
 
@@ -399,9 +399,17 @@ export default function App() {
     }
   }
 
-  const ucitajFaze = async (projektId) => {
+  const ucitajFaze = async (projektId, pocetnaStruka) => {
     const { data } = await supabase.from('faze').select('*').eq('projekat_id', projektId).order('redoslijed')
-    setFaze(data || [])
+    const uceitaneFaze = data || []
+    setFaze(uceitaneFaze)
+    // Automatski izaberi PRVU grupu radova unutar aktivne faze/struke — bez ovoga bi
+    // korisnik pri svakom ulasku u aplikaciju (ili promjeni faze) morao ručno birati
+    // grupu radova prije nego se pozicije uopšte prikažu na desnoj strani.
+    if (pocetnaStruka) {
+      const prvaUFazi = uceitaneFaze.find(f => (f.struka_kod || 'gradjevinski') === pocetnaStruka)
+      setAktivnaFaza(prvaUFazi || null)
+    }
   }
 
   const ucitajPozicije = async (fazaId) => {
@@ -1192,7 +1200,12 @@ ${globalnaRekapitulacijaHtml}
         datum: aktivniProjekat.datum,
         uvecanje_pct: aktivniProjekat.uvecanje_pct,
         umanjenje_pct: aktivniProjekat.umanjenje_pct,
-        valuta: aktivniProjekat.valuta || 'EUR'
+        valuta: aktivniProjekat.valuta || 'EUR',
+        // KLJUČNO: kopirati stvarne strukе originalnog projekta (nazivi, eventualno
+        // preimenovani/obrisani/custom dodati, uvecanjePct/umanjenjePct po struci).
+        // Bez ovoga bi klon tiho pao na generički DEFAULT_STRUKE i izgubio sve te izmjene,
+        // a auto-selekcija prve grupe radova bi tražila strukе po pogrešnim kodovima.
+        struke: aktivniProjekat.struke || DEFAULT_STRUKE
       }).select().single()
 
       if (!noviProj) throw new Error('Greška pri kreiranju projekta')
@@ -1229,6 +1242,7 @@ ${globalnaRekapitulacijaHtml}
               kategorija: p.kategorija,
               redoslijed: p.redoslijed,
               sifra: p.sifra || null,
+              opis_visina: p.opis_visina || null,
               parent_id: null
             }).select().single()
             if (novaPoz) idMapa[p.id] = novaPoz.id
@@ -1248,6 +1262,7 @@ ${globalnaRekapitulacijaHtml}
               kategorija: d.kategorija,
               redoslijed: d.redoslijed,
               sifra: d.sifra || null,
+              opis_visina: d.opis_visina || null,
               parent_id: noviParentId
             })
           }
@@ -1258,6 +1273,9 @@ ${globalnaRekapitulacijaHtml}
       await ucitajProjekte()
       setAktivniProjekat(noviProj)
       setEditNazivProjId(noviProj.id) // Odmah omogući promjenu naziva
+      // Napomena: postavljanje aktivniProjekat gore automatski pokreće useEffect na
+      // aktivniProjekat?.id, koji učitava faze i bira prvu grupu radova nove (klonirane)
+      // strukе — ista logika kao pri običnom ulasku u aplikaciju, bez potrebe za duplim kodom.
     } catch(e) {
       alert('Greška pri kloniranju: ' + e.message)
     }
@@ -1412,13 +1430,15 @@ ${globalnaRekapitulacijaHtml}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
                 <div key={s.kod} onClick={() => {
+                    // Ako je već aktivna ova ista struka, ne diraj ništa (izbjegava nepotreban re-fetch pozicija)
+                    if (s.kod === aktivnaStruka) return
                     setAktivnaStruka(s.kod)
-                    // Ako aktivna grupa radova ne pripada novoj fazi, resetuj (izaberi prvu iz nove faze, ili ništa)
-                    if (aktivnaFaza && (aktivnaFaza.struka_kod || 'gradjevinski') !== s.kod) {
-                      const prvaUFazi = faze.find(f => (f.struka_kod || 'gradjevinski') === s.kod)
-                      setAktivnaFaza(prvaUFazi || null)
-                      if (!prvaUFazi) setPozicije([])
-                    }
+                    // Automatski izaberi PRVU grupu radova nove faze/struke (ili ništa ako je nema),
+                    // bez obzira na to je li prethodno nešto bilo izabrano — inače bi klik na strukу
+                    // nakon strukе bez grupa radova (aktivnaFaza je null) ostao bez efekta.
+                    const prvaUFazi = faze.find(f => (f.struka_kod || 'gradjevinski') === s.kod)
+                    setAktivnaFaza(prvaUFazi || null)
+                    if (!prvaUFazi) setPozicije([])
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
                     background: s.kod === aktivnaStruka ? '#1B2F43' : 'transparent',
@@ -1789,10 +1809,10 @@ ${globalnaRekapitulacijaHtml}
                                       placeholder="0" min="0" step="any"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {u > 0 ? fmt(u) + ' ' + valutaZnak : '—'}
                                   </td>
-                                  <td style={{ padding: '6px 4px', verticalAlign: 'top', borderRadius: imadjece ? '0 6px 0 0' : '0 6px 6px 0' }}>
+                                  <td style={{ padding: '6px 4px', verticalAlign: 'top', borderRadius: imadjece ? '0 6px 0 0' : '0 6px 6px 0', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
                                       <button onClick={() => dodajPodstavku(p)} title="Dodaj podstavku (sprat/zona)"
                                         style={{ background: '#E8ECF0', border: '1px solid #4A637C', cursor: 'pointer', color: '#1B2F43', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -1862,10 +1882,10 @@ ${globalnaRekapitulacijaHtml}
                                           placeholder="0" min="0" step="any"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         {du > 0 ? fmt(du) + ' ' + valutaZnak : '—'}
                                       </td>
-                                      <td style={{ padding: '4px 4px' }}>
+                                      <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <button onClick={() => obrisiPoziciju(d.id)}
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 16, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
@@ -1896,7 +1916,7 @@ ${globalnaRekapitulacijaHtml}
                       ))}
                       <tr style={{ background: '#E4E9EE', borderTop: '2px solid #2D4B6A' }}>
                         <td colSpan={6} style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43', letterSpacing: '.02em' }}>UKUPNO GRUPA:</td>
-                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, fontSize: 19, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', background: '#D6DFE8', borderRadius: 6 }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, fontSize: 16, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', background: '#D6DFE8', borderRadius: 6 }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
                     </tbody>
