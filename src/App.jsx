@@ -1682,8 +1682,8 @@ ${globalnaRekapitulacijaHtml}
                     <tbody>
                       {Object.entries(grouped).map(([kat, poz]) => (
                         <React.Fragment key={kat}>
-                          <tr key={'k' + kat} style={{ background: '#556575' }}>
-                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#fff', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #4A5866' }}>{kat}</td>
+                          <tr key={'k' + kat} style={{ background: '#DCE3EA' }}>
+                            <td colSpan={8} style={{ padding: '7px 8px 7px 14px', fontWeight: 700, fontSize: 11, color: '#1B2F43', textTransform: 'uppercase', letterSpacing: '.05em', borderLeft: '4px solid #2D4B6A' }}>{kat}</td>
                           </tr>
                           {poz.map((p, i) => {
                             const u = calcRow(p, pozicije)
