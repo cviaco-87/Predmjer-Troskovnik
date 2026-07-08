@@ -1686,7 +1686,7 @@ ${globalnaRekapitulacijaHtml}
                                   style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: paleta.glavna, cursor: 'grab' }}
                                   onMouseEnter={e => e.currentTarget.style.background = hoverBg}
                                   onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
-                                  <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                       <span className="drag-rucka" style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
@@ -1766,7 +1766,7 @@ ${globalnaRekapitulacijaHtml}
                                       }}
                                     />
                                   </td>
-                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.09)' }}>
                                     {!imadjece && <select
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
@@ -1792,7 +1792,7 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top' }}>
                                     {u > 0 ? fmt(u) + ' ' + valutaZnak : '—'}
                                   </td>
-                                  <td style={{ padding: '6px 4px', verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 4px', verticalAlign: 'top', borderRadius: imadjece ? '0 6px 0 0' : '0 6px 6px 0' }}>
                                     <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
                                       <button onClick={() => dodajPodstavku(p)} title="Dodaj podstavku (sprat/zona)"
                                         style={{ background: '#E8ECF0', border: '1px solid #4A637C', cursor: 'pointer', color: '#1B2F43', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -1841,7 +1841,7 @@ ${globalnaRekapitulacijaHtml}
                                           />
                                          </div>
                                        </td>
-                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
+                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.09)' }}>
                                         <select
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
@@ -1878,7 +1878,7 @@ ${globalnaRekapitulacijaHtml}
                                 {/* RED SA UKUPNO PODSTAVKI */}
                                 {imadjece && (
                                   <tr style={{ borderBottom: '2px solid #E4E1D8', background: paleta.zbir }}>
-                                    <td></td>
+                                    <td style={{ borderRadius: '0 0 0 6px' }}></td>
                                     <td></td>
                                     <td colSpan={4} style={{ padding: '3px 8px 3px 24px', fontSize: 11, color: '#666', fontStyle: 'italic' }}>
                                       Ukupno: {djeca.reduce((s,d) => s + (parseFloat(d.kolicina)||0), 0).toFixed(2)} {fmtJmj(p.jedinica)}
@@ -1886,7 +1886,7 @@ ${globalnaRekapitulacijaHtml}
                                     <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontSize: 12, borderTop: '1px solid #D8D5CC', fontVariantNumeric: 'tabular-nums' }}>
                                       {fmt(u)} {valutaZnak}
                                     </td>
-                                    <td></td>
+                                    <td style={{ borderRadius: '0 0 6px 0' }}></td>
                                   </tr>
                                 )}
                               </React.Fragment>
