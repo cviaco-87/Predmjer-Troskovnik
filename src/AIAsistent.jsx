@@ -155,7 +155,7 @@ function formatOdgovor(text) {
     .trim()
 }
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onPrimijeniIzmjene, onSetValuta, onClose }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onPrimijeniIzmjene, onSetValuta, onClose, session }) {
   const [poruke, setPoruke] = useState([{
     uloga: 'asistent',
     tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
@@ -282,7 +282,10 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju })
       })
 
