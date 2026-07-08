@@ -1,11 +1,17 @@
 import ExcelJS from 'exceljs'
+import { proveriAutentikaciju } from './_authCheck.js'
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  // ── PROVJERA PRIJAVE — Excel export je resurs koji trošimo (CPU vrijeme na Vercel-u),
+  // ne treba biti dostupan anonimno bilo kome ko otkrije URL ovog endpointa ──
+  const auth = await proveriAutentikaciju(req)
+  if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
 
   try {
     const { projekat, faze, svePozicije, valutaZnak='€', struke=[], filtrirajStruku=null } = req.body
