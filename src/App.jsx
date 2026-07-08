@@ -1293,6 +1293,9 @@ ${globalnaRekapitulacijaHtml}
         ::-webkit-scrollbar-track { background: #C7C7C4; }
         ::-webkit-scrollbar-thumb { background: #F2F2F0; border-radius: 8px; border: 2px solid #C7C7C4; }
         ::-webkit-scrollbar-thumb:hover { background: #FFFFFF; }
+        .drag-rucka, .red-akcije { opacity: 0; transition: opacity .12s ease; }
+        tr:hover .drag-rucka, tr:hover .red-akcije { opacity: 1; }
+        .sifra-input::placeholder { color: #C9CDD2; font-weight: 400; }
       `}</style>
 
       {/* HEADER */}
@@ -1321,8 +1324,8 @@ ${globalnaRekapitulacijaHtml}
         <div style={{ width: 280, minWidth: 280, background: '#C7C7C4', borderRight: '1px solid #B8B8B4', overflowY: 'auto', padding: 12, flexShrink: 0 }}>
 
           {/* Projekti */}
-          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #1B2F43', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
           {projekti.map(p => (
             <div key={p.id} onClick={() => setAktivniProjekat(p)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
@@ -1380,8 +1383,8 @@ ${globalnaRekapitulacijaHtml}
 
           {/* Podaci o projektu */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #4A637C', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📋</span>Podaci o projektu</div>
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
@@ -1399,8 +1402,8 @@ ${globalnaRekapitulacijaHtml}
 
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #6B8299', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>🏗️</span>Faza</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
               {struke.map(s => (
                 <div key={s.kod} onClick={() => {
@@ -1459,8 +1462,8 @@ ${globalnaRekapitulacijaHtml}
 
           {/* Faze */}
           {aktivniProjekat && <>
-            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10 }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
+            <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #8A9BAC', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>📦</span>Grupe radova</div>
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
@@ -1502,9 +1505,9 @@ ${globalnaRekapitulacijaHtml}
           </>}
 
           {/* Uvećanje / Umanjenje — podešava se po fazi, ne globalno za cijeli projekat */}
-          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 4 }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 10 }}>
+          <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #C9954E', borderRadius: 10, padding: '12px 12px 14px', marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4A637C', marginBottom: 4, paddingBottom: 8, borderBottom: '1px solid #F0EEE7' }}><span style={{ fontSize: 15 }}>⚖️</span>Uvećanje / Umanjenje</div>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 10, marginTop: 6 }}>
             za fazu: <strong style={{ color: '#4A637C' }}>{struke.find(s => s.kod === aktivnaStruka)?.naziv || aktivnaStruka}</strong>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
@@ -1673,16 +1676,17 @@ ${globalnaRekapitulacijaHtml}
                                   onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                      <span style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
+                                      <span className="drag-rucka" style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
                                     </div>
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82 }}>
                                     <input
                                       type="text"
+                                      className="sifra-input"
                                       key={`sif-${p.id}-${revizija}`}
                                       defaultValue={p.sifra || ''}
-                                      placeholder="—"
+                                      placeholder="šifra"
                                       onBlur={e => azurirajPoziciju(p.id, 'sifra', e.target.value.trim())}
                                       onClick={e => e.stopPropagation()}
                                       style={{ width: '100%', border: '1px solid transparent', background: 'transparent', fontSize: 11, fontWeight: 600, color: '#6B7480', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', padding: '2px 4px', borderRadius: 4 }}
@@ -1777,7 +1781,7 @@ ${globalnaRekapitulacijaHtml}
                                         style={{ background: '#E8ECF0', border: '1px solid #4A637C', cursor: 'pointer', color: '#1B2F43', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                         + pod
                                       </button>
-                                      <div style={{ display: 'flex', gap: 2 }}>
+                                      <div className="red-akcije" style={{ display: 'flex', gap: 2 }}>
                                         <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: 0.6 }}
                                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
@@ -1874,8 +1878,8 @@ ${globalnaRekapitulacijaHtml}
                         </React.Fragment>
                       ))}
                       <tr style={{ background: '#E4E9EE', borderTop: '2px solid #2D4B6A' }}>
-                        <td colSpan={6} style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43' }}>UKUPNO GRUPA:</td>
-                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
+                        <td colSpan={6} style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1B2F43', letterSpacing: '.02em' }}>UKUPNO GRUPA:</td>
+                        <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, fontSize: 19, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', background: '#D6DFE8', borderRadius: 6 }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</td>
                         <td></td>
                       </tr>
                     </tbody>
