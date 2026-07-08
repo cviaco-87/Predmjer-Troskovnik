@@ -1687,12 +1687,12 @@ ${globalnaRekapitulacijaHtml}
                                   onMouseEnter={e => e.currentTarget.style.background = hoverBg}
                                   onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                      <span className="drag-rucka" style={{ color: '#ccc', fontSize: 14, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
+                                      <span className="drag-rucka" style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                     </div>
                                   </td>
-                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82 }}>
+                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <input
                                       type="text"
                                       className="sifra-input"
@@ -1701,11 +1701,11 @@ ${globalnaRekapitulacijaHtml}
                                       placeholder="šifra"
                                       onBlur={e => azurirajPoziciju(p.id, 'sifra', e.target.value.trim())}
                                       onClick={e => e.stopPropagation()}
-                                      style={{ width: '100%', border: '1px solid transparent', background: 'transparent', fontSize: 11, fontWeight: 600, color: '#6B7480', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', padding: '2px 4px', borderRadius: 4 }}
+                                      style={{ width: '100%', border: '1px solid transparent', background: 'transparent', fontSize: 11, fontStyle: 'italic', fontWeight: 600, color: '#6B7480', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', padding: '2px 4px', borderRadius: 4 }}
                                       onFocus={e => { e.target.style.border = '1px solid #C2CDD8'; e.target.style.background = '#fff' }}
                                       title="Šifra pozicije" />
                                   </td>
-                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280 }}>
+                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <textarea
                                       key={`naz-${p.id}-${revizija}`}
                                       ref={el => { if (el) el._pozId = p.id }}
@@ -1766,7 +1766,7 @@ ${globalnaRekapitulacijaHtml}
                                       }}
                                     />
                                   </td>
-                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.09)' }}>
+                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                                     {!imadjece && <select
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
@@ -1819,7 +1819,7 @@ ${globalnaRekapitulacijaHtml}
                                     <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>{i+1}.{di+1}</td>
                                       <td></td>
-                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top' }}>
+                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
                                           <textarea
@@ -1841,7 +1841,7 @@ ${globalnaRekapitulacijaHtml}
                                           />
                                          </div>
                                        </td>
-                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.09)' }}>
+                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
                                         <select
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
