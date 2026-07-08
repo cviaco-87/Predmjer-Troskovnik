@@ -1841,8 +1841,8 @@ ${globalnaRekapitulacijaHtml}
                                   return (
                                     <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12, width: 28, background: paleta.pod }}>{i+1}.{di+1}</td>
-                                      <td style={{ width: 82, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.35)' }}></td>
-                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', background: paleta.pod }}>
+                                      <td style={{ width: 82, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
+                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
                                           <textarea
