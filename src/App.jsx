@@ -1719,7 +1719,12 @@ ${globalnaRekapitulacijaHtml}
                                         // STVARNU potrebnu visinu za sadržaj, ne procijenjenu/rezervisanu
                                         t.rows = 1
                                         t.style.height = 'auto'
-                                        const potrebno = Math.max(t.scrollHeight, 40)
+                                        // Malu rezervu (6px) dodajemo na izmjerenu visinu — scrollHeight je
+                                        // ponekad par piksela kraći od stvarno potrebnog prostora zbog
+                                        // zaokruživanja line-height/padding vrijednosti, što bi inače
+                                        // ostavilo tekst da "jedva ne stane" i izazvalo nepotreban unutrašnji
+                                        // scrollbar sa strane ćelije.
+                                        const potrebno = Math.max(t.scrollHeight + 6, 40)
                                         t.rows = originalRows
                                         t.style.height = potrebno + 'px'
                                         // Odmah sačuvaj u bazu da ostane trajno podešeno
