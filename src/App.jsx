@@ -1840,8 +1840,8 @@ ${globalnaRekapitulacijaHtml}
                                   const du = calcRowSimple(d)
                                   return (
                                     <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
-                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12 }}>{i+1}.{di+1}</td>
-                                      <td></td>
+                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'right', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
+                                      <td style={{ width: 82 }}></td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                           
