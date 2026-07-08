@@ -836,7 +836,10 @@ export default function App() {
 
       const response = await fetch('/api/excel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku })
       })
 
@@ -2047,6 +2050,7 @@ ${globalnaRekapitulacijaHtml}
           onPrimijeniIzmjene={primijeniIzmjene}
           onSetValuta={postaviValutuNakonAI}
           onClose={() => setShowAI(false)}
+          session={session}
         />
       )}
 
