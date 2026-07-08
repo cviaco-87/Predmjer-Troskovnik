@@ -1691,8 +1691,8 @@ ${globalnaRekapitulacijaHtml}
                             const imadjece = djeca.length > 0
                             // Naizmjenično sjenčanje po stavki (main + podstavke + zbir dijele istu paletu)
                             const paleta = i % 2 === 1
-                              ? { glavna: '#D2DCE6', pod: '#C8D4E0', zbir: '#BECCDA' }
-                              : { glavna: '#F1F5F9', pod: '#EBF0F5', zbir: '#E4EAF1' }
+                              ? { glavna: '#DCE3EA', pod: '#D5DEE6', zbir: '#CDD8E1' }
+                              : { glavna: '#F3F6F9', pod: '#EFF3F6', zbir: '#E9EEF2' }
                             const hoverBg = '#FFFBEA'
                             return (
                               <React.Fragment key={p.id}>
