@@ -1499,13 +1499,13 @@ ${globalnaRekapitulacijaHtml}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <select value={aktivnaPripada ? aktivnaFaza.id : ''}
                       onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
-                      style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
+                      style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
                       <option value="" disabled>— Odaberite grupu radova —</option>
                       {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
                     </select>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
-                        style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit' }}
+                        style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
                         onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
                     )}
