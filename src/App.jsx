@@ -1766,7 +1766,7 @@ ${globalnaRekapitulacijaHtml}
                                       }}
                                     />
                                   </td>
-                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
@@ -1841,7 +1841,7 @@ ${globalnaRekapitulacijaHtml}
                                           />
                                          </div>
                                        </td>
-                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11 }}>
+                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <select
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
