@@ -3,11 +3,6 @@ import AIAsistent from "./AIAsistent.jsx"
 import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
-import { BAZA_B64 } from "./baza.js"
-
-// atob() sam tretira svaki bajt kao Latin-1 karakter, što lomi UTF-8 slova (č,ć,š,ž,đ).
-// TextDecoder ispravno sastavlja višebajtne UTF-8 sekvence nazad u prava slova.
-const BAZA = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(BAZA_B64), c => c.charCodeAt(0))))
 
 // Redoslijed kategorija prema šifarniku baze (01, 02, 03...) i podjela na dvije faze izvođenja:
 // grubi (konstruktivni) građevinski radovi i završni (zanatski/instalaterski) radovi,
@@ -50,14 +45,11 @@ const GRUPA_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.grupa]))
 // ista numeracija koja se koristi u šiframa pozicija unutar te kategorije (npr. 04.01.001).
 const SIFRA_KATEGORIJE_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.sifra]))
 
-// Kategorije iz baze poredane po šifarniku; kategorija koje slučajno nema u REDOSLIJED_KATEGORIJA
-// (npr. nova dodana kategorija koju smo zaboravili upisati ovdje) ide na kraj, abecedno, da se ne izgubi.
-const KATEGORIJE = [...new Set(BAZA.map(b => b.k))].sort((a, b) => {
-  const ia = REDOSLIJED_MAP.has(a) ? REDOSLIJED_MAP.get(a) : 999
-  const ib = REDOSLIJED_MAP.has(b) ? REDOSLIJED_MAP.get(b) : 999
-  if (ia !== ib) return ia - ib
-  return a.localeCompare(b)
-})
+// Kategorije su statička, ručno napisana lista (REDOSLIJED_KATEGORIJA) — dostupna ODMAH,
+// nezavisno od toga da li je baza.js (467 KB) već stigla sa servera. Ovo je namjerno:
+// baza se sad učitava lijeno (vidi useEffect u App komponenti niže), pa kategorije ne smiju
+// čekati taj fajl da bi se dropdown filteri prikazali korisniku bez kašnjenja.
+const KATEGORIJE = REDOSLIJED_KATEGORIJA.map(r => r.naziv)
 
 // Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
 // sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
@@ -125,7 +117,7 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -136,7 +128,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
   // Kategorije i broj stavki relevantni za trenutno aktivnu strukу (ili sve, ako je prilagođena faza)
   const kategorijeZaStruku = useMemo(() => jePoznataStruka ? KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka) : KATEGORIJE, [aktivnaStruka, jePoznataStruka])
-  const brojUStruci = useMemo(() => jePoznataStruka ? BAZA.reduce((n, item) => n + (strukaZaKategoriju(item.k) === aktivnaStruka ? 1 : 0), 0) : BAZA.length, [aktivnaStruka, jePoznataStruka])
+  const brojUStruci = useMemo(() => jePoznataStruka ? baza.reduce((n, item) => n + (strukaZaKategoriju(item.k) === aktivnaStruka ? 1 : 0), 0) : baza.length, [baza, aktivnaStruka, jePoznataStruka])
 
   // Reset kategorije filtera ako više ne pripada aktivnoj struci (npr. korisnik promijeni fazu)
   useEffect(() => { if (kat && !kategorijeZaStruku.includes(kat)) setKat('') }, [aktivnaStruka])
@@ -158,8 +150,8 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
     }
     const out = []
     const limit = imaTekst ? 80 : 200
-    for (let i = 0; i < BAZA.length && out.length < limit; i++) {
-      const item = BAZA[i]
+    for (let i = 0; i < baza.length && out.length < limit; i++) {
+      const item = baza[i]
       if (jePoznataStruka && strukaZaKategoriju(item.k) !== aktivnaStruka) continue
       if (kat && item.k !== kat) continue
       const n = item.n.toLowerCase()
@@ -167,7 +159,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       if (terms.length === 0 || terms.every(t => n.includes(t) || s.includes(t))) out.push({ ...item, _idx: i })
     }
     return out
-  }, [q, kat, tab, mojeBazaStavke, aktivnaStruka])
+  }, [q, kat, tab, mojeBazaStavke, aktivnaStruka, baza])
 
   const grouped = useMemo(() => {
     const g = {}
@@ -183,7 +175,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
     <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', maxHeight: 280, flexShrink: 0 }}>
       {/* Tabovi */}
       <div style={{ display: 'flex', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
-        {[['glavna', `📚 Baza (${brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
+        {[['glavna', `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: '8px 16px', border: 'none', background: 'none', fontSize: 12, fontWeight: tab === t ? 700 : 400,
               color: tab === t ? '#1B2F43' : '#666', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
@@ -197,9 +189,9 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
-          disabled={tab === 'glavna' && brojUStruci === 0}
-          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && brojUStruci === 0) ? '#DCE0E3' : '#fff' }} />
-        {tab === 'glavna' && brojUStruci > 0 && (
+          disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
+          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
+        {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
             style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
             <option value="">— Sve kategorije —</option>
@@ -248,7 +240,11 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
       {/* Rezultati */}
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {tab === 'glavna' && brojUStruci === 0 ? (
+        {tab === 'glavna' && bazaUcitavanje ? (
+          <div style={{ padding: '18px 16px', textAlign: 'center', color: '#888' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>⏳ Učitavam bazu pozicija...</div>
+          </div>
+        ) : tab === 'glavna' && brojUStruci === 0 ? (
           <div style={{ padding: '18px 16px', textAlign: 'center', color: '#888' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#666', marginBottom: 4 }}>Baza za "{strukaNaziv}" još nije dostupna</div>
             <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>Za sada dodajte pozicije preko <strong>"+ Vlastita stavka"</strong> ili AI asistenta ✨. Baza za ovu fazu će biti dodana naknadno.</div>
@@ -295,6 +291,11 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 export default function App() {
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+
+  // Baza pozicija (467 KB) — lijeno učitana tek nakon prijave, ne dio glavnog JS bundle-a.
+  // Vidi useEffect niže ("Lijeno učitavanje baze pozicija") za mehanizam.
+  const [baza, setBaza] = useState([])
+  const [bazaUcitavanje, setBazaUcitavanje] = useState(true)
 
   // Podaci
   const [projekti, setProjekti] = useState([])
@@ -352,6 +353,33 @@ export default function App() {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Lijeno učitavanje baze pozicija — pokreće se tek kad postoji aktivna sesija, asinhrono,
+  // paralelno sa učitavanjem projekata (ne blokira inicijalni render aplikacije). Koristi
+  // standardni ES modul dinamički import(), koji Vite prepoznaje i pretvara u zaseban fajl
+  // preuzet na zahtjev, umjesto da bude "zapečen" u glavni JS bundle koji se učita odmah.
+  // Dependency je !!session (boolean), ne cijeli session objekat, da se ovo ne ponavlja
+  // nepotrebno pri svakoj promjeni session reference (npr. refresh tokena).
+  useEffect(() => {
+    if (!session) return
+    let otkazano = false
+    import('./baza.js').then(mod => {
+      if (otkazano) return
+      try {
+        // atob() sam tretira svaki bajt kao Latin-1 karakter, što lomi UTF-8 slova (č,ć,š,ž,đ).
+        // TextDecoder ispravno sastavlja višebajtne UTF-8 sekvence nazad u prava slova.
+        const dekodirano = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(atob(mod.BAZA_B64), c => c.charCodeAt(0))))
+        setBaza(dekodirano)
+      } catch (e) {
+        console.error('Greška pri dekodiranju baze pozicija:', e)
+      }
+      setBazaUcitavanje(false)
+    }).catch(e => {
+      console.error('Greška pri učitavanju baze pozicija:', e)
+      if (!otkazano) setBazaUcitavanje(false)
+    })
+    return () => { otkazano = true }
+  }, [!!session])
 
   // Učitaj projekte, moju bazu i postavke firme kad se korisnik prijavi
   useEffect(() => {
@@ -564,7 +592,8 @@ export default function App() {
 
   const dodajPoziciju = useCallback(async (idx) => {
     if (!aktivnaFaza) return
-    const item = BAZA[idx]
+    const item = baza[idx]
+    if (!item) return
     const roditelji = pozicije.filter(p => !p.parent_id)
     const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
     // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
@@ -574,7 +603,7 @@ export default function App() {
       cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
     }).select().single()
     if (data) setPozicije(prev => [...prev, data])
-  }, [aktivnaFaza, pozicije, valuta])
+  }, [aktivnaFaza, pozicije, valuta, baza])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
     if (!aktivnaFaza) return
@@ -712,6 +741,9 @@ export default function App() {
 
       // Cijene su uspješno konvertovane u bazi — odmah osvježi prikaz i lokalno stanje,
       // bez obzira na to da li uspije sljedeći (sporedni) korak čuvanja oznake valute.
+      // NAPOMENA: setValuta(novaValuta) se poziva ISKLJUČIVO ovdje, u success putanji —
+      // ranije je postojao bug gdje se ista linija pozivala i nakon catch bloka, pa bi
+      // korisnik vidio alert "valuta NIJE promijenjena" a interfejs bi je ipak promijenio.
       if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
       setRevizija(r => r + 1) // forsira polja cijene da prikažu novu (konvertovanu) vrijednost
       setValuta(novaValuta)
@@ -727,10 +759,10 @@ export default function App() {
         setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
       }
     } catch (e) {
+      // Valuta OSTAJE nepromijenjena ovdje — nema više setValuta poziva poslije ovog catch bloka.
       alert('Greška pri konverziji cijena — valuta NIJE promijenjena da se izbjegne pogrešno stanje: ' + e.message)
     }
     setLoading(false)
-    setValuta(novaValuta)
   }
 
   // Kad AI asistent postavi cijene direktno u određenoj valuti (nije konverzija postojećih,
@@ -1663,6 +1695,8 @@ ${globalnaRekapitulacijaHtml}
                 mojeBazaStavke={mojeBaza}
                 aktivnaStruka={aktivnaStruka}
                 strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
+                baza={baza}
+                bazaUcitavanje={bazaUcitavanje}
               />
               </div>
 
@@ -2057,5 +2091,3 @@ ${globalnaRekapitulacijaHtml}
     </div>
   )
 }
-
-// ── EXPORT FUNKCIJE - dodati na kraj fajla prije zadnje zagrade
