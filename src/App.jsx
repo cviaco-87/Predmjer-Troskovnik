@@ -81,6 +81,22 @@ const toRoman = n => {
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm¹').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
 
+// Automatski prilagođava visinu textarea elementa sadržaju — poziva se na SVAKI unos teksta
+// (uključujući Enter), tako da ćelija "raste" ispred korisnika dok piše, umjesto da tekst
+// nestane iznad vidljivog dijela dok se ručno ne pokrene ponovno mjerenje (npr. dvoklikom).
+// Trik sa privremenim spuštanjem rows na 1 i height na 'auto' je neophodan da bi scrollHeight
+// izmjerio STVARNU potrebnu visinu sadržaja, ne visinu koju bi nametnuo rows atribut.
+const autoGrowTextarea = (el) => {
+  if (!el) return 0
+  const originalRows = el.rows
+  el.rows = 1
+  el.style.height = 'auto'
+  const potrebno = Math.max(el.scrollHeight + 6, 40)
+  el.rows = originalRows
+  el.style.height = potrebno + 'px'
+  return potrebno
+}
+
 // Smanji/optimizuj upload-ovanu sliku loga prije čuvanja u bazu (max širina 360px)
 const resizeSlika = (file, maxW = 360) => new Promise((resolve, reject) => {
   if (!file.type.startsWith('image/')) { reject(new Error('Fajl mora biti slika.')); return }
@@ -1765,11 +1781,22 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <textarea
                                       key={`naz-${p.id}-${revizija}`}
-                                      ref={el => { if (el) el._pozId = p.id }}
+                                      ref={el => {
+                                        if (el) {
+                                          el._pozId = p.id
+                                          // Ako nema sačuvane visine, odmah pri prikazu izmjeri tačnu potrebnu
+                                          // visinu za postojeći tekst (umjesto da se oslanjamo samo na grubu
+                                          // rows procjenu ispod dok korisnik prvi put ne otkuca nešto).
+                                          if (!p.opis_visina) autoGrowTextarea(el)
+                                        }
+                                      }}
                                       defaultValue={p.naziv || ''}
+                                      onInput={e => autoGrowTextarea(e.target)}
                                       onBlur={e => {
                                         azurirajPoziciju(p.id, 'naziv', e.target.value)
-                                        // Sačuvaj i trenutnu visinu (hvata i ručno povlačenje ivice, ne samo dupli klik)
+                                        // Sačuvaj trenutnu visinu — auto-grow (onInput) je već namjestio tačnu
+                                        // visinu dok je korisnik kucao, ovdje je samo trajno upisujemo u bazu
+                                        // (hvata i ručno povlačenje ivice, ne samo kucanje)
                                         const trenutnaVisina = e.target.offsetHeight
                                         if (trenutnaVisina && trenutnaVisina !== p.opis_visina) {
                                           azurirajPoziciju(p.id, 'opis_visina', trenutnaVisina)
@@ -1781,25 +1808,11 @@ ${globalnaRekapitulacijaHtml}
                                       onClick={e => e.stopPropagation()}
                                       onDoubleClick={e => {
                                         e.preventDefault()
-                                        const t = e.currentTarget
-                                        const originalRows = t.rows
-                                        // KLJUČNO: 'auto' visina i dalje poštuje 'rows' atribut kao minimum,
-                                        // pa moramo privremeno spustiti rows na 1 da bi scrollHeight izmjerio
-                                        // STVARNU potrebnu visinu za sadržaj, ne procijenjenu/rezervisanu
-                                        t.rows = 1
-                                        t.style.height = 'auto'
-                                        // Malu rezervu (6px) dodajemo na izmjerenu visinu — scrollHeight je
-                                        // ponekad par piksela kraći od stvarno potrebnog prostora zbog
-                                        // zaokruživanja line-height/padding vrijednosti, što bi inače
-                                        // ostavilo tekst da "jedva ne stane" i izazvalo nepotreban unutrašnji
-                                        // scrollbar sa strane ćelije.
-                                        const potrebno = Math.max(t.scrollHeight + 6, 40)
-                                        t.rows = originalRows
-                                        t.style.height = potrebno + 'px'
+                                        const potrebno = autoGrowTextarea(e.currentTarget)
                                         // Odmah sačuvaj u bazu da ostane trajno podešeno
                                         azurirajPoziciju(p.id, 'opis_visina', potrebno)
                                       }}
-                                      title="Dvoklik za automatsko prilagođavanje visine ćelije tekstu"
+                                      title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, color: '#2B2B26' }}
                                       onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
@@ -1817,6 +1830,7 @@ ${globalnaRekapitulacijaHtml}
                                           t.value = novi
                                           t.selectionStart = start + 2
                                           t.selectionEnd = end + 2
+                                          autoGrowTextarea(t)
                                           // Azuriraj bazu (ali ne state da ne re-renderuje)
                                           azurirajPoziciju(p.id, 'naziv', novi)
                                         }
@@ -1877,23 +1891,30 @@ ${globalnaRekapitulacijaHtml}
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28, background: paleta.pod }}>{i+1}.{di+1}</td>
                                       <td style={{ width: 82, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                           
                                           <textarea
-                                            value={d.naziv || ''}
-                                            onChange={e => {
-                                              // Azuriraj lokalni state odmah
-                                              setPozicije(prev => prev.map(pz => pz.id === d.id ? {...pz, naziv: e.target.value} : pz))
-                                            }}
+                                            key={`podnaz-${d.id}-${revizija}`}
+                                            ref={el => { if (el && !d.opis_visina) autoGrowTextarea(el) }}
+                                            defaultValue={d.naziv || ''}
+                                            onInput={e => autoGrowTextarea(e.target)}
                                             onBlur={e => {
                                               // Snimi u bazu i azuriraj stil
                                               azurirajPoziciju(d.id, 'naziv', e.target.value)
+                                              // Sačuvaj i trenutnu visinu — isti mehanizam kao kod glavne stavke,
+                                              // tako da tekst podstavke sad isto raste ispred korisnika dok kuca
+                                              // (Enter dodaje red i ćelija se odmah proširi), umjesto da se sadržaj
+                                              // sakrije iznad vidljivog dijela jednoredne ćelije.
+                                              const trenutnaVisina = e.target.offsetHeight
+                                              if (trenutnaVisina && trenutnaVisina !== d.opis_visina) {
+                                                azurirajPoziciju(d.id, 'opis_visina', trenutnaVisina)
+                                              }
                                               e.target.style.border = '1px solid transparent'
                                               e.target.style.background = 'transparent'
                                             }}
                                             rows={1}
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
-                                            style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'none', lineHeight: 1.4, color: '#444' }}
+                                            style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined }}
                                             onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
                                          </div>
