@@ -133,7 +133,7 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -252,6 +252,10 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             )}
           </select>
         )}
+        <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
+          style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          + Vlastita stavka
+        </button>
         {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>×</button>}
       </div>
 
@@ -1925,13 +1929,12 @@ ${globalnaRekapitulacijaHtml}
               {/* Toolbar */}
               <div style={{ background: '#556575', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{aktivnaFaza.naziv}</span>
-                <div style={{ flex: 1 }}></div>
-                <button onClick={dodajVlastitupoziciju} style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>+ Vlastita stavka</button>
                 <button onClick={opozoviZadnjuIzmjenu} disabled={istorijaIzmjena.length === 0}
                   title={istorijaIzmjena.length > 0 ? `Opozovi zadnju izmjenu (${istorijaIzmjena.length} na čekanju)` : 'Nema izmjena za opoziv'}
                   style={{ ...B('transparent', istorijaIzmjena.length === 0 ? 'rgba(255,255,255,.4)' : '#fff', '1px solid rgba(255,255,255,.5)'), cursor: istorijaIzmjena.length === 0 ? 'not-allowed' : 'pointer' }}>
                   ↩ Opozovi{istorijaIzmjena.length > 0 ? ` (${istorijaIzmjena.length})` : ''}
                 </button>
+                <div style={{ flex: 1 }}></div>
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => promijeniValutu(e.target.value)}
                   style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
@@ -1988,6 +1991,7 @@ ${globalnaRekapitulacijaHtml}
                 strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
                 baza={baza}
                 bazaUcitavanje={bazaUcitavanje}
+                onDodajVlastitu={dodajVlastitupoziciju}
               />
               </div>
 
