@@ -680,14 +680,29 @@ export default function App() {
   // ── DRAG & DROP REDOSLIJED ──
   const dragPoz = React.useRef(null)
   const dragOverPoz = React.useRef(null)
+  // Prati da li je korisnik zaista kliknuo na ⠿ ručku prije nego što dozvolimo prevlačenje
+  // cijelog reda. Bez ovoga, HTML5 "draggable" na cijelom <tr> hvata SVAKI klik-i-povuci u
+  // redu (uključujući prazan prostor pored teksta u ćeliji opisa) kao pokušaj premještanja
+  // reda, umjesto da ostavi normalnu selekciju teksta — što kvari očekivano ponašanje selekcije.
+  const dragRuckaAktivna = React.useRef(false)
+
+  useEffect(() => {
+    const resetujRucku = () => { dragRuckaAktivna.current = false }
+    window.addEventListener('mouseup', resetujRucku)
+    return () => window.removeEventListener('mouseup', resetujRucku)
+  }, [])
 
   const onDragStart = (e, poz) => {
+    // Otkaži prevlačenje ako NIJE pokrenuto sa ⠿ ručke — ostatak reda (uključujući ćeliju
+    // opisa i prazan prostor oko teksta) tako ostaje slobodan za običnu selekciju teksta.
+    if (!dragRuckaAktivna.current) { e.preventDefault(); return }
     dragPoz.current = poz
     e.dataTransfer.effectAllowed = 'move'
     e.currentTarget.style.opacity = '0.5'
   }
 
   const onDragEnd = (e) => {
+    dragRuckaAktivna.current = false
     e.currentTarget.style.opacity = '1'
   }
 
@@ -2041,7 +2056,7 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
-                                      <span className="drag-rucka" style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
+                                      <span className="drag-rucka" onMouseDown={() => { dragRuckaAktivna.current = true }} style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                     </div>
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
