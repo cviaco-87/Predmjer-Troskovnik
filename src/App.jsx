@@ -368,6 +368,7 @@ export default function App() {
   const [firmaLoading, setFirmaLoading] = useState(false)
   const [aktivnaStruka, setAktivnaStruka] = useState('gradjevinski')
   const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
+  const [editFazaNaziv, setEditFazaNaziv] = useState(false) // da li se trenutno preimenuje aktivna grupa radova
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
@@ -456,6 +457,7 @@ export default function App() {
   useEffect(() => {
     if (aktivnaFaza) ucitajPozicije(aktivnaFaza.id)
     else setPozicije([])
+    setEditFazaNaziv(false)
   }, [aktivnaFaza])
 
   // KLJUČNO: resetuj undo-stog (izmjene polja) i traku za opoziv brisanja svaki put kad se
@@ -627,6 +629,14 @@ export default function App() {
     } catch (e) {
       alert('Greška pri brisanju grupe radova: ' + e.message)
     }
+  }
+
+  const preimenujFazu = async (id, noviNaziv) => {
+    if (!noviNaziv.trim()) return
+    const { error } = await supabase.from('faze').update({ naziv: noviNaziv.trim() }).eq('id', id)
+    if (error) { alert('Greška pri preimenovanju grupe radova: ' + error.message); return }
+    setFaze(prev => prev.map(f => f.id === id ? { ...f, naziv: noviNaziv.trim() } : f))
+    setAktivnaFaza(prev => prev && prev.id === id ? { ...prev, naziv: noviNaziv.trim() } : prev)
   }
 
   // ── STRUKE (grupisanje faza po disciplini) ──
@@ -1806,53 +1816,51 @@ ${globalnaRekapitulacijaHtml}
           <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #1B2F43', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#CDD1D6', padding: '9px 12px' }}><span style={{ fontSize: 15 }}>📁</span>Projekti</div>
           <div style={{ padding: '12px 12px 14px' }}>
-          {projekti.map(p => (
-            <div key={p.id} onClick={() => setAktivniProjekat(p)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 3,
-                background: p.id === aktivniProjekat?.id ? '#E8ECF0' : 'transparent',
-                border: p.id === aktivniProjekat?.id ? '1px solid #4A637C' : '1px solid transparent' }}
-              onMouseEnter={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '#F0F2F5' }}
-              onMouseLeave={e => { if (p.id !== aktivniProjekat?.id) e.currentTarget.style.background = '' }}>
-              {editNazivProjId === p.id ? (
-                <input
-                  type="text"
-                  defaultValue={p.naziv}
-                  spellCheck={false}
-                  autoFocus
-                  onBlur={async e => {
-                    const noviNaziv = e.target.value.trim() || p.naziv
-                    await azurirajProjekat('naziv', noviNaziv)
-                    setEditNazivProjId(null)
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') e.target.blur()
-                    if (e.key === 'Escape') setEditNazivProjId(null)
-                  }}
-                  onClick={e => e.stopPropagation()}
-                  style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontFamily: 'inherit', fontWeight: 500, background: '#fff' }}
-                />
-              ) : (
-                <span
-                  style={{ flex: 1, fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text' }}
-                  onDoubleClick={e => { e.stopPropagation(); setAktivniProjekat(p); setEditNazivProjId(p.id) }}
-                  title="Dvoklick za promjenu naziva"
-                >{p.naziv}</span>
+          {projekti.length > 0 ? (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <select value={aktivniProjekat?.id || ''}
+                  onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer' }}>
+                  <option value="" disabled>— Odaberite projekat —</option>
+                  {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
+                </select>
+                {aktivniProjekat && (
+                  <>
+                    <button onClick={klonirajProjekat} disabled={kloniranjeLoading} title="Kloniraj projekat"
+                      style={{ background: '#E8ECF0', border: '1px solid #4A637C', borderRadius: 6, color: '#1B2F43', cursor: kloniranjeLoading ? 'not-allowed' : 'pointer', fontSize: 15, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}>⧉</button>
+                    <button onClick={() => obrisiProjekat(aktivniProjekat.id)} title="Obriši ovaj projekat"
+                      style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
+                  </>
+                )}
+              </div>
+              {aktivniProjekat && (
+                <div style={{ padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
+                  {editNazivProjId === aktivniProjekat.id ? (
+                    <input type="text" defaultValue={aktivniProjekat.naziv} spellCheck={false} autoFocus
+                      onBlur={async e => {
+                        const noviNaziv = e.target.value.trim() || aktivniProjekat.naziv
+                        await azurirajProjekat('naziv', noviNaziv)
+                        setEditNazivProjId(null)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.target.blur()
+                        if (e.key === 'Escape') setEditNazivProjId(null)
+                      }}
+                      style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff' }} />
+                  ) : (
+                    <span style={{ color: '#888', cursor: 'text' }}
+                      onDoubleClick={() => setEditNazivProjId(aktivniProjekat.id)}
+                      title="Dvoklik za promjenu naziva">{aktivniProjekat.naziv}</span>
+                  )}
+                </div>
               )}
-              <button onClick={async e => { 
-                  e.stopPropagation()
-                  setAktivniProjekat(p)
-                  await klonirajProjekat()
-                }}
-                title="Kloniraj projekat (⧉)"
-                style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#1B2F43'}
-                onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>⧉</button>
-              <button onClick={e => { e.stopPropagation(); obrisiProjekat(p.id) }}
-                style={{ background: 'none', border: 'none', color: '#ccc', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#C0392B'}
-                onMouseLeave={e => e.currentTarget.style.color = '#ccc'}>×</button>
             </div>
-          ))}
+          ) : (
+            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>Još nema projekata.</div>
+          )}
           <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 14 }}>
             <input type="text" value={noviProjekat} onChange={e => setNoviProjekat(e.target.value)}
               spellCheck={false}
@@ -1985,9 +1993,16 @@ ${globalnaRekapitulacijaHtml}
                     )}
                   </div>
                   {aktivnaPripada && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
-                      <span style={{ color: '#888' }}>{aktivnaFaza.naziv}</span>
-                      <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
+                      {editFazaNaziv ? (
+                        <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
+                          onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNaziv(false) }}
+                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNaziv(false) }}
+                          style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff', marginRight: 8 }} />
+                      ) : (
+                        <span style={{ color: '#888', cursor: 'text' }} onDoubleClick={() => setEditFazaNaziv(true)} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
+                      )}
+                      <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
                     </div>
                   )}
                 </div>
@@ -2082,7 +2097,15 @@ ${globalnaRekapitulacijaHtml}
             <>
               {/* Toolbar */}
               <div style={{ background: '#556575', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{aktivnaFaza.naziv}</span>
+                {editFazaNaziv ? (
+                  <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
+                    onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNaziv(false) }}
+                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNaziv(false) }}
+                    style={{ fontWeight: 700, fontSize: 15, color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 4, padding: '2px 8px', fontFamily: 'inherit', background: '#fff' }} />
+                ) : (
+                  <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', cursor: 'text' }}
+                    onDoubleClick={() => setEditFazaNaziv(true)} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
+                )}
                 <button onClick={opozoviZadnjuIzmjenu} disabled={istorijaIzmjena.length === 0}
                   title={istorijaIzmjena.length > 0 ? `Opozovi zadnju izmjenu (${istorijaIzmjena.length} na čekanju)` : 'Nema izmjena za opoziv'}
                   style={{ ...B('transparent', istorijaIzmjena.length === 0 ? 'rgba(255,255,255,.4)' : '#fff', '1px solid rgba(255,255,255,.5)'), cursor: istorijaIzmjena.length === 0 ? 'not-allowed' : 'pointer' }}>
