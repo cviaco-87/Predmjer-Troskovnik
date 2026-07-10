@@ -711,15 +711,17 @@ export default function App() {
   const azurirajPoziciju = async (id, polje, vrijednost, _zaOpoziv = false) => {
     const trenutna = pozicije.find(p => p.id === id)
     const staraVrijednost = trenutna ? trenutna[polje] : undefined
-    await supabase.from('pozicije').update({ [polje]: vrijednost }).eq('id', id)
-    setPozicije(prev => prev.map(p => p.id === id ? { ...p, [polje]: vrijednost } : p))
 
-    // Zapamti staru vrijednost radi mogućnosti opoziva. Preskačemo opis_visina (sporedna
-    // posljedica auto-grow ćelije, ne stvarna korisnikova izmjena) i preskačemo pozive koji
-    // SAMI dolaze iz opoziva (_zaOpoziv=true), da undo ne bi sam sebe gurnuo nazad u stog.
+    // KLJUČNO: prikaz i undo-stog se ažuriraju ODMAH (optimistički), prije mrežnog poziva ka
+    // bazi — ranije se čekalo da se poziv završi prije upisa u undo-stog, pa je "Opozovi" dugme
+    // kratko izgledalo neaktivno odmah nakon izmjene (kašnjenje mrežnog round-trip-a).
+    setPozicije(prev => prev.map(p => p.id === id ? { ...p, [polje]: vrijednost } : p))
     if (!_zaOpoziv && polje !== 'opis_visina' && trenutna && staraVrijednost !== vrijednost) {
       setIstorijaIzmjena(prev => [...prev.slice(-19), { id, polje, staraVrijednost, novaVrijednost: vrijednost }])
     }
+
+    const { error } = await supabase.from('pozicije').update({ [polje]: vrijednost }).eq('id', id)
+    if (error) console.error('Greška pri čuvanju izmjene polja "' + polje + '":', error)
   }
 
   // Vraća posljednju izmjenu polja (cijena, količina, naziv, šifra, jedinica) na prethodnu
@@ -770,7 +772,10 @@ export default function App() {
       const { data: novaPoz, error: e1 } = await supabase.from('pozicije').insert({
         faza_id: poz.faza_id, naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena,
         kolicina: poz.kolicina, kategorija: poz.kategorija, redoslijed: poz.redoslijed,
-        sifra: poz.sifra || null, opis_visina: poz.opis_visina || null
+        sifra: poz.sifra || null, opis_visina: poz.opis_visina || null,
+        // KLJUČNO: ako je obrisana stavka bila PODSTAVKA (imala parent_id), moramo vratiti tu
+        // istu vezu — bez ovoga bi se vraćala kao nova, samostalna glavna stavka bez roditelja.
+        parent_id: poz.parent_id || null
       }).select().single()
       if (e1 || !novaPoz) throw e1 || new Error('Greška pri vraćanju stavke.')
 
