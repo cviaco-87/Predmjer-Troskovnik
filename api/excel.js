@@ -1,6 +1,45 @@
 import ExcelJS from 'exceljs'
 import { proveriAutentikaciju } from './_authCheck.js'
 
+// Ista mapa naziv-kategorije -> zvanična šifra koja se koristi u frontend-u (App.jsx,
+// REDOSLIJED_KATEGORIJA/SIFRA_KATEGORIJE_MAP) — dupliciramo je ovdje jer ovaj serverless fajl
+// nema pristup App.jsx modulu. Koristi se da se ispred naziva grupe radova u exportu ispiše
+// ista zvanična šifra kategorije koja se već koristi u aplikaciji (npr. "04" za Zidarski radovi).
+const SIFRA_PO_NAZIVU_KATEGORIJE = {
+  'Pripremno-završni radovi': '01',
+  'Demontaže i rušenja': '20',
+  'Zemljani radovi': '02',
+  'Betonski i AB radovi': '03',
+  'Zidarski radovi': '04',
+  'Izolaterski radovi': '05',
+  'Tesarski radovi': '07',
+  'Pokrivački radovi': '08',
+  'Fasaderski radovi': '06',
+  'Limarski radovi': '09',
+  'Građevinska stolarija': '10',
+  'Bravarski radovi': '11',
+  'Gipsarski radovi': '12',
+  'Podopolagački radovi': '13',
+  'Molersko-farbarski radovi': '14',
+  'Stolarski radovi': '21',
+  'Kamenorezački radovi': '22',
+  'Konzervatorski radovi': '23',
+  'Staklorezački radovi': '24',
+  'Sanitarni uređaji': '15',
+  'Vodovod i kanalizacija': '16',
+  'Elektroinstalacije': '17',
+  'Mašinske instalacije': '18',
+  'Vanjsko uređenje': '19',
+  'Protivpožarna zaštita': '25',
+}
+// Vrati "04. ZIDARSKI RADOVI" ako naziv grupe radova tačno odgovara poznatoj kategoriji;
+// inače (korisnik je preimenovao ili napravio vlastitu grupu) vrati samo naziv, bez broja —
+// nema smisla izmišljati šifru za nešto što aplikacija ne prepoznaje.
+const nazivSaSifrom = naziv => {
+  const sifra = SIFRA_PO_NAZIVU_KATEGORIJE[(naziv || '').trim()]
+  return sifra ? `${sifra}. ${(naziv || '').toUpperCase()}` : (naziv || '').toUpperCase()
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -81,6 +120,10 @@ export default async function handler(req, res) {
     const SI  = 'F8F9FA'
     const SI2 = 'F9FAFB'
     const SI3 = 'F5F6F8'
+    // Nijansa plave pozadine iza glavnog naslova i naslova grupa radova (npr. "04. ZIDARSKI
+    // RADOVI") — izračunata iz korisnikovog ručno korigovanog primjera (Excel tema boja +
+    // "tint" pretvorena u tačan RGB heks).
+    const PLAVA = 'B9CDE5'
 
     const fill = c => ({type:'pattern', pattern:'solid', fgColor:{argb:'FF'+c}})
     const font = (opts={}) => ({
@@ -90,7 +133,14 @@ export default async function handler(req, res) {
       size:   opts.size   || 10,
       color:  opts.color  ? {argb:'FF'+opts.color} : {argb:'FF000000'}
     })
-    const al = (h, v, wrap) => ({ horizontal: h || 'left', vertical: v || 'top', wrapText: wrap !== false })
+    // KLJUČNO OTKRIĆE: ExcelJS očekuje 'middle' za vertikalno poravnanje, ne 'center' — 'center'
+    // se tiho odbacuje (nepoznata vrijednost), pa vertikalno centriranje NIKAD nije stvarno
+    // radilo nigdje u ovom fajlu, iako je kod svuda tražio al(...,'center',...). Ovaj helper
+    // sad prevodi prijateljski naziv 'center' u ono što ExcelJS stvarno prepoznaje, čime se
+    // ispravlja vertikalno centriranje kroz CIJELI dokument (R.br., šifra, J.mj., cijena,
+    // količina, ukupno, naslovi kategorija/faza/struka...), ne samo dvije kolone o kojima je
+    // bilo riječi.
+    const al = (h, v, wrap) => ({ horizontal: h || 'left', vertical: (v === 'center' ? 'middle' : v) || 'top', wrapText: wrap !== false })
     const borderBottom = (style='thin', color='D8D5CC') => ({ bottom: {style, color:{argb:'FF'+color}} })
     const borderTopBottom = (topStyle, topColor, botStyle, botColor) => ({
       top:    {style:topStyle,  color:{argb:'FF'+topColor}},
@@ -111,6 +161,7 @@ export default async function handler(req, res) {
     row.getCell('B').value = 'PREDMJER I PREDRAČUN'
     row.getCell('B').font  = font({bold:true, size:15, color:Z})
     row.getCell('B').alignment = al('center','center',false)
+    row.eachCell({includeEmpty:true}, c => { c.fill = fill(PLAVA) })
 
     // ── Podnaslov ako je export filtriran na jednu struku ──
     if (filtrirajStruku) {
@@ -211,15 +262,16 @@ export default async function handler(req, res) {
         let topLevelGAddrs = []
 
         if (prikaziDetalj) {
-          // ── NASLOV FAZE ──
-          row = ws.addRow(['', f.naziv.toUpperCase(),'','','','',''])
+          // ── NASLOV FAZE — sad sa zvaničnom šifrom kategorije ispred naziva (npr. "04.
+          // ZIDARSKI RADOVI"), većim fontom (14pt) i plavom pozadinom umjesto bijele ──
+          row = ws.addRow(['', nazivSaSifrom(f.naziv),'','','','',''])
           ws.mergeCells(`A${row.number}:G${row.number}`)
-          row.height = 18
-          row.getCell('B').value = f.naziv.toUpperCase()
-          row.getCell('B').font  = font({bold:true, size:11, color:Z})
+          row.height = 22
+          row.getCell('B').value = nazivSaSifrom(f.naziv)
+          row.getCell('B').font  = font({bold:true, size:14, color:Z})
           row.getCell('B').alignment = al('left','center',false)
           row.getCell('B').border = borderBottom('medium', Z)
-          row.eachCell({includeEmpty:true}, c => { c.fill = fill('FFFFFF') })
+          row.eachCell({includeEmpty:true}, c => { c.fill = fill(PLAVA) })
 
           // ── ZAGLAVLJE KOLONA ──
           row = ws.addRow(['R.br.','Šifra','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
@@ -266,19 +318,20 @@ export default async function handler(req, res) {
             row.height = visina
             const mainRowNum = row.number
 
-            // R.br.
+            // R.br. — veći font (11pt, tamnoplava) i vertikalno centrirano, po ugledu na
+            // korigovani primjer (ranije 9pt sivo, poravnato gore)
             row.getCell('A').value     = String(rb)
             row.getCell('A').fill      = fill(bg)
-            row.getCell('A').font      = font({size:9, color:'666666'})
-            row.getCell('A').alignment = al('center','top',false)
+            row.getCell('A').font      = font({size:11, color:'002060'})
+            row.getCell('A').alignment = al('center','center',false)
             row.getCell('A').border    = borderBottom('thin','EEECEA')
 
-            // Šifra
+            // Šifra — isti font kao prije, samo sad vertikalno centrirano (bilo poravnato gore)
             row.getCell('B').value     = p.sifra || ''
             row.getCell('B').numFmt    = '@'
             row.getCell('B').fill      = fill(bg)
             row.getCell('B').font      = font({size:8.5, color:'8A94A0'})
-            row.getCell('B').alignment = al('center','top',false)
+            row.getCell('B').alignment = al('center','center',false)
             row.getCell('B').border    = borderBottom('thin','EEECEA')
 
             row.getCell('C').value     = naziv
