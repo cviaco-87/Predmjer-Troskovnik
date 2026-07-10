@@ -9,11 +9,25 @@
 // Zašto je ovo potrebno: bez ove provjere, bilo ko na internetu ko otkrije URL ovih
 // endpointa (vidljiv u network tabu preglednika) mogao bi ih pozivati neograničeno,
 // trošeći Anthropic API budžet vlasnika aplikacije bez ikakvog ograničenja.
-
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://hojtbvodaadwofxgayip.supabase.co'
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvanRidm9kYWFkd29meGdheWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1Mjc2MzQsImV4cCI6MjA5ODEwMzYzNH0.9FfY4u3B8W_m8ltl3D6_xa78uEp9jOgaMst9JS5gy74'
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
+
+// KLJUČNO: prije je ovdje postojao hardkodovani fallback (|| 'https://...') za slučaj da env
+// varijabla nedostaje. Anon ključ jeste dizajniran da bude javan (štiti ga RLS, ne tajnost),
+// pa to nije bio sigurnosni curenje — ali "tiho nastavi sa starom upisanom vrijednošću" je
+// opasan obrazac: ako env varijabla na Vercelu ikad nestane ili se pogrešno postavi (typo,
+// slučajno brisanje pri redeployu), aplikacija bi mogla mjesecima tiho raditi protiv
+// pogrešnog/zastarjelog Supabase projekta a da se to ne primijeti. Sad umjesto toga funkcija
+// odmah, vidljivo puca pri pokretanju ako env varijable nedostaju — "fail loudly", ne
+// "fail silently sa starim podacima".
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    'Nedostaju SUPABASE_URL ili SUPABASE_ANON_KEY env varijable na serveru. ' +
+    'Provjerite Vercel Project Settings → Environment Variables.'
+  )
+}
 
 const supabaseServer = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
@@ -26,16 +40,13 @@ export async function proveriAutentikaciju(req) {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { ok: false, status: 401, error: 'Nedostaje prijava. Molimo prijavite se ponovo.' }
   }
-
   const token = authHeader.slice('Bearer '.length).trim()
   if (!token) {
     return { ok: false, status: 401, error: 'Nedostaje prijava. Molimo prijavite se ponovo.' }
   }
-
   const { data, error } = await supabaseServer.auth.getUser(token)
   if (error || !data?.user) {
     return { ok: false, status: 401, error: 'Sesija je istekla. Molimo prijavite se ponovo.' }
   }
-
   return { ok: true, userId: data.user.id }
 }
