@@ -32,12 +32,15 @@ const SIFRA_PO_NAZIVU_KATEGORIJE = {
   'Vanjsko uređenje': '19',
   'Protivpožarna zaštita': '25',
 }
-// Vrati "04. ZIDARSKI RADOVI" ako naziv grupe radova tačno odgovara poznatoj kategoriji;
-// inače (korisnik je preimenovao ili napravio vlastitu grupu) vrati samo naziv, bez broja —
-// nema smisla izmišljati šifru za nešto što aplikacija ne prepoznaje.
-const nazivSaSifrom = naziv => {
-  const sifra = SIFRA_PO_NAZIVU_KATEGORIJE[(naziv || '').trim()]
-  return sifra ? `${sifra}. ${(naziv || '').toUpperCase()}` : (naziv || '').toUpperCase()
+// Vrati "04. BETONSKI RADOVI" — broj se određuje na osnovu STVARNE kategorije pozicija unutar
+// grupe radova (position.kategorija, uvijek postavljena iz zvaničnog spiska kad se stavka doda
+// iz baze), NE na osnovu naziva same grupe radova (koji korisnik slobodno piše i može se
+// razlikovati od zvaničnog naziva kategorije, npr. "Betonski radovi" umjesto "Betonski i AB
+// radovi"). Prikazani tekst ostaje naziv grupe radova kako ga je korisnik napisao — mijenja se
+// samo koji broj (ako ijedan) ide ispred njega.
+const nazivSaSifrom = (kategorijaZaSifru, nazivZaPrikaz) => {
+  const sifra = SIFRA_PO_NAZIVU_KATEGORIJE[(kategorijaZaSifru || '').trim()]
+  return sifra ? `${sifra}. ${(nazivZaPrikaz || '').toUpperCase()}` : (nazivZaPrikaz || '').toUpperCase()
 }
 
 export default async function handler(req, res) {
@@ -263,11 +266,14 @@ export default async function handler(req, res) {
 
         if (prikaziDetalj) {
           // ── NASLOV FAZE — sad sa zvaničnom šifrom kategorije ispred naziva (npr. "04.
-          // ZIDARSKI RADOVI"), većim fontom (14pt) i plavom pozadinom umjesto bijele ──
-          row = ws.addRow(['', nazivSaSifrom(f.naziv),'','','','',''])
+          // ZIDARSKI RADOVI"), većim fontom (14pt) i plavom pozadinom umjesto bijele.
+          // Šifra se uzima iz stvarne kategorije PRVE pozicije u grupi, ne iz naziva same
+          // grupe radova (vidi napomenu uz nazivSaSifrom).
+          const prikazniNaslov = nazivSaSifrom(roditelji[0]?.kategorija, f.naziv)
+          row = ws.addRow(['', prikazniNaslov,'','','','',''])
           ws.mergeCells(`A${row.number}:G${row.number}`)
           row.height = 22
-          row.getCell('B').value = nazivSaSifrom(f.naziv)
+          row.getCell('B').value = prikazniNaslov
           row.getCell('B').font  = font({bold:true, size:14, color:Z})
           row.getCell('B').alignment = al('left','center',false)
           row.getCell('B').border = borderBottom('medium', Z)
