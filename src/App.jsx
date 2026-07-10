@@ -350,6 +350,8 @@ export default function App() {
   }
   const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
+  const [uvozLoading, setUvozLoading] = useState(false)
+  const uvozInputRef = React.useRef(null)
   const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
   const [firma, setFirma] = useState(null) // { naziv, logo } - postavke firme (logo/naziv) vezane za nalog
   const [showFirmaModal, setShowFirmaModal] = useState(false)
@@ -1463,6 +1465,126 @@ ${globalnaRekapitulacijaHtml}
     setKloniranjeLoading(false)
   }
 
+  // ── IZVOZ PROJEKTA U FAJL (za dijeljenje sa kolegom na drugom nalogu) ──
+  // Fajl je samostalan (self-contained) — koristi lokalne, redni brojeve unutar samog fajla
+  // za veze roditelj/podstavka (_lokalniId/_roditeljLokalniId), NE stvarne ID-jeve iz baze,
+  // kako fajl ne bi zavisio od/otkrivao interne DB identifikatore.
+  const exportProjekat = async () => {
+    if (!aktivniProjekat) { alert('Odaberite projekat za izvoz.'); return }
+    try {
+      const svePozicije = {}
+      for (const f of faze) {
+        const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+        svePozicije[f.id] = data || []
+      }
+
+      const izvozFaze = faze.map(f => {
+        const poz = svePozicije[f.id] || []
+        const lokalnaMapa = new Map(poz.map((p, i) => [p.id, i]))
+        const izvozStavke = poz.map(p => ({
+          _lokalniId: lokalnaMapa.get(p.id),
+          _roditeljLokalniId: p.parent_id != null ? (lokalnaMapa.get(p.parent_id) ?? null) : null,
+          naziv: p.naziv, jedinica: p.jedinica, cijena: p.cijena, kolicina: p.kolicina,
+          kategorija: p.kategorija, redoslijed: p.redoslijed, sifra: p.sifra || null,
+          opis_visina: p.opis_visina || null
+        }))
+        return { naziv: f.naziv, redoslijed: f.redoslijed, struka_kod: f.struka_kod || 'gradjevinski', pozicije: izvozStavke }
+      })
+
+      const izvoz = {
+        tip: 'predmjer-projekat', verzija: 1, izvezeno_at: new Date().toISOString(),
+        projekat: {
+          naziv: aktivniProjekat.naziv, klijent: aktivniProjekat.klijent || null,
+          adresa: aktivniProjekat.adresa || null, datum: aktivniProjekat.datum || null,
+          valuta: aktivniProjekat.valuta || 'EUR', struke: aktivniProjekat.struke || DEFAULT_STRUKE
+        },
+        faze: izvozFaze
+      }
+
+      const blob = new Blob([JSON.stringify(izvoz, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const ime = (aktivniProjekat.naziv || 'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g, '_')
+      a.download = `${ime}_export.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert('Greška pri izvozu projekta: ' + e.message)
+    }
+  }
+
+  // ── UVOZ PROJEKTA IZ FAJLA ──
+  // KLJUČNO: uvoz UVIJEK kreira potpuno nov projekat — nikad ne dira, ne prepisuje i ne spaja
+  // sa postojećim projektima na nalogu. Ovo je namjerno, iz sigurnosnih/UX razloga: uvoz ne
+  // smije imati mogućnost da "pogodi" i prepiše nešto što korisnik već ima.
+  const ucitajProjekatIzFajla = async (file) => {
+    setUvozLoading(true)
+    try {
+      const tekst = await file.text()
+      let podaci
+      try { podaci = JSON.parse(tekst) }
+      catch (e) { throw new Error('Fajl nije ispravan JSON — provjerite da li je to zaista izvezeni predmjer.') }
+
+      if (podaci?.tip !== 'predmjer-projekat' || !podaci.projekat || !Array.isArray(podaci.faze)) {
+        throw new Error('Ovaj fajl ne izgleda kao izvezeni predmjer iz ove aplikacije.')
+      }
+
+      const p = podaci.projekat
+      const { data: noviProj, error: eProj } = await supabase.from('projekti').insert({
+        naziv: (p.naziv || 'Predmjer').trim() + ' — UVEZENO',
+        klijent: p.klijent || null,
+        adresa: p.adresa || null,
+        datum: p.datum || null,
+        valuta: p.valuta || 'EUR',
+        struke: p.struke || DEFAULT_STRUKE
+      }).select().single()
+      if (eProj || !noviProj) throw eProj || new Error('Greška pri kreiranju projekta.')
+
+      for (const f of podaci.faze) {
+        const { data: novaFaza, error: eFaza } = await supabase.from('faze').insert({
+          projekat_id: noviProj.id, naziv: f.naziv || 'Grupa radova',
+          redoslijed: f.redoslijed ?? 0, struka_kod: f.struka_kod || 'gradjevinski'
+        }).select().single()
+        if (eFaza || !novaFaza) continue
+
+        const stavke = Array.isArray(f.pozicije) ? f.pozicije : []
+        const idMapa = new Map() // _lokalniId iz fajla -> stvarni novi DB id
+
+        // Prvo roditelji (bez _roditeljLokalniId), da postoji mapa prije umetanja podstavki
+        const roditelji = stavke.filter(s => s._roditeljLokalniId == null)
+        for (const s of roditelji) {
+          const { data: novaPoz } = await supabase.from('pozicije').insert({
+            faza_id: novaFaza.id, naziv: s.naziv || '', jedinica: s.jedinica || 'm²',
+            cijena: s.cijena || 0, kolicina: s.kolicina || 0, kategorija: s.kategorija || 'Ostalo',
+            redoslijed: s.redoslijed ?? 0, sifra: s.sifra || null, opis_visina: s.opis_visina || null,
+            parent_id: null
+          }).select().single()
+          if (novaPoz) idMapa.set(s._lokalniId, novaPoz.id)
+        }
+
+        // Zatim podstavke, mapirane na novokreirane parent ID-jeve
+        const djeca = stavke.filter(s => s._roditeljLokalniId != null)
+        for (const s of djeca) {
+          const noviParentId = idMapa.get(s._roditeljLokalniId)
+          if (!noviParentId) continue
+          await supabase.from('pozicije').insert({
+            faza_id: novaFaza.id, naziv: s.naziv || '', jedinica: s.jedinica || 'm²',
+            cijena: s.cijena || 0, kolicina: s.kolicina || 0, kategorija: s.kategorija || 'Ostalo',
+            redoslijed: s.redoslijed ?? 0, sifra: s.sifra || null, opis_visina: s.opis_visina || null,
+            parent_id: noviParentId
+          })
+        }
+      }
+
+      await ucitajProjekte()
+      setAktivniProjekat(noviProj)
+    } catch (e) {
+      alert('Greška pri uvozu projekta: ' + e.message)
+    }
+    setUvozLoading(false)
+  }
+
   const odjava = () => supabase.auth.signOut()
 
   if (authLoading) return (
@@ -1581,6 +1703,16 @@ ${globalnaRekapitulacijaHtml}
               style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
             <button onClick={dodajProjekat} style={B('#556575')}>+ Dodaj</button>
           </div>
+          <input type="file" accept="application/json,.json" ref={uvozInputRef} style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) ucitajProjekatIzFajla(file)
+              e.target.value = ''
+            }} />
+          <button onClick={() => uvozInputRef.current?.click()} disabled={uvozLoading}
+            style={{ width: '100%', background: 'transparent', border: '1px dashed #C8C5BD', borderRadius: 6, padding: '7px 0', fontSize: 12, color: uvozLoading ? '#bbb' : '#666', cursor: uvozLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', marginBottom: 6 }}>
+            {uvozLoading ? '⏳ Uvozim projekat...' : '📥 Uvezi projekat iz fajla'}
+          </button>
           </div>
           </div>
 
@@ -1840,6 +1972,10 @@ ${globalnaRekapitulacijaHtml}
                     </div>
                   )}
                 </div>
+                <button onClick={exportProjekat} title="Izvezi kompletan projekat kao fajl (za slanje kolegi na drugom nalogu)"
+                  style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>
+                  📤 Izvezi projekat
+                </button>
               </div>
 
               {/* Baza pretraga */}
