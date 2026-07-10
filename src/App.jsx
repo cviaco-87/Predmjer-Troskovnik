@@ -204,6 +204,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       {/* Search */}
       <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
+          spellCheck={false}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
           disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
           style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
@@ -1497,6 +1498,7 @@ ${globalnaRekapitulacijaHtml}
                 <input
                   type="text"
                   defaultValue={p.naziv}
+                  spellCheck={false}
                   autoFocus
                   onBlur={async e => {
                     const noviNaziv = e.target.value.trim() || p.naziv
@@ -1534,6 +1536,7 @@ ${globalnaRekapitulacijaHtml}
           ))}
           <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 14 }}>
             <input type="text" value={noviProjekat} onChange={e => setNoviProjekat(e.target.value)}
+              spellCheck={false}
               onKeyDown={e => e.key === 'Enter' && dodajProjekat()}
               placeholder="Novi projekat..."
               style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
@@ -1551,6 +1554,7 @@ ${globalnaRekapitulacijaHtml}
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
                 <input type="text" defaultValue={aktivniProjekat[k] || ''} onBlur={e => azurirajProjekat(k, e.target.value)}
+                  spellCheck={false}
                   style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
               </div>
             ))}
@@ -1587,7 +1591,7 @@ ${globalnaRekapitulacijaHtml}
                   onMouseEnter={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '#F0F2F5' }}
                   onMouseLeave={e => { if (s.kod !== aktivnaStruka) e.currentTarget.style.background = '' }}>
                   {editStrukaKod === s.kod ? (
-                    <input type="text" defaultValue={s.naziv} autoFocus
+                    <input type="text" defaultValue={s.naziv} spellCheck={false} autoFocus
                       onClick={e => e.stopPropagation()}
                       onBlur={e => { preimenujStruku(s.kod, e.target.value.trim() || s.naziv); setEditStrukaKod(null) }}
                       onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditStrukaKod(null) }}
@@ -1612,7 +1616,7 @@ ${globalnaRekapitulacijaHtml}
                 </div>
               ))}
               {dodajStrukuMod ? (
-                <input type="text" autoFocus placeholder="Naziv nove faze..."
+                <input type="text" autoFocus spellCheck={false} placeholder="Naziv nove faze..."
                   onBlur={e => { if (e.target.value.trim()) dodajStruku(e.target.value); setDodajStrukuMod(false) }}
                   onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setDodajStrukuMod(false) }}
                   style={{ border: '1px solid #4A637C', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
@@ -1664,6 +1668,7 @@ ${globalnaRekapitulacijaHtml}
             })()}
             <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 16 }}>
               <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
+                spellCheck={false}
                 onKeyDown={e => e.key === 'Enter' && dodajFazu()}
                 placeholder="Naziv grupe radova..."
                 style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
@@ -1863,6 +1868,7 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <input
                                       type="text"
+                                      spellCheck={false}
                                       className="sifra-input"
                                       key={`sif-${p.id}-${revizija}`}
                                       defaultValue={p.sifra || ''}
@@ -1876,6 +1882,7 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <textarea
                                       key={`naz-${p.id}-${revizija}`}
+                                      spellCheck={false}
                                       ref={el => {
                                         if (el) {
                                           el._pozId = p.id
@@ -1990,6 +1997,7 @@ ${globalnaRekapitulacijaHtml}
                                           
                                           <textarea
                                             key={`podnaz-${d.id}-${revizija}`}
+                                            spellCheck={false}
                                             ref={el => { if (el && !d.opis_visina) autoGrowTextarea(el) }}
                                             defaultValue={d.naziv || ''}
                                             onInput={e => autoGrowTextarea(e.target)}
@@ -2142,6 +2150,7 @@ ${globalnaRekapitulacijaHtml}
               <div style={{ marginBottom: 4 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Naziv firme (opciono)</div>
                 <input type="text" defaultValue={firma?.naziv || ''} placeholder="npr. Gradnja d.o.o."
+                  spellCheck={false}
                   onBlur={e => sacuvajFirmu(undefined, e.target.value.trim() || null)}
                   style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0' }} />
                 <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 6 }}>Prikazuje se u podnožju svake stranice PDF izvještaja, uz broj stranice.</div>
