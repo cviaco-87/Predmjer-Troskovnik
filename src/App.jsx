@@ -446,6 +446,20 @@ export default function App() {
     else setPozicije([])
   }, [aktivnaFaza])
 
+  // KLJUČNO: resetuj undo-stog (izmjene polja) i traku za opoziv brisanja svaki put kad se
+  // promijeni aktivna grupa radova. Undo zapisi referenciraju konkretne ID-jeve pozicija iz
+  // TE grupe radova — ako korisnik pređe na drugu fazu ili drugi (npr. klonirani) projekat bez
+  // ovog resetovanja, stari zapis u stogu bi mogao tiho izmijeniti podatke u projektu/fazi koju
+  // korisnik više ne gleda, umjesto u onoj koja je trenutno na ekranu (npr. "Opozovi" u kloniranom
+  // projektu bi mogao vratiti izmjenu koja zapravo pripada originalnom dokumentu).
+  useEffect(() => {
+    setIstorijaIzmjena([])
+    setOtkazivanjeBrisanja(prev => {
+      if (prev?.timeoutId) clearTimeout(prev.timeoutId)
+      return null
+    })
+  }, [aktivnaFaza?.id])
+
   const ucitajProjekte = async () => {
     const { data } = await supabase.from('projekti').select('*').order('azuriran_at', { ascending: false })
     setProjekti(data || [])
@@ -762,6 +776,22 @@ export default function App() {
     })
   }
 
+  // Pomjeri redoslijed svih postojećih stavki (na istom nivou — iste faze i istog roditelja)
+  // koje trenutno zauzimaju ciljano mjesto ili poslije njega, za jedno mjesto unaprijed —
+  // "pravi" prostor za umetanje, umjesto da vraćena stavka naivno preuzme broj koji je u
+  // međuvremenu (dok je traka za opoziv stajala na ekranu) možda već dodijeljen NEKOJ DRUGOJ
+  // stavci. Bez ovoga bi dvije stavke mogle "dijeliti" isti redoslijed broj, što izaziva
+  // nepredvidiv poredak nakon opoziva (vraćena stavka upadne na pogrešno mjesto).
+  const napraviMjestoZaUmetanje = async (fazaId, parentId, ciljaniRedoslijed) => {
+    let upit = supabase.from('pozicije').select('id, redoslijed').eq('faza_id', fazaId)
+    upit = parentId ? upit.eq('parent_id', parentId) : upit.is('parent_id', null)
+    const { data: postojece } = await upit
+    const zaPomjeriti = (postojece || []).filter(r => (r.redoslijed ?? 0) >= ciljaniRedoslijed)
+    for (const r of zaPomjeriti) {
+      await supabase.from('pozicije').update({ redoslijed: (r.redoslijed ?? 0) + 1 }).eq('id', r.id)
+    }
+  }
+
   // Vraća posljednju obrisanu poziciju (i njene podstavke, ako ih je imala) nazad u bazu i
   // prikaz — samo dok traka "Opozovi brisanje" još stoji na ekranu (par sekundi nakon brisanja).
   const opozoviBrisanje = async () => {
@@ -770,9 +800,12 @@ export default function App() {
     clearTimeout(timeoutId)
     setOtkazivanjeBrisanja(null)
     try {
+      const ciljaniRedoslijed = poz.redoslijed ?? 0
+      await napraviMjestoZaUmetanje(poz.faza_id, poz.parent_id || null, ciljaniRedoslijed)
+
       const { data: novaPoz, error: e1 } = await supabase.from('pozicije').insert({
         faza_id: poz.faza_id, naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena,
-        kolicina: poz.kolicina, kategorija: poz.kategorija, redoslijed: poz.redoslijed,
+        kolicina: poz.kolicina, kategorija: poz.kategorija, redoslijed: ciljaniRedoslijed,
         sifra: poz.sifra || null, opis_visina: poz.opis_visina || null,
         // KLJUČNO: ako je obrisana stavka bila PODSTAVKA (imala parent_id), moramo vratiti tu
         // istu vezu — bez ovoga bi se vraćala kao nova, samostalna glavna stavka bez roditelja.
@@ -782,6 +815,9 @@ export default function App() {
 
       const novaDjeca = []
       for (const d of djeca) {
+        // Djeca se vraćaju pod NOVIM parent_id (novaPoz.id), koji do ovog trenutka ne postoji
+        // ni na jednoj drugoj stavci — nema šanse za sudar redoslijeda, umetanje mjesta nije
+        // potrebno, samo se čuva njihov međusobni raniji poredak.
         const { data: novoDijete } = await supabase.from('pozicije').insert({
           faza_id: d.faza_id, naziv: d.naziv, jedinica: d.jedinica, cijena: d.cijena,
           kolicina: d.kolicina, kategorija: d.kategorija, redoslijed: d.redoslijed,
@@ -790,9 +826,12 @@ export default function App() {
         if (novoDijete) novaDjeca.push(novoDijete)
       }
 
-      // Prikaži vraćenu stavku odmah ako je korisnik i dalje na istoj grupi radova
+      // Ponovo učitaj kompletnu listu iz baze (umjesto pukog lokalnog dodavanja na kraj niza) —
+      // ovo garantuje da se poredak na ekranu tačno poklapa sa stvarnim stanjem u bazi nakon
+      // pomjeranja ostalih stavki iznad, umjesto da se oslanjamo na lokalno renderovanje koje bi
+      // moglo (kod izjednačenih brojeva redoslijeda) prikazati stavku na neočekivanom mjestu.
       if (aktivnaFaza && aktivnaFaza.id === poz.faza_id) {
-        setPozicije(prev => [...prev, novaPoz, ...novaDjeca])
+        await ucitajPozicije(aktivnaFaza.id)
       }
     } catch (e) {
       alert('Greška pri vraćanju obrisane stavke: ' + e.message)
