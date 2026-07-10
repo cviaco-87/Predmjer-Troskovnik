@@ -1288,8 +1288,14 @@ export default function App() {
         rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
 
         if (prikaziDetalj) {
+          // Šifra se uzima iz stvarne kategorije PRVE (glavne) pozicije u grupi radova, ne iz
+          // naziva same grupe (koji korisnik slobodno piše i može se razlikovati od zvaničnog
+          // naziva kategorije, npr. "Betonski radovi" umjesto "Betonski i AB radovi").
+          const prvaKategorija = poz.find(p => !p.parent_id)?.kategorija
+          const sifFaze = SIFRA_KATEGORIJE_MAP.get((prvaKategorija||'').trim())
+          const naslovFaze = escHtml(sifFaze ? `${sifFaze}. ${f.naziv.toUpperCase()}` : f.naziv.toUpperCase())
           sviFazeSadrzaj += `
-            <div class="faza-header"><h2>${(() => { const sif = SIFRA_KATEGORIJE_MAP.get((f.naziv||'').trim()); return escHtml(sif ? `${sif}. ${f.naziv.toUpperCase()}` : f.naziv.toUpperCase()) })()}</h2></div>
+            <div class="faza-header"><h2>${naslovFaze}</h2></div>
             <table>
               <thead><tr>
                 <th class="c" style="width:30px">R.br.</th>
