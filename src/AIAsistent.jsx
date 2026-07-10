@@ -540,6 +540,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
                   {/* Ručno izmjenjiv predloženi tekst */}
                   <textarea
                     value={s.noviOpis}
+                    spellCheck={false}
                     onChange={e => setModalIzmjene(prev => ({ ...prev, stavke: prev.stavke.map((x,j) => j===i ? {...x, noviOpis: e.target.value} : x) }))}
                     rows={4}
                     style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 11.5, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5, background: '#fff' }} />
@@ -634,6 +635,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', background: '#fff', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+            spellCheck={false}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); posalji() } }}
             placeholder="Opišite šta vam treba... (Enter za slanje, Shift+Enter za novi red)"
             rows={2}
