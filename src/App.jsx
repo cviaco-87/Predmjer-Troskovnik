@@ -1826,7 +1826,7 @@ ${globalnaRekapitulacijaHtml}
                     <option value="" disabled>— Odaberite projekat —</option>
                     {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
                   </select>
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 11 }}>▾</span>
+                  <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#5A6472', fontSize: 17, fontWeight: 700 }}>▾</span>
                 </div>
                 {aktivniProjekat && (
                   <>
@@ -1989,7 +1989,7 @@ ${globalnaRekapitulacijaHtml}
                         <option value="" disabled>— Odaberite grupu radova —</option>
                         {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
                       </select>
-                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 11 }}>▾</span>
+                      <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#5A6472', fontSize: 17, fontWeight: 700 }}>▾</span>
                     </div>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
