@@ -357,6 +357,16 @@ export default function App() {
   const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
 
+  // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
+  // radi kratkotrajne mogućnosti vraćanja ("Opozovi" traka pri dnu ekrana). Samo jedan nivo undo-a
+  // (posljednje brisanje), ne pun stog — isto ograničenje kao i undo AI grupnih izmjena.
+  const [otkazivanjeBrisanja, setOtkazivanjeBrisanja] = useState(null) // { poz, djeca, timeoutId }
+
+  // Undo posljednjih izmjena polja (cijena, količina, naziv, šifra, jedinica) — stog do 20 izmjena
+  // unutar trenutne sesije. Ne pamti opis_visina (to je sporedna posljedica auto-grow ćelije,
+  // ne stvarna korisnikova izmjena, pa ne bi trebalo da zatrpava undo stog).
+  const [istorijaIzmjena, setIstorijaIzmjena] = useState([]) // [{id, polje, staraVrijednost, novaVrijednost}]
+
   // Auth listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -698,14 +708,89 @@ export default function App() {
     dragOverPoz.current = null
   }
 
-  const azurirajPoziciju = async (id, polje, vrijednost) => {
+  const azurirajPoziciju = async (id, polje, vrijednost, _zaOpoziv = false) => {
+    const trenutna = pozicije.find(p => p.id === id)
+    const staraVrijednost = trenutna ? trenutna[polje] : undefined
     await supabase.from('pozicije').update({ [polje]: vrijednost }).eq('id', id)
     setPozicije(prev => prev.map(p => p.id === id ? { ...p, [polje]: vrijednost } : p))
+
+    // Zapamti staru vrijednost radi mogućnosti opoziva. Preskačemo opis_visina (sporedna
+    // posljedica auto-grow ćelije, ne stvarna korisnikova izmjena) i preskačemo pozive koji
+    // SAMI dolaze iz opoziva (_zaOpoziv=true), da undo ne bi sam sebe gurnuo nazad u stog.
+    if (!_zaOpoziv && polje !== 'opis_visina' && trenutna && staraVrijednost !== vrijednost) {
+      setIstorijaIzmjena(prev => [...prev.slice(-19), { id, polje, staraVrijednost, novaVrijednost: vrijednost }])
+    }
+  }
+
+  // Vraća posljednju izmjenu polja (cijena, količina, naziv, šifra, jedinica) na prethodnu
+  // vrijednost. Samo jedan korak unazad po klik — može se pozvati više puta uzastopno da se
+  // vrati više koraka, sve dok stog nije prazan.
+  const opozoviZadnjuIzmjenu = () => {
+    setIstorijaIzmjena(prev => {
+      if (prev.length === 0) return prev
+      const zadnja = prev[prev.length - 1]
+      azurirajPoziciju(zadnja.id, zadnja.polje, zadnja.staraVrijednost, true)
+      setRevizija(r => r + 1) // forsira polja koja koriste defaultValue da prikažu vraćenu vrijednost
+      return prev.slice(0, -1)
+    })
   }
 
   const obrisiPoziciju = async (id) => {
+    const poz = pozicije.find(p => p.id === id)
+    if (!poz) return
+    // Ako se briše roditeljska stavka koja ima podstavke, obriši i njih (baza ne mora imati
+    // ON DELETE CASCADE na parent_id) i sačuvaj ih radi mogućnosti opoziva.
+    const djecaPoz = pozicije.filter(p => p.parent_id === id)
+
+    for (const d of djecaPoz) {
+      await supabase.from('pozicije').delete().eq('id', d.id)
+    }
     await supabase.from('pozicije').delete().eq('id', id)
-    setPozicije(prev => prev.filter(p => p.id !== id))
+
+    setPozicije(prev => prev.filter(p => p.id !== id && p.parent_id !== id))
+
+    // Prikaži traku "Opozovi brisanje" na par sekundi. Ako je već postojala jedna (od
+    // prethodnog brzog brisanja), otkaži njen tajmer da ne ostane da tiho istekne u pozadini
+    // dok korisnik gleda traku za NOVO brisanje.
+    const timeoutId = setTimeout(() => setOtkazivanjeBrisanja(null), 6000)
+    setOtkazivanjeBrisanja(prev => {
+      if (prev?.timeoutId) clearTimeout(prev.timeoutId)
+      return { poz, djeca: djecaPoz, timeoutId }
+    })
+  }
+
+  // Vraća posljednju obrisanu poziciju (i njene podstavke, ako ih je imala) nazad u bazu i
+  // prikaz — samo dok traka "Opozovi brisanje" još stoji na ekranu (par sekundi nakon brisanja).
+  const opozoviBrisanje = async () => {
+    if (!otkazivanjeBrisanja) return
+    const { poz, djeca, timeoutId } = otkazivanjeBrisanja
+    clearTimeout(timeoutId)
+    setOtkazivanjeBrisanja(null)
+    try {
+      const { data: novaPoz, error: e1 } = await supabase.from('pozicije').insert({
+        faza_id: poz.faza_id, naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena,
+        kolicina: poz.kolicina, kategorija: poz.kategorija, redoslijed: poz.redoslijed,
+        sifra: poz.sifra || null, opis_visina: poz.opis_visina || null
+      }).select().single()
+      if (e1 || !novaPoz) throw e1 || new Error('Greška pri vraćanju stavke.')
+
+      const novaDjeca = []
+      for (const d of djeca) {
+        const { data: novoDijete } = await supabase.from('pozicije').insert({
+          faza_id: d.faza_id, naziv: d.naziv, jedinica: d.jedinica, cijena: d.cijena,
+          kolicina: d.kolicina, kategorija: d.kategorija, redoslijed: d.redoslijed,
+          sifra: d.sifra || null, opis_visina: d.opis_visina || null, parent_id: novaPoz.id
+        }).select().single()
+        if (novoDijete) novaDjeca.push(novoDijete)
+      }
+
+      // Prikaži vraćenu stavku odmah ako je korisnik i dalje na istoj grupi radova
+      if (aktivnaFaza && aktivnaFaza.id === poz.faza_id) {
+        setPozicije(prev => [...prev, novaPoz, ...novaDjeca])
+      }
+    } catch (e) {
+      alert('Greška pri vraćanju obrisane stavke: ' + e.message)
+    }
   }
 
   const sacuvajUMojuBazu = async (poz) => {
@@ -1661,6 +1746,11 @@ ${globalnaRekapitulacijaHtml}
                 <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{aktivnaFaza.naziv}</span>
                 <div style={{ flex: 1 }}></div>
                 <button onClick={dodajVlastitupoziciju} style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>+ Vlastita stavka</button>
+                <button onClick={opozoviZadnjuIzmjenu} disabled={istorijaIzmjena.length === 0}
+                  title={istorijaIzmjena.length > 0 ? `Opozovi zadnju izmjenu (${istorijaIzmjena.length} na čekanju)` : 'Nema izmjena za opoziv'}
+                  style={{ ...B('transparent', istorijaIzmjena.length === 0 ? 'rgba(255,255,255,.4)' : '#fff', '1px solid rgba(255,255,255,.5)'), cursor: istorijaIzmjena.length === 0 ? 'not-allowed' : 'pointer' }}>
+                  ↩ Opozovi{istorijaIzmjena.length > 0 ? ` (${istorijaIzmjena.length})` : ''}
+                </button>
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => promijeniValutu(e.target.value)}
                   style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
@@ -2063,6 +2153,24 @@ ${globalnaRekapitulacijaHtml}
         </div>
       )}
 
+      {/* ── TRAKA ZA OPOZIV BRISANJA POZICIJE ── */}
+      {otkazivanjeBrisanja && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: 24, zIndex: 298,
+          background: '#1B2F43', color: '#fff', borderRadius: 10,
+          padding: '10px 10px 10px 16px', display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.25)', fontSize: 13
+        }}>
+          <span>🗑 Stavka obrisana{otkazivanjeBrisanja.djeca.length > 0 ? ` (i ${otkazivanjeBrisanja.djeca.length} podstavki)` : ''}</span>
+          <button onClick={opozoviBrisanje}
+            style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            ↩ Opozovi
+          </button>
+          <button onClick={() => { clearTimeout(otkazivanjeBrisanja.timeoutId); setOtkazivanjeBrisanja(null) }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: 15, padding: '0 2px' }}>✕</button>
+        </div>
+      )}
+
       {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
       <button
         onClick={() => setShowAI(prev => !prev)}
@@ -2098,6 +2206,12 @@ ${globalnaRekapitulacijaHtml}
       {/* AI ASISTENT PANEL */}
       {showAI && (
         <AIAsistent
+          // KLJUČNO: key vezan za ID aktivnog projekta — ako korisnik promijeni projekat dok je
+          // panel otvoren, React potpuno uništi staru komponentu (sa cijelom istorijom razgovora)
+          // i napravi svježu. Bez ovoga bi historija poruka iz prethodnog projekta ostala u
+          // kontekstu razgovora, iako svaka nova poruka i dalje šalje ispravan spisak stavki
+          // iz trenutnog projekta (upisi u bazu su već bili sigurni i prije ove izmjene).
+          key={aktivniProjekat?.id || 'bez-projekta'}
           aktivnaFaza={aktivnaFaza}
           pozicije={pozicije}
           onDodajStavku={dodajStavkuIzAI}
