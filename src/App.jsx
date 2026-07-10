@@ -356,6 +356,12 @@ export default function App() {
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [uvozLoading, setUvozLoading] = useState(false)
   const uvozInputRef = React.useRef(null)
+  // Sprečava preklapajuće pozive dodavanja pozicije (npr. brz dupli klik na istu ili različitu
+  // "dodaj stavku" akciju) — broj pozicije (redoslijed) se računa iz trenutnog stanja na
+  // ekranu, pa dva gotovo istovremena poziva mogu pročitati ISTI "trenutni max" prije nego što
+  // ijedan stigne da upiše svoju stavku, i tako dobiti isti broj. Ovaj ref to sprečava tako što
+  // odbija novi poziv dok prethodni još traje.
+  const dodavanjeUTokuRef = React.useRef(false)
   const [editNazivProjId, setEditNazivProjId] = useState(null) // ID projekta čiji naziv se edituje
   const [firma, setFirma] = useState(null) // { naziv, logo } - postavke firme (logo/naziv) vezane za nalog
   const [showFirmaModal, setShowFirmaModal] = useState(false)
@@ -467,7 +473,8 @@ export default function App() {
   }, [aktivnaFaza?.id])
 
   const ucitajProjekte = async () => {
-    const { data } = await supabase.from('projekti').select('*').order('azuriran_at', { ascending: false })
+    const { data, error } = await supabase.from('projekti').select('*').order('azuriran_at', { ascending: false })
+    if (error) { console.error('Greška pri učitavanju projekata:', error); alert('Greška pri učitavanju liste projekata: ' + error.message) }
     setProjekti(data || [])
     if (data?.length > 0 && !aktivniProjekat) {
       setAktivniProjekat(data[0])
@@ -475,7 +482,8 @@ export default function App() {
   }
 
   const ucitajFaze = async (projektId, pocetnaStruka) => {
-    const { data } = await supabase.from('faze').select('*').eq('projekat_id', projektId).order('redoslijed')
+    const { data, error } = await supabase.from('faze').select('*').eq('projekat_id', projektId).order('redoslijed')
+    if (error) console.error('Greška pri učitavanju grupa radova:', error)
     const uceitaneFaze = data || []
     setFaze(uceitaneFaze)
     // Automatski izaberi PRVU grupu radova unutar aktivne faze/struke — bez ovoga bi
@@ -488,33 +496,42 @@ export default function App() {
   }
 
   const ucitajPozicije = async (fazaId) => {
-    const { data } = await supabase.from('pozicije').select('*').eq('faza_id', fazaId).order('redoslijed')
+    const { data, error } = await supabase.from('pozicije').select('*').eq('faza_id', fazaId).order('redoslijed')
+    if (error) { console.error('Greška pri učitavanju pozicija:', error); alert('Greška pri učitavanju stavki: ' + error.message) }
     setPozicije(data || [])
   }
 
   const dodajPodstavku = async (roditeljPoz) => {
-    if (!aktivnaFaza) return
-    const { data } = await supabase.from('pozicije').insert({
-      faza_id: aktivnaFaza.id,
-      parent_id: roditeljPoz.id,
-      naziv: '',
-      jedinica: roditeljPoz.jedinica || 'm²',
-      cijena: roditeljPoz.cijena || 0,
-      kolicina: 0,
-      kategorija: roditeljPoz.kategorija || 'Ostalo',
-      redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
-    }).select().single()
-    if (data) setPozicije(prev => [...prev, data])
+    if (!aktivnaFaza || dodavanjeUTokuRef.current) return
+    dodavanjeUTokuRef.current = true
+    try {
+      const { data, error } = await supabase.from('pozicije').insert({
+        faza_id: aktivnaFaza.id,
+        parent_id: roditeljPoz.id,
+        naziv: '',
+        jedinica: roditeljPoz.jedinica || 'm²',
+        cijena: roditeljPoz.cijena || 0,
+        kolicina: 0,
+        kategorija: roditeljPoz.kategorija || 'Ostalo',
+        redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
+      }).select().single()
+      if (error) { alert('Greška pri dodavanju podstavke: ' + error.message); return }
+      if (data) setPozicije(prev => [...prev, data])
+    } finally {
+      dodavanjeUTokuRef.current = false
+    }
   }
 
   const ucitajMojuBazu = async () => {
-    const { data } = await supabase.from('moja_baza').select('*').order('kreiran_at', { ascending: false })
+    const { data, error } = await supabase.from('moja_baza').select('*').order('kreiran_at', { ascending: false })
+    if (error) console.error('Greška pri učitavanju moje baze:', error)
     setMojaBaza(data || [])
   }
 
   // ── POSTAVKE FIRME (logo/naziv za PDF zaglavlje) ──
   const ucitajFirmu = async () => {
-    const { data } = await supabase.from('firma_postavke').select('*').eq('user_id', session.user.id).maybeSingle()
+    const { data, error } = await supabase.from('firma_postavke').select('*').eq('user_id', session.user.id).maybeSingle()
+    if (error) console.error('Greška pri učitavanju postavki firme:', error)
     setFirma(data || null)
   }
 
@@ -527,7 +544,8 @@ export default function App() {
         naziv: naziv !== undefined ? naziv : (firma?.naziv || null),
         updated_at: new Date().toISOString()
       }
-      const { data } = await supabase.from('firma_postavke').upsert(payload, { onConflict: 'user_id' }).select().single()
+      const { data, error } = await supabase.from('firma_postavke').upsert(payload, { onConflict: 'user_id' }).select().single()
+      if (error) throw error
       setFirma(data)
     } catch (e) {
       alert('Greška pri čuvanju postavki firme: ' + e.message)
@@ -543,7 +561,8 @@ export default function App() {
   // ── PROJEKTI ──
   const dodajProjekat = async () => {
     if (!noviProjekat.trim()) return
-    const { data } = await supabase.from('projekti').insert({ naziv: noviProjekat.trim() }).select().single()
+    const { data, error } = await supabase.from('projekti').insert({ naziv: noviProjekat.trim() }).select().single()
+    if (error) { alert('Greška pri dodavanju projekta: ' + error.message); return }
     if (data) {
       setNoviProjekat('')
       await ucitajProjekte()
@@ -553,32 +572,61 @@ export default function App() {
 
   const azurirajProjekat = async (polje, vrijednost) => {
     if (!aktivniProjekat) return
-    await supabase.from('projekti').update({ [polje]: vrijednost }).eq('id', aktivniProjekat.id)
     setAktivniProjekat(prev => ({ ...prev, [polje]: vrijednost }))
     setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, [polje]: vrijednost } : p))
+    const { error } = await supabase.from('projekti').update({ [polje]: vrijednost }).eq('id', aktivniProjekat.id)
+    if (error) alert(`Greška pri čuvanju polja "${polje}": ` + error.message + ' — pokušajte ponovo, izmjena možda nije sačuvana.')
   }
 
   const obrisiProjekat = async (id) => {
     if (!confirm('Obrisati projekat i sve faze i pozicije?')) return
-    await supabase.from('projekti').delete().eq('id', id)
-    setProjekti(prev => prev.filter(p => p.id !== id))
-    if (aktivniProjekat?.id === id) { setAktivniProjekat(null); setFaze([]); setPozicije([]) }
+    try {
+      // Eksplicitno brišemo pozicije i faze PRIJE samog projekta — ne oslanjamo se na to da
+      // baza ima ON DELETE CASCADE (nismo sigurni da ima), da ne bi ostali "siroti" redovi u
+      // bazi koje niko više ne vidi, a koji zauvijek zauzimaju prostor bez ikakve svrhe.
+      const { data: fazeZaBrisanje, error: eFaze1 } = await supabase.from('faze').select('id').eq('projekat_id', id)
+      if (eFaze1) throw eFaze1
+      const fazaIds = (fazeZaBrisanje || []).map(f => f.id)
+      if (fazaIds.length > 0) {
+        const { error: ePoz } = await supabase.from('pozicije').delete().in('faza_id', fazaIds)
+        if (ePoz) throw ePoz
+      }
+      const { error: eFaze2 } = await supabase.from('faze').delete().eq('projekat_id', id)
+      if (eFaze2) throw eFaze2
+      const { error: eProj } = await supabase.from('projekti').delete().eq('id', id)
+      if (eProj) throw eProj
+
+      setProjekti(prev => prev.filter(p => p.id !== id))
+      if (aktivniProjekat?.id === id) { setAktivniProjekat(null); setFaze([]); setPozicije([]) }
+    } catch (e) {
+      alert('Greška pri brisanju projekta: ' + e.message)
+    }
   }
 
   // ── FAZE ──
   const dodajFazu = async () => {
     if (!novaFaza.trim() || !aktivniProjekat) return
-    const { data } = await supabase.from('faze').insert({
+    const { data, error } = await supabase.from('faze').insert({
       projekat_id: aktivniProjekat.id, naziv: novaFaza.trim(), redoslijed: faze.length, struka_kod: aktivnaStruka
     }).select().single()
+    if (error) { alert('Greška pri dodavanju grupe radova: ' + error.message); return }
     if (data) { setNovaFaza(''); setFaze(prev => [...prev, data]); setAktivnaFaza(data) }
   }
 
   const obrisiFeazu = async (id) => {
     if (!confirm('Obrisati grupu radova i sve pozicije?')) return
-    await supabase.from('faze').delete().eq('id', id)
-    setFaze(prev => prev.filter(f => f.id !== id))
-    if (aktivnaFaza?.id === id) { setAktivnaFaza(null); setPozicije([]) }
+    try {
+      // Eksplicitno brišemo pozicije PRIJE same faze — isti razlog kao kod obrisiProjekat gore.
+      const { error: ePoz } = await supabase.from('pozicije').delete().eq('faza_id', id)
+      if (ePoz) throw ePoz
+      const { error: eFaza } = await supabase.from('faze').delete().eq('id', id)
+      if (eFaza) throw eFaza
+
+      setFaze(prev => prev.filter(f => f.id !== id))
+      if (aktivnaFaza?.id === id) { setAktivnaFaza(null); setPozicije([]) }
+    } catch (e) {
+      alert('Greška pri brisanju grupe radova: ' + e.message)
+    }
   }
 
   // ── STRUKE (grupisanje faza po disciplini) ──
@@ -586,9 +634,10 @@ export default function App() {
 
   const azurirajStruke = async (noveStruke) => {
     if (!aktivniProjekat) return
-    await supabase.from('projekti').update({ struke: noveStruke }).eq('id', aktivniProjekat.id)
     setAktivniProjekat(prev => ({ ...prev, struke: noveStruke }))
     setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, struke: noveStruke } : p))
+    const { error } = await supabase.from('projekti').update({ struke: noveStruke }).eq('id', aktivniProjekat.id)
+    if (error) alert('Greška pri čuvanju struka: ' + error.message + ' — izmjena možda nije sačuvana.')
   }
 
   const preimenujStruku = async (kod, noviNaziv) => {
@@ -638,43 +687,61 @@ export default function App() {
   }
 
   const dodajPoziciju = useCallback(async (idx) => {
-    if (!aktivnaFaza) return
-    const item = baza[idx]
-    if (!item) return
-    const roditelji = pozicije.filter(p => !p.parent_id)
-    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
-    // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
-    const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
-    const { data } = await supabase.from('pozicije').insert({
-      faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
-    }).select().single()
-    if (data) setPozicije(prev => [...prev, data])
+    if (!aktivnaFaza || dodavanjeUTokuRef.current) return
+    dodavanjeUTokuRef.current = true
+    try {
+      const item = baza[idx]
+      if (!item) return
+      const roditelji = pozicije.filter(p => !p.parent_id)
+      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
+      const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
+      const { data, error } = await supabase.from('pozicije').insert({
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
+        cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
+      }).select().single()
+      if (error) { alert('Greška pri dodavanju stavke: ' + error.message); return }
+      if (data) setPozicije(prev => [...prev, data])
+    } finally {
+      dodavanjeUTokuRef.current = false
+    }
   }, [aktivnaFaza, pozicije, valuta, baza])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
-    if (!aktivnaFaza) return
-    const roditelji = pozicije.filter(p => !p.parent_id)
-    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
-    const { data } = await supabase.from('pozicije').insert({
-      faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
-      cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
-    }).select().single()
-    if (data) setPozicije(prev => [...prev, data])
+    if (!aktivnaFaza || dodavanjeUTokuRef.current) return
+    dodavanjeUTokuRef.current = true
+    try {
+      const roditelji = pozicije.filter(p => !p.parent_id)
+      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      const { data, error } = await supabase.from('pozicije').insert({
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
+        cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
+      }).select().single()
+      if (error) { alert('Greška pri dodavanju stavke iz moje baze: ' + error.message); return }
+      if (data) setPozicije(prev => [...prev, data])
+    } finally {
+      dodavanjeUTokuRef.current = false
+    }
   }, [aktivnaFaza, pozicije])
 
   const dodajVlastitupoziciju = async () => {
-    if (!aktivnaFaza) return
-    const roditelji = pozicije.filter(p => !p.parent_id)
-    const zadnjaKat = roditelji.length > 0
-      ? roditelji[roditelji.length - 1].kategorija
-      : 'Ostalo'
-    const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
-    const { data } = await supabase.from('pozicije').insert({
-      faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
-      cijena: 0, kategorija: zadnjaKat, redoslijed: red
-    }).select().single()
-    if (data) setPozicije(prev => [...prev, data])
+    if (!aktivnaFaza || dodavanjeUTokuRef.current) return
+    dodavanjeUTokuRef.current = true
+    try {
+      const roditelji = pozicije.filter(p => !p.parent_id)
+      const zadnjaKat = roditelji.length > 0
+        ? roditelji[roditelji.length - 1].kategorija
+        : 'Ostalo'
+      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      const { data, error } = await supabase.from('pozicije').insert({
+        faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
+        cijena: 0, kategorija: zadnjaKat, redoslijed: red
+      }).select().single()
+      if (error) { alert('Greška pri dodavanju vlastite stavke: ' + error.message); return }
+      if (data) setPozicije(prev => [...prev, data])
+    } finally {
+      dodavanjeUTokuRef.current = false
+    }
   }
 
   // ── DRAG & DROP REDOSLIJED ──
@@ -737,7 +804,8 @@ export default function App() {
     }))
 
     for (const u of updates) {
-      await supabase.from('pozicije').update({ redoslijed: u.redoslijed }).eq('id', u.id)
+      const { error } = await supabase.from('pozicije').update({ redoslijed: u.redoslijed }).eq('id', u.id)
+      if (error) console.error('Greška pri čuvanju redoslijeda za poziciju', u.id, error)
     }
 
     dragPoz.current = null
@@ -780,10 +848,19 @@ export default function App() {
     // ON DELETE CASCADE na parent_id) i sačuvaj ih radi mogućnosti opoziva.
     const djecaPoz = pozicije.filter(p => p.parent_id === id)
 
-    for (const d of djecaPoz) {
-      await supabase.from('pozicije').delete().eq('id', d.id)
+    try {
+      for (const d of djecaPoz) {
+        const { error } = await supabase.from('pozicije').delete().eq('id', d.id)
+        if (error) throw error
+      }
+      const { error: eGlavna } = await supabase.from('pozicije').delete().eq('id', id)
+      if (eGlavna) throw eGlavna
+    } catch (e) {
+      // Ne diramo prikaz ako brisanje u bazi nije uspjelo — bez ovoga bi korisnik vidio da je
+      // stavka "nestala" iz tabele iako i dalje postoji u bazi (neusklađeno stanje).
+      alert('Greška pri brisanju stavke: ' + e.message + ' — stavka NIJE obrisana, pokušajte ponovo.')
+      return
     }
-    await supabase.from('pozicije').delete().eq('id', id)
 
     setPozicije(prev => prev.filter(p => p.id !== id && p.parent_id !== id))
 
@@ -806,10 +883,12 @@ export default function App() {
   const napraviMjestoZaUmetanje = async (fazaId, parentId, ciljaniRedoslijed) => {
     let upit = supabase.from('pozicije').select('id, redoslijed').eq('faza_id', fazaId)
     upit = parentId ? upit.eq('parent_id', parentId) : upit.is('parent_id', null)
-    const { data: postojece } = await upit
+    const { data: postojece, error } = await upit
+    if (error) throw error
     const zaPomjeriti = (postojece || []).filter(r => (r.redoslijed ?? 0) >= ciljaniRedoslijed)
     for (const r of zaPomjeriti) {
-      await supabase.from('pozicije').update({ redoslijed: (r.redoslijed ?? 0) + 1 }).eq('id', r.id)
+      const { error: eShift } = await supabase.from('pozicije').update({ redoslijed: (r.redoslijed ?? 0) + 1 }).eq('id', r.id)
+      if (eShift) throw eShift
     }
   }
 
@@ -835,16 +914,21 @@ export default function App() {
       if (e1 || !novaPoz) throw e1 || new Error('Greška pri vraćanju stavke.')
 
       const novaDjeca = []
+      let neuspjelaDjeca = 0
       for (const d of djeca) {
         // Djeca se vraćaju pod NOVIM parent_id (novaPoz.id), koji do ovog trenutka ne postoji
         // ni na jednoj drugoj stavci — nema šanse za sudar redoslijeda, umetanje mjesta nije
         // potrebno, samo se čuva njihov međusobni raniji poredak.
-        const { data: novoDijete } = await supabase.from('pozicije').insert({
+        const { data: novoDijete, error: eDijete } = await supabase.from('pozicije').insert({
           faza_id: d.faza_id, naziv: d.naziv, jedinica: d.jedinica, cijena: d.cijena,
           kolicina: d.kolicina, kategorija: d.kategorija, redoslijed: d.redoslijed,
           sifra: d.sifra || null, opis_visina: d.opis_visina || null, parent_id: novaPoz.id
         }).select().single()
         if (novoDijete) novaDjeca.push(novoDijete)
+        else { neuspjelaDjeca++; console.error('Greška pri vraćanju podstavke:', eDijete) }
+      }
+      if (neuspjelaDjeca > 0) {
+        alert(`Glavna stavka je vraćena, ali ${neuspjelaDjeca} od ${djeca.length} podstavki nije uspjelo da se vrati — provjerite ručno.`)
       }
 
       // Ponovo učitaj kompletnu listu iz baze (umjesto pukog lokalnog dodavanja na kraj niza) —
@@ -860,9 +944,10 @@ export default function App() {
   }
 
   const sacuvajUMojuBazu = async (poz) => {
-    await supabase.from('moja_baza').insert({
+    const { error } = await supabase.from('moja_baza').insert({
       naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena, kategorija: poz.kategorija
     })
+    if (error) { alert('Greška pri čuvanju u moju bazu: ' + error.message); return }
     ucitajMojuBazu()
     alert('Stavka sačuvana u vašu bazu!')
   }
@@ -954,10 +1039,14 @@ export default function App() {
       return nova ? { ...p, cijena: nova.cijena } : p
     }))
 
-    // Snimi u bazu
+    // Snimi u bazu, brojeći eventualne neuspjehe da korisnik ne ostane u uvjerenju da je SVE
+    // uspješno primijenjeno ako neki pojedinačni upis padne (mreža, RLS...).
+    let neuspjelo = 0
     for (const s of stavkeNoveCijene) {
-      await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
+      const { error } = await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
+      if (error) { neuspjelo++; console.error('Greška pri upisu cijene za', s.id, error) }
     }
+    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`)
 
     // Ponovo učitaj iz baze radi sigurnosti (potvrda konzistentnosti)
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
@@ -977,9 +1066,12 @@ export default function App() {
     }))
 
     // Snimi u bazu — direktno u postojeću ćeliju, ne kao nova stavka
+    let neuspjelo = 0
     for (const s of stavkeIzmjene) {
-      await supabase.from('pozicije').update({ naziv: s.noviOpis }).eq('id', s.id)
+      const { error } = await supabase.from('pozicije').update({ naziv: s.noviOpis }).eq('id', s.id)
+      if (error) { neuspjelo++; console.error('Greška pri upisu izmjene za', s.id, error) }
     }
+    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeIzmjene.length} izmjena nije uspjelo da se sačuva — provjerite tabelu.`)
 
     // Ponovo učitaj iz baze radi sigurnosti
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
@@ -1028,10 +1120,16 @@ export default function App() {
 
     try {
       const svePozicije = {}
-      for (const f of faze) {
-        const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+      // Paralelno (ne sekvencijalno) učitavanje pozicija za sve faze — brže za projekte sa
+      // više grupa radova nego čekanje svake faze jednu po jednu.
+      const rezultatiFetch = await Promise.all(
+        faze.map(f => supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed'))
+      )
+      faze.forEach((f, i) => {
+        const { data, error } = rezultatiFetch[i]
+        if (error) throw error
         svePozicije[f.id] = data || []
-      }
+      })
 
       const response = await fetch('/api/excel', {
         method: 'POST',
@@ -1065,13 +1163,24 @@ export default function App() {
     if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za štampu.'); return }
 
     const svePozicije = {}
-    for (const f of faze) {
-      const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
-      svePozicije[f.id] = data || []
+    // Paralelno (ne sekvencijalno) učitavanje pozicija za sve faze — brže za projekte sa više
+    // grupa radova nego čekanje svake faze jednu po jednu.
+    const rezultatiFetchPdf = await Promise.all(
+      faze.map(f => supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed'))
+    )
+    for (let i = 0; i < faze.length; i++) {
+      const { data, error } = rezultatiFetchPdf[i]
+      if (error) { alert('Greška pri učitavanju podataka za štampu: ' + error.message); return }
+      svePozicije[faze[i].id] = data || []
     }
 
     const proj = aktivniProjekat
     const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
+    // Isti obrazac zaštite od HTML specijalnih znakova koji se već koristi za naziv/šifru
+    // pozicije, sad primijenjen i na podatke o projektu (naziv, investitor, adresa, datum) —
+    // ranije SAMO naziv pozicije je bio zaštićen, ova polja nisu, pa bi npr. "&" ili "<" u
+    // nazivu projekta moglo vizuelno polomiti generisani PDF dokument.
+    const escHtml = s => (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
     const grupirajPozicije = (poz) => {
       const roditelji = poz.filter(p => !p.parent_id)
@@ -1270,7 +1379,7 @@ export default function App() {
 </table>` : ''
 
     const html = `<!DOCTYPE html><html lang="bs">
-<head><meta charset="UTF-8"><title>Predmjer — ${proj.naziv||''}</title>
+<head><meta charset="UTF-8"><title>Predmjer — ${escHtml(proj.naziv)}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
   body { font-family:Arial,sans-serif; font-size:10pt; color:#111; }
@@ -1327,12 +1436,12 @@ export default function App() {
 <div class="header">
   ${firma?.logo ? `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>` : ''}
   <h1 style="text-align:center;">PREDMJER I PREDRAČUN</h1>
-  ${filtrirajStruku ? `<div style="text-align:center;font-size:10pt;color:#4A637C;margin-top:-4px;margin-bottom:6px;">— ${struke.find(s=>s.kod===filtrirajStruku)?.naziv || ''} —</div>` : ''}
+  ${filtrirajStruku ? `<div style="text-align:center;font-size:10pt;color:#4A637C;margin-top:-4px;margin-bottom:6px;">— ${escHtml(struke.find(s=>s.kod===filtrirajStruku)?.naziv || '')} —</div>` : ''}
   <div class="info">
-    <div><span>Projekat: </span><strong>${proj.naziv||'—'}</strong></div>
-    <div style="text-align:right;"><span>Investitor: </span><strong>${proj.klijent||'—'}</strong></div>
-    <div><span>Datum: </span>${proj.datum||'—'}</div>
-    <div style="text-align:right;"><span>Lokacija: </span>${proj.adresa||'—'}</div>
+    <div><span>Projekat: </span><strong>${escHtml(proj.naziv)||'—'}</strong></div>
+    <div style="text-align:right;"><span>Investitor: </span><strong>${escHtml(proj.klijent)||'—'}</strong></div>
+    <div><span>Datum: </span>${escHtml(proj.datum)||'—'}</div>
+    <div style="text-align:right;"><span>Lokacija: </span>${escHtml(proj.adresa)||'—'}</div>
   </div>
 </div>
 ${sviFazeSadrzaj}
@@ -1375,7 +1484,7 @@ ${globalnaRekapitulacijaHtml}
     const rod = pozicije.filter(p => !p.parent_id)
     const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
 
-    const { data } = await supabase.from('pozicije').insert({
+    const { data, error } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id,
       naziv: cleanNaziv,
       jedinica: stavka.jedinica || 'm²',
@@ -1383,6 +1492,7 @@ ${globalnaRekapitulacijaHtml}
       kategorija: aktivnaKategorija,
       redoslijed: red
     }).select().single()
+    if (error) { alert('Greška pri dodavanju stavke iz AI asistenta: ' + error.message); return }
     if (data) setPozicije(prev => [...prev, data])
   }
 
@@ -1393,9 +1503,10 @@ ${globalnaRekapitulacijaHtml}
     if (!confirm(`Klonirati projekat "${aktivniProjekat.naziv}"? Bit će kreiran novi projekat sa svim fazama i pozicijama.`)) return
     
     setKloniranjeLoading(true)
+    let neuspjelihStavki = 0
     try {
       // Kreiraj novi projekat
-      const { data: noviProj } = await supabase.from('projekti').insert({
+      const { data: noviProj, error: eProj } = await supabase.from('projekti').insert({
         naziv: aktivniProjekat.naziv + ' — KOPIJA',
         klijent: aktivniProjekat.klijent,
         adresa: aktivniProjekat.adresa,
@@ -1410,24 +1521,26 @@ ${globalnaRekapitulacijaHtml}
         struke: aktivniProjekat.struke || DEFAULT_STRUKE
       }).select().single()
 
-      if (!noviProj) throw new Error('Greška pri kreiranju projekta')
+      if (eProj || !noviProj) throw eProj || new Error('Greška pri kreiranju projekta')
 
       // Ucitaj sve faze originalnog projekta
-      const { data: originalFaze } = await supabase.from('faze').select('*').eq('projekat_id', aktivniProjekat.id).order('redoslijed')
-      
+      const { data: originalFaze, error: eFaze } = await supabase.from('faze').select('*').eq('projekat_id', aktivniProjekat.id).order('redoslijed')
+      if (eFaze) throw eFaze
+
       // Za svaku fazu kreiraj kopiju
       for (const f of (originalFaze || [])) {
-        const { data: novaFaza } = await supabase.from('faze').insert({
+        const { data: novaFaza, error: eNovaFaza } = await supabase.from('faze').insert({
           projekat_id: noviProj.id,
           naziv: f.naziv,
           redoslijed: f.redoslijed,
           struka_kod: f.struka_kod
         }).select().single()
 
-        if (!novaFaza) continue
+        if (eNovaFaza || !novaFaza) { console.error('Greška pri kloniranju faze', f.naziv, eNovaFaza); continue }
 
         // Ucitaj pozicije ove faze i kopiraj ih sa parent_id vezama
-        const { data: originalPoz } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+        const { data: originalPoz, error: ePoz } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+        if (ePoz) { console.error('Greška pri učitavanju pozicija za kloniranje, faza', f.naziv, ePoz); continue }
         
         if (originalPoz && originalPoz.length > 0) {
           // Prvo ubaci roditelje (bez parent_id)
@@ -1435,7 +1548,7 @@ ${globalnaRekapitulacijaHtml}
           const idMapa = {} // stari_id -> novi_id
 
           for (const p of roditelji) {
-            const { data: novaPoz } = await supabase.from('pozicije').insert({
+            const { data: novaPoz, error: eNovaPoz } = await supabase.from('pozicije').insert({
               faza_id: novaFaza.id,
               naziv: p.naziv,
               jedinica: p.jedinica,
@@ -1448,6 +1561,7 @@ ${globalnaRekapitulacijaHtml}
               parent_id: null
             }).select().single()
             if (novaPoz) idMapa[p.id] = novaPoz.id
+            else { neuspjelihStavki++; console.error('Greška pri kloniranju stavke:', eNovaPoz) }
           }
 
           // Zatim ubaci podstavke sa mapiranim parent_id
@@ -1455,7 +1569,7 @@ ${globalnaRekapitulacijaHtml}
           for (const d of djeca) {
             const noviParentId = idMapa[d.parent_id]
             if (!noviParentId) continue
-            await supabase.from('pozicije').insert({
+            const { error: eDijete } = await supabase.from('pozicije').insert({
               faza_id: novaFaza.id,
               naziv: d.naziv,
               jedinica: d.jedinica,
@@ -1467,6 +1581,7 @@ ${globalnaRekapitulacijaHtml}
               opis_visina: d.opis_visina || null,
               parent_id: noviParentId
             })
+            if (eDijete) { neuspjelihStavki++; console.error('Greška pri kloniranju podstavke:', eDijete) }
           }
         }
       }
@@ -1478,6 +1593,9 @@ ${globalnaRekapitulacijaHtml}
       // Napomena: postavljanje aktivniProjekat gore automatski pokreće useEffect na
       // aktivniProjekat?.id, koji učitava faze i bira prvu grupu radova nove (klonirane)
       // strukе — ista logika kao pri običnom ulasku u aplikaciju, bez potrebe za duplim kodom.
+      if (neuspjelihStavki > 0) {
+        alert(`Projekat je kloniran, ali ${neuspjelihStavki} stavki nije uspjelo da se kopira — provjerite klon i po potrebi ih ručno dodajte.`)
+      }
     } catch(e) {
       alert('Greška pri kloniranju: ' + e.message)
     }
@@ -1492,10 +1610,16 @@ ${globalnaRekapitulacijaHtml}
     if (!aktivniProjekat) { alert('Odaberite projekat za izvoz.'); return }
     try {
       const svePozicije = {}
-      for (const f of faze) {
-        const { data } = await supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed')
+      // Paralelno (ne sekvencijalno) učitavanje pozicija za sve faze — brže za projekte sa
+      // više grupa radova nego čekanje svake faze jednu po jednu.
+      const rezultatiFetch = await Promise.all(
+        faze.map(f => supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed'))
+      )
+      faze.forEach((f, i) => {
+        const { data, error } = rezultatiFetch[i]
+        if (error) throw error
         svePozicije[f.id] = data || []
-      }
+      })
 
       const izvozFaze = faze.map(f => {
         const poz = svePozicije[f.id] || []
@@ -1539,6 +1663,7 @@ ${globalnaRekapitulacijaHtml}
   // smije imati mogućnost da "pogodi" i prepiše nešto što korisnik već ima.
   const ucitajProjekatIzFajla = async (file) => {
     setUvozLoading(true)
+    let neuspjelihStavki = 0
     try {
       const tekst = await file.text()
       let podaci
@@ -1565,7 +1690,7 @@ ${globalnaRekapitulacijaHtml}
           projekat_id: noviProj.id, naziv: f.naziv || 'Grupa radova',
           redoslijed: f.redoslijed ?? 0, struka_kod: f.struka_kod || 'gradjevinski'
         }).select().single()
-        if (eFaza || !novaFaza) continue
+        if (eFaza || !novaFaza) { console.error('Greška pri uvozu grupe radova', f.naziv, eFaza); continue }
 
         const stavke = Array.isArray(f.pozicije) ? f.pozicije : []
         const idMapa = new Map() // _lokalniId iz fajla -> stvarni novi DB id
@@ -1573,13 +1698,14 @@ ${globalnaRekapitulacijaHtml}
         // Prvo roditelji (bez _roditeljLokalniId), da postoji mapa prije umetanja podstavki
         const roditelji = stavke.filter(s => s._roditeljLokalniId == null)
         for (const s of roditelji) {
-          const { data: novaPoz } = await supabase.from('pozicije').insert({
+          const { data: novaPoz, error: eNovaPoz } = await supabase.from('pozicije').insert({
             faza_id: novaFaza.id, naziv: s.naziv || '', jedinica: s.jedinica || 'm²',
             cijena: s.cijena || 0, kolicina: s.kolicina || 0, kategorija: s.kategorija || 'Ostalo',
             redoslijed: s.redoslijed ?? 0, sifra: s.sifra || null, opis_visina: s.opis_visina || null,
             parent_id: null
           }).select().single()
           if (novaPoz) idMapa.set(s._lokalniId, novaPoz.id)
+          else { neuspjelihStavki++; console.error('Greška pri uvozu stavke:', eNovaPoz) }
         }
 
         // Zatim podstavke, mapirane na novokreirane parent ID-jeve
@@ -1587,17 +1713,21 @@ ${globalnaRekapitulacijaHtml}
         for (const s of djeca) {
           const noviParentId = idMapa.get(s._roditeljLokalniId)
           if (!noviParentId) continue
-          await supabase.from('pozicije').insert({
+          const { error: eDijete } = await supabase.from('pozicije').insert({
             faza_id: novaFaza.id, naziv: s.naziv || '', jedinica: s.jedinica || 'm²',
             cijena: s.cijena || 0, kolicina: s.kolicina || 0, kategorija: s.kategorija || 'Ostalo',
             redoslijed: s.redoslijed ?? 0, sifra: s.sifra || null, opis_visina: s.opis_visina || null,
             parent_id: noviParentId
           })
+          if (eDijete) { neuspjelihStavki++; console.error('Greška pri uvozu podstavke:', eDijete) }
         }
       }
 
       await ucitajProjekte()
       setAktivniProjekat(noviProj)
+      if (neuspjelihStavki > 0) {
+        alert(`Projekat je uvezen, ali ${neuspjelihStavki} stavki nije uspjelo da se prenese — provjerite uvezeni projekat.`)
+      }
     } catch (e) {
       alert('Greška pri uvozu projekta: ' + e.message)
     }
