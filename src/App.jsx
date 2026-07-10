@@ -1250,8 +1250,8 @@ export default function App() {
             const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
             const sifra = (p.sifra||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             rows += `<tr>
-              <td class="c">${rb++}</td>
-              <td class="c" style="font-size:8.5pt;color:#555">${sifra||'—'}</td>
+              <td class="c" style="font-size:11pt;color:#002060;font-weight:600;vertical-align:middle">${rb++}</td>
+              <td class="c" style="font-size:8.5pt;color:#8A94A0;vertical-align:middle">${sifra||'—'}</td>
               <td class="opis">${naziv}</td>
               <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
               <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
@@ -1289,7 +1289,7 @@ export default function App() {
 
         if (prikaziDetalj) {
           sviFazeSadrzaj += `
-            <div class="faza-header"><h2>${f.naziv.toUpperCase()}</h2></div>
+            <div class="faza-header"><h2>${(() => { const sif = SIFRA_KATEGORIJE_MAP.get((f.naziv||'').trim()); return escHtml(sif ? `${sif}. ${f.naziv.toUpperCase()}` : f.naziv.toUpperCase()) })()}</h2></div>
             <table>
               <thead><tr>
                 <th class="c" style="width:30px">R.br.</th>
@@ -1385,6 +1385,7 @@ export default function App() {
   body { font-family:Arial,sans-serif; font-size:10pt; color:#111; }
   .header { margin-bottom:16px; border-bottom:2px solid #1B2F43; padding-bottom:10px; }
   .header h1 { font-size:15pt; color:#1B2F43; margin-bottom:6px; }
+  .header h1 { font-size:15pt; color:#1B2F43; margin-bottom:6px; background:#B9CDE5 !important; padding:8px 10px; text-align:center; border-radius:2px; }
   .info { display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; font-size:9pt; margin-top:8px; }
   .info span { color:#555; }
   .struka-blok { page-break-after:avoid; }
@@ -1393,7 +1394,7 @@ export default function App() {
   .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; font-size:11pt; font-weight:700; padding:8px 12px; margin:6px 0 10px; border-top:2px solid #1B2F43; border-bottom:2px solid #1B2F43; display:flex; justify-content:space-between; }
   .struka-korekcija { margin:0 0 22px; }
   .struka-korekcija td { font-size:9.5pt; padding:4px 12px; border-bottom:none; }
-  .faza-header h2 { font-size:11pt; color:#1B2F43; margin:14px 0 5px; padding-bottom:3px; border-bottom:1px solid #4A637C; }
+  .faza-header h2 { font-size:14pt; color:#1B2F43; margin:14px 0 5px; padding:6px 10px; border-bottom:1px solid #4A637C; background:#B9CDE5 !important; border-radius:2px; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
   th { background:#1B2F43 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
   th.r { text-align:right; } th.c { text-align:center; }
@@ -1430,6 +1431,8 @@ export default function App() {
     .pod-sum td { background:#F5F6F8 !important; }
     .struka-naslov { background:#1B2F43 !important; color:#fff !important; }
     .struka-total { background:#E8ECF0 !important; color:#1B2F43 !important; }
+    .header h1 { background:#B9CDE5 !important; }
+    .faza-header h2 { background:#B9CDE5 !important; }
   }
 </style></head>
 <body>
