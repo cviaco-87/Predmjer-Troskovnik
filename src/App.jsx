@@ -1819,12 +1819,15 @@ ${globalnaRekapitulacijaHtml}
           {projekti.length > 0 ? (
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <select value={aktivniProjekat?.id || ''}
-                  onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
-                  style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer' }}>
-                  <option value="" disabled>— Odaberite projekat —</option>
-                  {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
-                </select>
+                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                  <select value={aktivniProjekat?.id || ''}
+                    onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
+                    style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 28px 7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <option value="" disabled>— Odaberite projekat —</option>
+                    {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
+                  </select>
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 11 }}>▾</span>
+                </div>
                 {aktivniProjekat && (
                   <>
                     <button onClick={klonirajProjekat} disabled={kloniranjeLoading} title="Kloniraj projekat"
@@ -1979,12 +1982,15 @@ ${globalnaRekapitulacijaHtml}
               return fazeUFazi.length > 0 ? (
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <select value={aktivnaPripada ? aktivnaFaza.id : ''}
-                      onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
-                      style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer' }}>
-                      <option value="" disabled>— Odaberite grupu radova —</option>
-                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
-                    </select>
+                    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                      <select value={aktivnaPripada ? aktivnaFaza.id : ''}
+                        onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
+                        style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 28px 7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        <option value="" disabled>— Odaberite grupu radova —</option>
+                        {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
+                      </select>
+                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 11 }}>▾</span>
+                    </div>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
                         style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
