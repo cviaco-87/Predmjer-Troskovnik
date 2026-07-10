@@ -181,6 +181,10 @@ Kako mogu pomoći? Npr:
   const [modalCijene, setModalCijene] = useState(null)
   const [modalIzmjene, setModalIzmjene] = useState(null) // { stavke: [{id, stariOpis, noviOpis, obrazlozenje, prihvacena}] }
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
+  // Posljednja primijenjena AI grupna izmjena (cijene ili opisi) — omogućava opoziv jednim
+  // klikom, sve dok korisnik ne primijeni neku SLJEDEĆU grupnu izmjenu (samo jedan nivo undo-a,
+  // isto kao i undo brisanja pozicije u App.jsx — jednostavno i predvidljivo, ne pun undo/redo stog).
+  const [zadnjaAIizmjena, setZadnjaAIizmjena] = useState(null) // { tip: 'cijene'|'izmjene', stavke: [{id, staraVrijednost, novaVrijednost}] }
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const [historija, setHistorija] = useState([])
@@ -374,10 +378,15 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
     if (onProcijeniCijene) await onProcijeniCijene(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
     setPrimjenaLoading(false)
     setModalCijene(null)
+    // Zapamti staru/novu vrijednost svake stavke da bi "Opozovi" mogao vratiti tačno ove cijene
+    setZadnjaAIizmjena({
+      tip: 'cijene',
+      stavke: prihvacene.map(s => ({ id: s.id, staraVrijednost: s.staraCijena, novaVrijednost: s.novaCijena }))
+    })
     setPoruke(prev => [...prev, {
       uloga: 'asistent',
       tekst: `✅ Primijenjeno ${prihvacene.length} cijena u valuti ${modalCijene.valuta}. Možete ih ručno prilagoditi u tabeli.`,
-      stavka: null, cijene: null
+      stavka: null, cijene: null, mozeOpozvati: true
     }])
   }
 
@@ -388,11 +397,39 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
     if (onPrimijeniIzmjene) await onPrimijeniIzmjene(prihvacene.map(s => ({ id: s.id, noviOpis: s.noviOpis })))
     setPrimjenaLoading(false)
     setModalIzmjene(null)
+    setZadnjaAIizmjena({
+      tip: 'izmjene',
+      stavke: prihvacene.map(s => ({ id: s.id, staraVrijednost: s.stariOpis, novaVrijednost: s.noviOpis }))
+    })
     setPoruke(prev => [...prev, {
       uloga: 'asistent',
       tekst: `✅ Primijenjeno ${prihvacene.length} izmjena direktno u postojeće stavke. Ništa nije dodato kao nova stavka.`,
-      stavka: null, cijene: null
+      stavka: null, cijene: null, mozeOpozvati: true
     }])
+  }
+
+  // Vraća posljednju primijenjenu AI grupnu izmjenu (cijene ili opise) na prethodne vrijednosti.
+  // Radi samo za JEDNU, najskoriju grupnu izmjenu — čim se primijeni nova grupna izmjena poslije
+  // ove, opoziv prethodne više nije moguć (isto ograničenje kao undo brisanja pozicije u App.jsx).
+  const opozoviZadnjuAIizmjenu = async () => {
+    if (!zadnjaAIizmjena) return
+    setPrimjenaLoading(true)
+    try {
+      if (zadnjaAIizmjena.tip === 'cijene' && onProcijeniCijene) {
+        await onProcijeniCijene(zadnjaAIizmjena.stavke.map(s => ({ id: s.id, cijena: s.staraVrijednost })))
+      } else if (zadnjaAIizmjena.tip === 'izmjene' && onPrimijeniIzmjene) {
+        await onPrimijeniIzmjene(zadnjaAIizmjena.stavke.map(s => ({ id: s.id, noviOpis: s.staraVrijednost })))
+      }
+      setPoruke(prev => [...prev, {
+        uloga: 'asistent',
+        tekst: `↩️ Opozvano — vraćeno na prethodne vrijednosti za ${zadnjaAIizmjena.stavke.length} stavki.`,
+        stavka: null, cijene: null
+      }])
+    } catch (e) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Greška pri opozivu: ' + e.message, stavka: null, cijene: null }])
+    }
+    setPrimjenaLoading(false)
+    setZadnjaAIizmjena(null)
   }
 
   const renderTekst = (tekst) => {
@@ -533,6 +570,15 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
                 <div style={{ background: p.uloga === 'korisnik' ? '#1B2F43' : '#F5F4F0', color: p.uloga === 'korisnik' ? '#fff' : '#1A1A18', borderRadius: p.uloga === 'korisnik' ? '16px 4px 16px 16px' : '4px 16px 16px 16px', padding: '10px 13px', fontSize: 12.5, lineHeight: 1.6 }}>
                   {renderTekst(p.tekst)}
                 </div>
+              )}
+              {/* Dugme za opoziv — prikazuje se samo uz POSLJEDNJU poruku u razgovoru, i samo dok
+                  postoji nešto što se stvarno može opozvati (nije već opozvano ili zamijenjeno
+                  novijom grupnom izmjenom) */}
+              {p.mozeOpozvati && idx === poruke.length - 1 && zadnjaAIizmjena && (
+                <button onClick={opozoviZadnjuAIizmjenu} disabled={primjenaLoading}
+                  style={{ marginTop: 6, background: '#fff', border: '1px solid #C0392B', color: '#C0392B', borderRadius: 8, padding: '6px 12px', fontSize: 11.5, fontWeight: 600, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                  ↩️ Opozovi ovu izmjenu
+                </button>
               )}
               {p.stavka && (
                 <div style={{ marginTop: 8, background: '#fff', border: '2px solid #1B2F43', borderRadius: 10, overflow: 'hidden' }}>
