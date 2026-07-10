@@ -368,7 +368,7 @@ export default function App() {
   const [firmaLoading, setFirmaLoading] = useState(false)
   const [aktivnaStruka, setAktivnaStruka] = useState('gradjevinski')
   const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
-  const [editFazaNaziv, setEditFazaNaziv] = useState(false) // da li se trenutno preimenuje aktivna grupa radova
+  const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' | 'sidebar' — koje od dva mjesta trenutno preimenuje grupu radova (samo jedno odjednom, da ne bi oba istovremeno tražila fokus)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
@@ -457,7 +457,7 @@ export default function App() {
   useEffect(() => {
     if (aktivnaFaza) ucitajPozicije(aktivnaFaza.id)
     else setPozicije([])
-    setEditFazaNaziv(false)
+    setEditFazaNazivMjesto(null)
   }, [aktivnaFaza])
 
   // KLJUČNO: resetuj undo-stog (izmjene polja) i traku za opoziv brisanja svaki put kad se
@@ -1994,13 +1994,13 @@ ${globalnaRekapitulacijaHtml}
                   </div>
                   {aktivnaPripada && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
-                      {editFazaNaziv ? (
+                      {editFazaNazivMjesto === 'sidebar' ? (
                         <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
-                          onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNaziv(false) }}
-                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNaziv(false) }}
+                          onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNazivMjesto(null) }}
+                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNazivMjesto(null) }}
                           style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff', marginRight: 8 }} />
                       ) : (
-                        <span style={{ color: '#888', cursor: 'text' }} onDoubleClick={() => setEditFazaNaziv(true)} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
+                        <span style={{ color: '#888', cursor: 'text' }} onDoubleClick={() => setEditFazaNazivMjesto('sidebar')} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
                       )}
                       <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
                     </div>
@@ -2097,14 +2097,14 @@ ${globalnaRekapitulacijaHtml}
             <>
               {/* Toolbar */}
               <div style={{ background: '#556575', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.15)', margin: '12px 12px 10px 12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-                {editFazaNaziv ? (
+                {editFazaNazivMjesto === 'toolbar' ? (
                   <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
-                    onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNaziv(false) }}
-                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNaziv(false) }}
+                    onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNazivMjesto(null) }}
+                    onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNazivMjesto(null) }}
                     style={{ fontWeight: 700, fontSize: 15, color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 4, padding: '2px 8px', fontFamily: 'inherit', background: '#fff' }} />
                 ) : (
                   <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', cursor: 'text' }}
-                    onDoubleClick={() => setEditFazaNaziv(true)} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
+                    onDoubleClick={() => setEditFazaNazivMjesto('toolbar')} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
                 )}
                 <button onClick={opozoviZadnjuIzmjenu} disabled={istorijaIzmjena.length === 0}
                   title={istorijaIzmjena.length > 0 ? `Opozovi zadnju izmjenu (${istorijaIzmjena.length} na čekanju)` : 'Nema izmjena za opoziv'}
