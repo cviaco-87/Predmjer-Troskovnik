@@ -352,7 +352,6 @@ export default function App() {
     const uEUR = iznos / (KURSEVI[izValute] || 1)
     return uEUR * (KURSEVI[uValutu] || 1)
   }
-  const [editPoz, setEditPoz] = useState(null)
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [uvozLoading, setUvozLoading] = useState(false)
   const uvozInputRef = React.useRef(null)
@@ -2077,8 +2076,9 @@ ${globalnaRekapitulacijaHtml}
                 </button>
                 <div style={{ flex: 1 }}></div>
                 {/* Valutni meni */}
-                <select value={valuta} onChange={e => promijeniValutu(e.target.value)}
-                  style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                <select value={valuta} onChange={e => promijeniValutu(e.target.value)} disabled={loading}
+                  title={loading ? 'Konvertujem cijene...' : undefined}
+                  style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
                   {VALUTE.map(v => <option key={v.kod} value={v.kod} style={{ color: '#1B2F43' }}>Valuta ({v.kod})</option>)}
                 </select>
                 {/* Export dugmad sa padajućim menijem */}
