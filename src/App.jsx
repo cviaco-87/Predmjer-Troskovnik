@@ -133,7 +133,7 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -189,6 +189,16 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', maxHeight: 280, flexShrink: 0 }}>
+      {zamjenaNaziv && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#FFF3D6', borderBottom: '1px solid #C9954E', fontSize: 12, color: '#8A6524' }}>
+          <span>🔁 Birate zamjenu za: <strong>{zamjenaNaziv}</strong> — kliknite stavku ispod da je zamijeni</span>
+          <div style={{ flex: 1 }}></div>
+          <button onClick={onOtkaziZamjenu}
+            style={{ background: 'transparent', border: '1px solid #C9954E', borderRadius: 6, color: '#8A6524', cursor: 'pointer', fontSize: 11, padding: '3px 8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            Otkaži
+          </button>
+        </div>
+      )}
       {/* Tabovi */}
       <div style={{ display: 'flex', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
         {[['glavna', `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
@@ -368,6 +378,7 @@ export default function App() {
   const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
   const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' — da li se trenutno preimenuje aktivna grupa radova (jedino mjesto za to je traka na vrhu; sidebar linija je uklonjena kao suvišna)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
+  const [zamjenaPozicijaId, setZamjenaPozicijaId] = useState(null) // ID glavne stavke koja čeka da bude zamijenjena novom iz baze (klik na "🔁")
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
   // radi kratkotrajne mogućnosti vraćanja ("Opozovi" traka pri dnu ekrana). Samo jedan nivo undo-a
@@ -456,6 +467,7 @@ export default function App() {
     if (aktivnaFaza) ucitajPozicije(aktivnaFaza.id)
     else setPozicije([])
     setEditFazaNazivMjesto(null)
+    setZamjenaPozicijaId(null)
   }, [aktivnaFaza])
 
   // KLJUČNO: resetuj undo-stog (izmjene polja) i traku za opoziv brisanja svaki put kad se
@@ -695,11 +707,20 @@ export default function App() {
   }
 
   const dodajPoziciju = useCallback(async (idx) => {
+    const item = baza[idx]
+    if (!item) return
+
+    // Ako je "zamjena" aktivna (korisnik je kliknuo 🔁 na nekoj stavci), prepiši TU postojeću
+    // stavku umjesto da dodaješ novu — isti ID, isto mjesto u tabeli, ista šifra pozicije.
+    if (zamjenaPozicijaId) {
+      const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: item.m, cijena: cijenaUValuti, kategorija: item.k, sifra: item.s || null })
+      return
+    }
+
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
     dodavanjeUTokuRef.current = true
     try {
-      const item = baza[idx]
-      if (!item) return
       const roditelji = pozicije.filter(p => !p.parent_id)
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
@@ -713,9 +734,15 @@ export default function App() {
     } finally {
       dodavanjeUTokuRef.current = false
     }
-  }, [aktivnaFaza, pozicije, valuta, baza])
+  }, [aktivnaFaza, pozicije, valuta, baza, zamjenaPozicijaId])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
+    // Ista logika zamjene kao u dodajPoziciju gore, ali za stavke iz "Moja baza" taba.
+    if (zamjenaPozicijaId) {
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: item.m, cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
+      return
+    }
+
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
     dodavanjeUTokuRef.current = true
     try {
@@ -730,7 +757,7 @@ export default function App() {
     } finally {
       dodavanjeUTokuRef.current = false
     }
-  }, [aktivnaFaza, pozicije])
+  }, [aktivnaFaza, pozicije, zamjenaPozicijaId])
 
   const dodajVlastitupoziciju = async () => {
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
@@ -958,6 +985,26 @@ export default function App() {
     if (error) { alert('Greška pri čuvanju u moju bazu: ' + error.message); return }
     ucitajMojuBazu()
     alert('Stavka sačuvana u vašu bazu!')
+  }
+
+  // ── ZAMJENA POSTOJEĆE STAVKE NOVOM IZ BAZE (U MJESTU) ──
+  // Korisnik označi glavnu stavku (🔁), pa klikne rezultat pretrage — umjesto da se doda NOVI
+  // red, PREPIŠE SE postojeći: isti ID, isti redoslijed (dakle ista pozicija u tabeli i ista
+  // šifra pozicije koju korisnik vidi kao "redni broj"), samo se sadržaj (naziv/jedinica/cijena/
+  // kategorija/šifra iz kataloga) mijenja. Količina se namjerno resetuje na 0 — stara količina
+  // se odnosila na PRETHODNU stavku i može biti besmislena za novu (npr. druga jedinica mjere).
+  const zamijeniPoziciju = async (id, noviPodaci) => {
+    const { error } = await supabase.from('pozicije').update({
+      naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
+      kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
+    }).eq('id', id)
+    if (error) { alert('Greška pri zamjeni stavke: ' + error.message); return }
+    setPozicije(prev => prev.map(p => p.id === id ? {
+      ...p, naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
+      kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
+    } : p))
+    setRevizija(r => r + 1) // forsira sva nekontrolisana polja te pozicije (naziv/cijena/šifra/količina/jedinica) da prikažu nove vrijednosti
+    setZamjenaPozicijaId(null)
   }
 
   // ── PROMJENA VALUTE — konvertuje sve postojeće cijene u projektu po tekućem kursu ──
@@ -2133,6 +2180,8 @@ ${globalnaRekapitulacijaHtml}
                 baza={baza}
                 bazaUcitavanje={bazaUcitavanje}
                 onDodajVlastitu={dodajVlastitupoziciju}
+                zamjenaNaziv={zamjenaPozicijaId ? (pozicije.find(p => p.id === zamjenaPozicijaId)?.naziv || '(bez naziva)') : null}
+                onOtkaziZamjenu={() => setZamjenaPozicijaId(null)}
               />
               </div>
 
@@ -2167,6 +2216,7 @@ ${globalnaRekapitulacijaHtml}
                               ? { glavna: '#DCE3EA', pod: '#D5DEE6', zbir: '#CDD8E1' }
                               : { glavna: '#F3F6F9', pod: '#EFF3F6', zbir: '#E9EEF2' }
                             const hoverBg = '#FFFBEA'
+                            const jeArmiranoZaZamjenu = zamjenaPozicijaId === p.id
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -2176,9 +2226,9 @@ ${globalnaRekapitulacijaHtml}
                                   onDragEnd={onDragEnd}
                                   onDragOver={e => onDragOver(e, p)}
                                   onDrop={e => onDrop(e, p)}
-                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: paleta.glavna, cursor: 'grab' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = hoverBg}
-                                  onMouseLeave={e => e.currentTarget.style.background = paleta.glavna}>
+                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px' }}
+                                  onMouseEnter={e => { if (!jeArmiranoZaZamjenu) e.currentTarget.style.background = hoverBg }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna }}>
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
@@ -2293,6 +2343,13 @@ ${globalnaRekapitulacijaHtml}
                                         + pod
                                       </button>
                                       <div className="red-akcije" style={{ display: 'flex', gap: 2 }}>
+                                        {!imadjece && (
+                                          <button onClick={() => setZamjenaPozicijaId(prev => prev === p.id ? null : p.id)}
+                                            title={zamjenaPozicijaId === p.id ? 'Otkaži zamjenu' : 'Zamijeni ovu stavku novom iz baze'}
+                                            style={{ background: zamjenaPozicijaId === p.id ? '#F4B740' : 'none', border: zamjenaPozicijaId === p.id ? '1px solid #C9954E' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: zamjenaPozicijaId === p.id ? 1 : 0.6 }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                            onMouseLeave={e => { if (zamjenaPozicijaId !== p.id) e.currentTarget.style.opacity = '0.6' }}>🔁</button>
+                                        )}
                                         <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: 0.6 }}
                                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
