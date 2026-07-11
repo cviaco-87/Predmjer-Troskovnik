@@ -209,9 +209,8 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
           style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
         {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
-          <div style={{ position: 'relative', minWidth: 150 }}>
           <select value={kat} onChange={e => setKat(e.target.value)}
-            style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 26px 7px 7px', fontSize: 12, fontFamily: 'inherit', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: '#fff' }}>
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
             <option value="">— Sve kategorije —</option>
             {jePoznataStruka ? (
               aktivnaStruka === 'gradjevinski' ? (
@@ -252,8 +251,6 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
               </>
             )}
           </select>
-          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
-          </div>
         )}
         <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
           style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -1822,15 +1819,12 @@ ${globalnaRekapitulacijaHtml}
           {projekti.length > 0 ? (
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                  <select value={aktivniProjekat?.id || ''}
-                    onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
-                    style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 28px 7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                    <option value="" disabled>— Odaberite projekat —</option>
-                    {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
-                  </select>
-                  <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
-                </div>
+                <select value={aktivniProjekat?.id || ''}
+                  onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                  <option value="" disabled>— Odaberite projekat —</option>
+                  {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
+                </select>
                 {aktivniProjekat && (
                   <>
                     <button onClick={klonirajProjekat} disabled={kloniranjeLoading} title="Kloniraj projekat"
@@ -1985,15 +1979,12 @@ ${globalnaRekapitulacijaHtml}
               return fazeUFazi.length > 0 ? (
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                      <select value={aktivnaPripada ? aktivnaFaza.id : ''}
-                        onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
-                        style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 28px 7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                        <option value="" disabled>— Odaberite grupu radova —</option>
-                        {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
-                      </select>
-                      <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
-                    </div>
+                    <select value={aktivnaPripada ? aktivnaFaza.id : ''}
+                      onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
+                      style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      <option value="" disabled>— Odaberite grupu radova —</option>
+                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
+                    </select>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
                         style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
