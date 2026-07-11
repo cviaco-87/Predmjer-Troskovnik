@@ -1262,10 +1262,10 @@ export default function App() {
               <td class="c" style="font-size:11pt;color:#002060;font-weight:600;vertical-align:middle">${rb++}</td>
               <td class="c" style="font-size:8.5pt;color:#8A94A0;vertical-align:middle">${sifra||'—'}</td>
               <td class="opis">${naziv}</td>
-              <td class="c">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
-              <td class="r">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
-              <td class="r">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
-              <td class="r bold">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
+              <td class="c" style="vertical-align:bottom">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+              <td class="r" style="vertical-align:bottom">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
+              <td class="r" style="vertical-align:bottom">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
+              <td class="r bold" style="vertical-align:bottom">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
             </tr>`
             if (imadjece) {
               p.djeca.forEach((d, di) => {
