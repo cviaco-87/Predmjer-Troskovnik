@@ -993,18 +993,33 @@ export default function App() {
   // šifra pozicije koju korisnik vidi kao "redni broj"), samo se sadržaj (naziv/jedinica/cijena/
   // kategorija/šifra iz kataloga) mijenja. Količina se namjerno resetuje na 0 — stara količina
   // se odnosila na PRETHODNU stavku i može biti besmislena za novu (npr. druga jedinica mjere).
+  // Ako stavka ima podstavke, one se BRIŠU — pripadaju STAROJ stavci (npr. "Prizemlje 20 m²" za
+  // sasvim drugu poziciju) i ne bi imale smisla za novu; nova cijena se upisuje direktno na
+  // glavnu stavku umjesto da ostane "zbir" nepovezanih starih podstavki.
   const zamijeniPoziciju = async (id, noviPodaci) => {
-    const { error } = await supabase.from('pozicije').update({
-      naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
-      kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
-    }).eq('id', id)
-    if (error) { alert('Greška pri zamjeni stavke: ' + error.message); return }
-    setPozicije(prev => prev.map(p => p.id === id ? {
-      ...p, naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
-      kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
-    } : p))
-    setRevizija(r => r + 1) // forsira sva nekontrolisana polja te pozicije (naziv/cijena/šifra/količina/jedinica) da prikažu nove vrijednosti
-    setZamjenaPozicijaId(null)
+    try {
+      const djecaZaBrisanje = pozicije.filter(p => p.parent_id === id)
+      if (djecaZaBrisanje.length > 0) {
+        const { error: eDjeca } = await supabase.from('pozicije').delete().eq('parent_id', id)
+        if (eDjeca) throw eDjeca
+      }
+      const { error } = await supabase.from('pozicije').update({
+        naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
+        kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
+      }).eq('id', id)
+      if (error) throw error
+
+      setPozicije(prev => prev
+        .filter(p => p.parent_id !== id) // ukloni stare podstavke iz prikaza
+        .map(p => p.id === id ? {
+          ...p, naziv: noviPodaci.naziv, jedinica: noviPodaci.jedinica, cijena: noviPodaci.cijena,
+          kategorija: noviPodaci.kategorija, sifra: noviPodaci.sifra || null, kolicina: 0
+        } : p))
+      setRevizija(r => r + 1) // forsira sva nekontrolisana polja te pozicije (naziv/cijena/šifra/količina/jedinica) da prikažu nove vrijednosti
+      setZamjenaPozicijaId(null)
+    } catch (e) {
+      alert('Greška pri zamjeni stavke: ' + e.message)
+    }
   }
 
   // ── PROMJENA VALUTE — konvertuje sve postojeće cijene u projektu po tekućem kursu ──
@@ -1925,7 +1940,7 @@ ${globalnaRekapitulacijaHtml}
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
                 <input type="text" key={`${aktivniProjekat.id}-${k}`} defaultValue={aktivniProjekat[k] || ''} onBlur={e => azurirajProjekat(k, e.target.value)}
                   spellCheck={false}
-                  style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: '#1B2F43', fontFamily: 'inherit', background: '#DCE6F1' }} />
+                  style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: '#1B2F43', fontFamily: 'inherit', background: '#DCE6F1', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }} />
               </div>
             ))}
             <div style={{ marginBottom: 14 }}>
@@ -2353,13 +2368,11 @@ ${globalnaRekapitulacijaHtml}
                                         + pod
                                       </button>
                                       <div className="red-akcije" style={{ display: 'flex', gap: 2 }}>
-                                        {!imadjece && (
-                                          <button onClick={() => setZamjenaPozicijaId(prev => prev === p.id ? null : p.id)}
-                                            title={zamjenaPozicijaId === p.id ? 'Otkaži zamjenu' : 'Zamijeni ovu stavku novom iz baze'}
-                                            style={{ background: zamjenaPozicijaId === p.id ? '#F4B740' : 'none', border: zamjenaPozicijaId === p.id ? '1px solid #C9954E' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: zamjenaPozicijaId === p.id ? 1 : 0.6 }}
-                                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                            onMouseLeave={e => { if (zamjenaPozicijaId !== p.id) e.currentTarget.style.opacity = '0.6' }}>🔁</button>
-                                        )}
+                                        <button onClick={() => setZamjenaPozicijaId(prev => prev === p.id ? null : p.id)}
+                                          title={zamjenaPozicijaId === p.id ? 'Otkaži zamjenu' : (imadjece ? 'Zamijeni ovu stavku novom iz baze (briše postojeće podstavke)' : 'Zamijeni ovu stavku novom iz baze')}
+                                          style={{ background: zamjenaPozicijaId === p.id ? '#F4B740' : 'none', border: zamjenaPozicijaId === p.id ? '1px solid #C9954E' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: zamjenaPozicijaId === p.id ? 1 : 0.6 }}
+                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                          onMouseLeave={e => { if (zamjenaPozicijaId !== p.id) e.currentTarget.style.opacity = '0.6' }}>🔁</button>
                                         <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: 0.6 }}
                                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
