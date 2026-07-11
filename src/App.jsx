@@ -367,7 +367,7 @@ export default function App() {
   const [firmaLoading, setFirmaLoading] = useState(false)
   const [aktivnaStruka, setAktivnaStruka] = useState('gradjevinski')
   const [editStrukaKod, setEditStrukaKod] = useState(null) // kod struke koja se trenutno preimenuje
-  const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' | 'sidebar' — koje od dva mjesta trenutno preimenuje grupu radova (samo jedno odjednom, da ne bi oba istovremeno tražila fokus)
+  const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' — da li se trenutno preimenuje aktivna grupa radova (jedino mjesto za to je traka na vrhu; sidebar linija je uklonjena kao suvišna)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
@@ -1969,19 +1969,6 @@ ${globalnaRekapitulacijaHtml}
                         onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
                     )}
                   </div>
-                  {aktivnaPripada && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', marginTop: 6, fontSize: 13, background: '#DCE6F1', borderRadius: 6, border: '1px solid #4A637C' }}>
-                      {editFazaNazivMjesto === 'sidebar' ? (
-                        <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
-                          onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNazivMjesto(null) }}
-                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNazivMjesto(null) }}
-                          style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: '#fff', color: '#1B2F43', marginRight: 8 }} />
-                      ) : (
-                        <span style={{ color: '#1B2F43', fontWeight: 700, cursor: 'text' }} onDoubleClick={() => setEditFazaNazivMjesto('sidebar')} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
-                      )}
-                      <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>Još nema grupa radova u ovoj fazi.</div>
