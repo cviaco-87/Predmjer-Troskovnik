@@ -1711,8 +1711,12 @@ ${globalnaRekapitulacijaHtml}
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      const ime = (aktivniProjekat.naziv || 'Predmjer').replace(/[^a-zA-Z0-9_À-ɏ]/g, '_')
-      a.download = `${ime}_export.json`
+      // Samo znakovi koji su STVARNO nedozvoljeni u imenu fajla se uklanjaju — razmaci, crtice,
+      // zagrade i slova č/ć/š/ž/đ ostaju netaknuti. Ovo je namjerno: ime fajla se sad koristi kao
+      // izvor naziva projekta pri UVOZU (vidi ucitajProjekatIzFajla), pa treba da ostane čitljivo
+      // i tačno onakvo kakav je bio naziv projekta, ako korisnik fajl ne preimenuje ručno.
+      const ime = (aktivniProjekat.naziv || 'Predmjer').replace(/[\\/:*?"<>|]/g, '_').trim()
+      a.download = `${ime}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
@@ -1738,8 +1742,14 @@ ${globalnaRekapitulacijaHtml}
       }
 
       const p = podaci.projekat
+      // KLJUČNO: naziv se uzima iz IMENA FAJLA (ne iz podataka upisanih unutar njega u trenutku
+      // izvoza) — ako korisnik preimenuje .json fajl prije uvoza (npr. da pošalje kolegi pod
+      // drugim imenom), uvezeni projekat treba da se pojavi pod TIM novim imenom, ne pod starim.
+      // Ako iz nekog razloga ime fajla ispadne prazno, koristimo naziv iz sadržaja kao rezervu.
+      const nazivIzFajla = (file.name || '').replace(/\.json$/i, '').trim()
+      const finalniNaziv = (nazivIzFajla || p.naziv || 'Predmjer') + ' — UVEZENO'
       const { data: noviProj, error: eProj } = await supabase.from('projekti').insert({
-        naziv: (p.naziv || 'Predmjer').trim() + ' — UVEZENO',
+        naziv: finalniNaziv,
         klijent: p.klijent || null,
         adresa: p.adresa || null,
         datum: p.datum || null,
