@@ -1866,14 +1866,14 @@ ${globalnaRekapitulacijaHtml}
             {[['naziv', 'Naziv projekta'], ['klijent', 'Investitor'], ['adresa', 'Lokacija']].map(([k, lbl]) => (
               <div key={k} style={{ marginBottom: 5 }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>{lbl}</div>
-                <input type="text" defaultValue={aktivniProjekat[k] || ''} onBlur={e => azurirajProjekat(k, e.target.value)}
+                <input type="text" key={`${aktivniProjekat.id}-${k}`} defaultValue={aktivniProjekat[k] || ''} onBlur={e => azurirajProjekat(k, e.target.value)}
                   spellCheck={false}
                   style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: '#1B2F43', fontFamily: 'inherit', background: '#DCE6F1' }} />
               </div>
             ))}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>Datum</div>
-              <input type="date" defaultValue={aktivniProjekat.datum || ''} onBlur={e => azurirajProjekat('datum', e.target.value)}
+              <input type="date" key={`${aktivniProjekat.id}-datum`} defaultValue={aktivniProjekat.datum || ''} onBlur={e => azurirajProjekat('datum', e.target.value)}
                 style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 6, padding: '5px 8px', fontSize: 13, fontWeight: 700, color: '#1B2F43', fontFamily: 'inherit', background: '#DCE6F1' }} />
             </div>
             </div>
@@ -1994,14 +1994,14 @@ ${globalnaRekapitulacijaHtml}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
-            <input type="number" key={`uvec-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
+            <input type="number" key={`uvec-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
               onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUvecanjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa', marginBottom: 10 }}>npr. PDV, opšti troškovi</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>Umanjenje (%)</span>
-            <input type="number" key={`uman-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
+            <input type="number" key={`uman-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
               onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUmanjenjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
           </div>
@@ -2261,6 +2261,7 @@ ${globalnaRekapitulacijaHtml}
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
+                                      key={`jed-${p.id}-${revizija}`}
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
                                       style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
@@ -2278,7 +2279,7 @@ ${globalnaRekapitulacijaHtml}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input type="number" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parseFloat(e.target.value) || 0)}
+                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="number" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parseFloat(e.target.value) || 0)}
                                       placeholder="0" min="0" step="any"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
@@ -2344,6 +2345,7 @@ ${globalnaRekapitulacijaHtml}
                                        </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <select
+                                          key={`jed-${d.id}-${revizija}`}
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
                                           style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
@@ -2359,7 +2361,7 @@ ${globalnaRekapitulacijaHtml}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input type="number" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parseFloat(e.target.value) || 0)}
+                                        <input key={`kol-${d.id}-${revizija}`} type="number" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parseFloat(e.target.value) || 0)}
                                           placeholder="0" min="0" step="any"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
