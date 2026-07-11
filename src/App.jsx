@@ -209,8 +209,9 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
           style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
         {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
+          <div style={{ position: 'relative', minWidth: 150 }}>
           <select value={kat} onChange={e => setKat(e.target.value)}
-            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150 }}>
+            style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 26px 7px 7px', fontSize: 12, fontFamily: 'inherit', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: '#fff' }}>
             <option value="">— Sve kategorije —</option>
             {jePoznataStruka ? (
               aktivnaStruka === 'gradjevinski' ? (
@@ -251,6 +252,8 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
               </>
             )}
           </select>
+          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
+          </div>
         )}
         <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
           style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -1826,7 +1829,7 @@ ${globalnaRekapitulacijaHtml}
                     <option value="" disabled>— Odaberite projekat —</option>
                     {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
                   </select>
-                  <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#5A6472', fontSize: 17, fontWeight: 700 }}>▾</span>
+                  <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
                 </div>
                 {aktivniProjekat && (
                   <>
@@ -1840,7 +1843,7 @@ ${globalnaRekapitulacijaHtml}
                 )}
               </div>
               {aktivniProjekat && (
-                <div style={{ padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
+                <div style={{ padding: '7px 10px', marginTop: 6, fontSize: 13, background: '#DCE6F1', borderRadius: 6, border: '1px solid #4A637C' }}>
                   {editNazivProjId === aktivniProjekat.id ? (
                     <input type="text" defaultValue={aktivniProjekat.naziv} spellCheck={false} autoFocus
                       onBlur={async e => {
@@ -1852,9 +1855,9 @@ ${globalnaRekapitulacijaHtml}
                         if (e.key === 'Enter') e.target.blur()
                         if (e.key === 'Escape') setEditNazivProjId(null)
                       }}
-                      style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff' }} />
+                      style={{ width: '100%', border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: '#fff', color: '#1B2F43' }} />
                   ) : (
-                    <span style={{ color: '#888', cursor: 'text' }}
+                    <span style={{ color: '#1B2F43', fontWeight: 700, cursor: 'text' }}
                       onDoubleClick={() => setEditNazivProjId(aktivniProjekat.id)}
                       title="Dvoklik za promjenu naziva">{aktivniProjekat.naziv}</span>
                   )}
@@ -1989,7 +1992,7 @@ ${globalnaRekapitulacijaHtml}
                         <option value="" disabled>— Odaberite grupu radova —</option>
                         {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
                       </select>
-                      <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#5A6472', fontSize: 17, fontWeight: 700 }}>▾</span>
+                      <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6B7480', fontSize: 10 }}>▾</span>
                     </div>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
@@ -1999,14 +2002,14 @@ ${globalnaRekapitulacijaHtml}
                     )}
                   </div>
                   {aktivnaPripada && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 8px', marginTop: 6, fontSize: 12, background: '#F0F2F5', borderRadius: 6, border: '1px solid #E3E7EB' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', marginTop: 6, fontSize: 13, background: '#DCE6F1', borderRadius: 6, border: '1px solid #4A637C' }}>
                       {editFazaNazivMjesto === 'sidebar' ? (
                         <input type="text" defaultValue={aktivnaFaza.naziv} spellCheck={false} autoFocus
                           onBlur={async e => { await preimenujFazu(aktivnaFaza.id, e.target.value || aktivnaFaza.naziv); setEditFazaNazivMjesto(null) }}
                           onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditFazaNazivMjesto(null) }}
-                          style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 12, fontFamily: 'inherit', background: '#fff', marginRight: 8 }} />
+                          style={{ flex: 1, border: '1px solid #4A637C', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: '#fff', color: '#1B2F43', marginRight: 8 }} />
                       ) : (
-                        <span style={{ color: '#888', cursor: 'text' }} onDoubleClick={() => setEditFazaNazivMjesto('sidebar')} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
+                        <span style={{ color: '#1B2F43', fontWeight: 700, cursor: 'text' }} onDoubleClick={() => setEditFazaNazivMjesto('sidebar')} title="Dvoklik za promjenu naziva">{aktivnaFaza.naziv}</span>
                       )}
                       <span style={{ fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}</span>
                     </div>
