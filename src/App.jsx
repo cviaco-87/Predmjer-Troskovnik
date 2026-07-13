@@ -79,16 +79,55 @@ const toRoman = n => {
 }
 
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-// NAPOMENA: m1 (obična cifra 1) i m¹ (stari superskript zapis) se OBA svode na običnu "m" —
-// u praksi se dužni metar piše prosto kao "m", ne kao "m1" ili "m¹" (dogovoreno sa Aleksandrom,
-// jul 2026). Drugi replace hvata slučaj da je neka stavka ranije već sačuvana kao "m¹".
-const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm').replace(/m¹/g, 'm').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
 
-// Ako opis pozicije eksplicitno pominje paušalni obračun ("Obračun paušalno...", ili bez
-// dijakritike "pausalno"), jedinica mjere treba automatski biti "pau." — bez obzira odakle
-// stavka dolazi (baza, AI, ručni unos) — da opis i stvarna jedinica u tabeli/exportu ne bi
-// ostali neusklađeni (npr. piše "obračun paušalno" a jedinica je i dalje m²).
-const jeOpisPausalan = tekst => /pau[šs]al/i.test(tekst || '')
+// ── NORMALIZACIJA JEDINICE MJERE U KANONSKI OBLIK DROPDOWN-A ──
+// baza.js (izvorna baza od 1.091 stavke) koristi PUNE RIJEČI ("Paušalno", "Kom.", "Čas") koje
+// se nikad nisu poklapale sa skraćenicama u padajućem meniju ("pau.", "kom.", "h") — otkriveno
+// auditom jul 2026, pogađa ~295 od 1.091 stavki (27%). Bez ove normalizacije dropdown tiho
+// pada na prvu opciju ("m²") čak i kad je stvarna jedinica u bazi bila potpuno tačna, samo
+// zapisana drugačije. Audit NIJE pronašao stvarna neslaganja teksta opisa i jedinice u samoj
+// bazi — baza.js se ne mijenja, sve se rješava normalizacijom ovdje pri prikazu i upisu.
+// m1/m¹ se svodi na običnu "m" (dogovoreno sa Aleksandrom, jul 2026 — u praksi se dužni metar
+// piše prosto kao "m").
+const fmtJmj = j => {
+  const t = (j || '').trim()
+  const punaRijec = {
+    'm¹': 'm', 'm1': 'm', 'm2': 'm²', 'm3': 'm³', 'M2': 'M²', 'M3': 'M³',
+    'Kom.': 'kom.', 'Kom': 'kom.', 'kom': 'kom.',
+    'Paušalno': 'pau.', 'paušalno': 'pau.', 'Pausalno': 'pau.', 'pausalno': 'pau.',
+    'Čas': 'h', 'čas': 'h', 'Cas': 'h', 'cas': 'h', 'Sat': 'h', 'sat': 'h',
+  }
+  if (punaRijec[t]) return punaRijec[t]
+  // Preostali slučajevi (m², m³, kg, t, l, dan, voz, m²/dan...) su već u kanonskom obliku —
+  // regex ispod hvata samo ASCII m2/m3/m1 zapise koji nisu bili uhvaćeni tačnim poklapanjem gore.
+  return t.replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm').replace(/m¹/g, 'm').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
+}
+
+// ── PREPOZNAVANJE JEDINICE IZ TEKSTA OPISA (za ručni unos i AI generisanje, NE za baza.js) ──
+// Traži se u završnoj "Obračun po..." klauzuli (standardni obrazac u ovim opisima — vidi i
+// SYSTEM_PROMPT u AIAsistent.jsx: "Na kraju stavke uvijek napiši 'Obračun po [jed.mjere].'"),
+// ne u cijelom tekstu — jednoslovne jedinice (t, l, h, m) bi inače lako pogrešno pogodile neku
+// slučajnu riječ usred dugog opisa. "(?<!m)" ispred m²/m³ obrazaca sprečava lažni pogodak na
+// "mm²" (kvadratni milimetar, npr. presjek kabla) koji NIJE ista jedinica kao "m²".
+// NAMJERNO se ne koristi za stavke iz baze.js/Moja baza — audit (jul 2026) je pokazao da je
+// jedinica upisana u samoj bazi pouzdanija od ovog teksta-detektora (koji ima lažne pogotke na
+// složenijim, profesionalno pisanim opisima); za te izvore koristi se samo fmtJmj normalizacija.
+const prepoznajJedinicu = tekst => {
+  if (!tekst) return null
+  if (/pau[šs]al/i.test(tekst)) return 'pau.'
+  const match = tekst.match(/obra[čc]un[\s\S]*$/i)
+  const klauzula = (match ? match[0] : tekst).toLowerCase()
+  if (/(?<!m)m\s*2\b|(?<!m)m²|kvadratn/i.test(klauzula)) return 'm²'
+  if (/(?<!m)m\s*3\b|(?<!m)m³|kubn/i.test(klauzula)) return 'm³'
+  if (/\bkom\.?\b|komad/i.test(klauzula)) return 'kom.'
+  if (/\bkg\b|kilogram/i.test(klauzula)) return 'kg'
+  if (/\bton[ae]?\b/i.test(klauzula)) return 't'
+  if (/\blitr/i.test(klauzula)) return 'l'
+  if (/\bsat[au]?\b|\bčas[au]?\b|\bcas[au]?\b/i.test(klauzula)) return 'h'
+  if (/\bdan[au]?\b/i.test(klauzula)) return 'dan'
+  if (/\bm\s*1\b|m¹|dužn\w*\s*metar|duzn\w*\s*metar|\bm\b/i.test(klauzula)) return 'm'
+  return null
+}
 
 // Automatski prilagođava visinu textarea elementa sadržaju — poziva se na SVAKI unos teksta
 // (uključujući Enter), tako da ćelija "raste" ispred korisnika dok piše, umjesto da tekst
@@ -315,7 +354,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                       {item.c > 0 ? fmt(item.c) + ' €' : '—'}
                     </span>
-                    <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>/{item.m}</span>
+                    <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>/{fmtJmj(item.m)}</span>
                   </div>
                 ))}
               </div>
@@ -766,10 +805,9 @@ export default function App() {
     // stavku umjesto da dodaješ novu — isti ID, isto mjesto u tabeli, ista šifra pozicije.
     if (zamjenaPozicijaId) {
       const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
-      // Ako opis stavke kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
-      // umjesto one upisane u bazi (vidi jeOpisPausalan gore) — sprečava neusklađenost teksta i jedinice.
-      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
-      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: jedinicaZaUpis, cijena: cijenaUValuti, kategorija: item.k, sifra: item.s || null })
+      // Jedinica iz baze je pouzdana (audit jul 2026) — samo je treba normalizovati u kanonski
+      // oblik dropdown-a (npr. "Paušalno" -> "pau.", "Kom." -> "kom.") preko fmtJmj.
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: fmtJmj(item.m), cijena: cijenaUValuti, kategorija: item.k, sifra: item.s || null })
       return
     }
 
@@ -780,11 +818,8 @@ export default function App() {
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
       const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
-      // Ako opis stavke kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
-      // umjesto one upisane u bazi — sprečava neusklađenost teksta i jedinice u tabeli/exportu.
-      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
       const { data, error } = await supabase.from('pozicije').insert({
-        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: jedinicaZaUpis,
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
         cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
       }).select().single()
       if (error) { alert('Greška pri dodavanju stavke: ' + error.message); return }
@@ -795,10 +830,11 @@ export default function App() {
   }, [aktivnaFaza, pozicije, valuta, baza, zamjenaPozicijaId])
 
   const dodajIzMojeBaze = useCallback(async (item) => {
-    // Ista logika zamjene kao u dodajPoziciju gore, ali za stavke iz "Moja baza" taba.
+    // Ista logika zamjene kao u dodajPoziciju gore, ali za stavke iz "Moja baza" taba. fmtJmj
+    // ovdje je "besplatan" no-op za stavke koje su već u kanonskom obliku, i sigurnosna mreža
+    // za starije, ranije sačuvane stavke koje bi mogle imati zastarjeli zapis jedinice.
     if (zamjenaPozicijaId) {
-      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
-      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: jedinicaZaUpis, cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: fmtJmj(item.m), cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
       return
     }
 
@@ -807,9 +843,8 @@ export default function App() {
     try {
       const roditelji = pozicije.filter(p => !p.parent_id)
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
-      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
       const { data, error } = await supabase.from('pozicije').insert({
-        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: jedinicaZaUpis,
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
         cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
       if (error) { alert('Greška pri dodavanju stavke iz moje baze: ' + error.message); return }
@@ -1383,7 +1418,7 @@ export default function App() {
               <td class="c" style="font-size:11pt;color:#002060;font-weight:600;vertical-align:middle">${rb++}</td>
               <td class="c" style="font-size:8.5pt;color:#8A94A0;vertical-align:middle">${sifra||'—'}</td>
               <td class="opis">${naziv}</td>
-              <td class="c" style="vertical-align:bottom">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
+              <td class="c" style="vertical-align:bottom">${fmtJmj(p.jedinica)}</td>
               <td class="r" style="vertical-align:bottom">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
               <td class="r" style="vertical-align:bottom">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
               <td class="r bold" style="vertical-align:bottom">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
@@ -1396,7 +1431,7 @@ export default function App() {
                   <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
                   <td></td>
                   <td class="pod-opis">${dNaziv}</td>
-                  <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
+                  <td class="c" style="font-size:8.5pt">${fmtJmj(d.jedinica)}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                   <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
                   <td class="r" style="color:#4A637C;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
@@ -1406,7 +1441,7 @@ export default function App() {
               rows += `<tr class="pod-sum">
                 <td></td>
                 <td></td>
-                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
+                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${fmtJmj(p.jedinica)}</td>
                 <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
               </tr>`
             }
@@ -1620,9 +1655,10 @@ ${globalnaRekapitulacijaHtml}
     // Ukloni ** Markdown bold iz naziva
     const cleanNaziv = (stavka.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').trim()
 
-    // Ako AI-jev opis kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
-    // umjesto one koju je AI (možda pogrešno) naveo u JMJ polju svog strukturiranog odgovora.
-    const jedinicaZaUpis = jeOpisPausalan(cleanNaziv) ? 'pau.' : (stavka.jedinica || 'm²')
+    // AI ponekad pogriješi JMJ polje u odnosu na ono što opis stvarno kaže (rjeđe nego kod
+    // ručnog unosa, ali se dešava) — prepoznajJedinicu iz opisa ima prednost ako je pouzdana,
+    // inače se koristi ono što je AI eksplicitno naveo (normalizovano preko fmtJmj).
+    const jedinicaZaUpis = prepoznajJedinicu(cleanNaziv) || fmtJmj(stavka.jedinica || 'm²')
 
     const rod = pozicije.filter(p => !p.parent_id)
     const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
@@ -2397,12 +2433,13 @@ ${globalnaRekapitulacijaHtml}
                                       onInput={e => autoGrowTextarea(e.target)}
                                       onBlur={e => {
                                         azurirajPoziciju(p.id, 'naziv', e.target.value)
-                                        // Ako je korisnik (ručno ili copy-paste) upisao opis koji kaže "obračun
-                                        // paušalno", a jedinica u tabeli je i dalje nešto drugo (npr. m²), sama
-                                        // se prebacuje na "pau." — bez ovoga bi opis i jedinica ostali neusklađeni
-                                        // dok korisnik to sam ne primijeti i ručno ispravi.
-                                        if (jeOpisPausalan(e.target.value) && p.jedinica !== 'pau.') {
-                                          azurirajPoziciju(p.id, 'jedinica', 'pau.')
+                                        // Ako je korisnik (ručno ili copy-paste) upisao opis koji jasno kaže
+                                        // jedinicu obračuna ("Obračun po m." / "kg" / "litar" / "paušalno"...),
+                                        // jedinica u tabeli se automatski prilagođava — bez ovoga bi opis i
+                                        // jedinica ostali neusklađeni dok korisnik to sam ne ispravi ručno.
+                                        const prepoznata = prepoznajJedinicu(e.target.value)
+                                        if (prepoznata && p.jedinica !== prepoznata) {
+                                          azurirajPoziciju(p.id, 'jedinica', prepoznata)
                                           setRevizija(r => r + 1) // forsira select da prikaže novu jedinicu (koristi defaultValue)
                                         }
                                         // Sačuvaj trenutnu visinu — auto-grow (onInput) je već namjestio tačnu
@@ -2456,7 +2493,7 @@ ${globalnaRekapitulacijaHtml}
                                       style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                       onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                       onBlur={e => e.target.style.border = '1px solid transparent'}>
-                                      {['m²','m³','m','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                      {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
                                         <option key={j} value={j}>{j}</option>
                                       ))}
                                     </select>}
@@ -2520,8 +2557,9 @@ ${globalnaRekapitulacijaHtml}
                                               // Snimi u bazu i azuriraj stil
                                               azurirajPoziciju(d.id, 'naziv', e.target.value)
                                               // Isti auto-ispravak jedinice kao kod glavne stavke — vidi komentar gore.
-                                              if (jeOpisPausalan(e.target.value) && d.jedinica !== 'pau.') {
-                                                azurirajPoziciju(d.id, 'jedinica', 'pau.')
+                                              const prepoznata = prepoznajJedinicu(e.target.value)
+                                              if (prepoznata && d.jedinica !== prepoznata) {
+                                                azurirajPoziciju(d.id, 'jedinica', prepoznata)
                                                 setRevizija(r => r + 1)
                                               }
                                               // Sačuvaj i trenutnu visinu — isti mehanizam kao kod glavne stavke,
@@ -2550,7 +2588,7 @@ ${globalnaRekapitulacijaHtml}
                                           style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                           onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                           onBlur={e => e.target.style.border = '1px solid transparent'}>
-                                          {['m²','m³','m','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                          {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
                                             <option key={j} value={j}>{j}</option>
                                           ))}
                                         </select>
