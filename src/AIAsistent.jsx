@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { supabase } from './supabase.js'
 
 const VALUTE = [
   { kod: 'EUR', znak: '€', naziv: 'Euro' },
@@ -155,6 +156,9 @@ function formatOdgovor(text) {
     .trim()
 }
 
+// Formatira broj tokena čitljivo (npr. 12500 -> "12.500", 1250000 -> "1.250.000")
+const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
+
 export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onPrimijeniIzmjene, onSetValuta, onClose, session }) {
   const [poruke, setPoruke] = useState([{
     uloga: 'asistent',
@@ -185,12 +189,36 @@ Kako mogu pomoći? Npr:
   // klikom, sve dok korisnik ne primijeni neku SLJEDEĆU grupnu izmjenu (samo jedan nivo undo-a,
   // isto kao i undo brisanja pozicije u App.jsx — jednostavno i predvidljivo, ne pun undo/redo stog).
   const [zadnjaAIizmjena, setZadnjaAIizmjena] = useState(null) // { tip: 'cijene'|'izmjene', stavke: [{id, staraVrijednost, novaVrijednost}] }
+  // Potrošnja AI tokena u tekućem kalendarskom mjesecu — { tokena, cijenaUsd, ucitano }.
+  // "ucitano" sprečava da se na tren prikaže "0" prije nego što stigne stvarni zbir iz baze.
+  const [potrosnjaMjesec, setPotrosnjaMjesec] = useState({ tokena: 0, cijenaUsd: 0, ucitano: false })
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const [historija, setHistorija] = useState([])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [poruke])
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // Učitaj tačan zbir potrošnje OD POČETKA TEKUĆEG KALENDARSKOG MJESECA kad se panel otvori —
+  // ovo je "polazna tačka" brojača (npr. ako je korisnik zatvorio pa ponovo otvorio panel isti
+  // dan, ili se prijavio sa drugog uređaja). Poslije ovog početnog učitavanja, brojač se dalje
+  // ažurira ODMAH i lokalno (bez novog upita ka bazi) nakon svake nove AI poruke — vidi posalji().
+  useEffect(() => {
+    if (!session?.user?.id) return
+    const pocetakMjeseca = new Date()
+    pocetakMjeseca.setDate(1)
+    pocetakMjeseca.setHours(0, 0, 0, 0)
+    supabase.from('ai_potrosnja')
+      .select('ulazni_tokeni, izlazni_tokeni, cijena_usd')
+      .eq('user_id', session.user.id)
+      .gte('kreiran_at', pocetakMjeseca.toISOString())
+      .then(({ data, error }) => {
+        if (error) { console.error('Greška pri učitavanju potrošnje tokena:', error); setPotrosnjaMjesec(p => ({ ...p, ucitano: true })); return }
+        const tokena = (data || []).reduce((s, r) => s + (r.ulazni_tokeni || 0) + (r.izlazni_tokeni || 0), 0)
+        const cijenaUsd = (data || []).reduce((s, r) => s + (parseFloat(r.cijena_usd) || 0), 0)
+        setPotrosnjaMjesec({ tokena, cijenaUsd, ucitano: true })
+      })
+  }, [session?.user?.id])
 
   // Puni kontekst (necenzurisan opis) - koristi se za pregled/poboljšanje dokumenta
   const getStavkeKontekstPuni = () => {
@@ -254,6 +282,11 @@ Kako mogu pomoći? Npr:
     const trazeNovuStavku = /napravi\s+(novu|jednu)\s+stavk|dodaj\s+(novu|jednu)\s+stavk|kreiraj\s+(novu|jednu)\s+stavk/i.test(tekst)
     const trazeMasovnuRadnju = !trazeCijene && !trazeIzmjene && spominjeMasovnost && !trazeNovuStavku
 
+    // Oznaka tipa radnje koja se šalje serveru radi logovanja potrošnje (vidi ai_potrosnja
+    // tabelu) — čisto informativno, ne utiče na ponašanje AI-ja, samo na to kako se kasnije
+    // grupiše potrošnja po vrsti akcije (procjena cijena vs. lektorisanje vs. generisanje stavke).
+    const tipRadnje = trazeCijene ? 'cijene' : trazeIzmjene ? 'izmjene' : trazeMasovnuRadnju ? 'masovno' : 'stavka'
+
     let userContent = tekst
     if (trazeCijene && pozicije && pozicije.length > 0) {
       userContent = `${tekst}
@@ -290,13 +323,25 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju })
+        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju, tip: tipRadnje })
       })
 
       let data
       try { data = await response.json() }
       catch(e) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
       if (!response.ok) throw new Error('API greška ' + response.status + ': ' + (data?.error || JSON.stringify(data)))
+
+      // Ažuriraj brojač potrošnje ODMAH, lokalno — bez čekanja na novi upit ka bazi. Server je
+      // već upisao isti ovaj iznos u ai_potrosnja (vidi chat.js), pa je ovo samo prikaz uživo;
+      // sljedeći put kad se panel otvori, useEffect gore učitava stvarni zbir iz baze nezavisno
+      // od ovog lokalnog brojanja (pa i eventualni propušten upis ne ostavlja trajno pogrešan broj).
+      if (data.potrosnja) {
+        setPotrosnjaMjesec(prev => ({
+          tokena: prev.tokena + (data.potrosnja.ulazniTokeni || 0) + (data.potrosnja.izlazniTokeni || 0),
+          cijenaUsd: prev.cijenaUsd + (data.potrosnja.cijenaUsd || 0),
+          ucitano: true
+        }))
+      }
 
       const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
       const stavka = parseStavka(odgovorTekst)
@@ -462,11 +507,23 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✨</div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>AI Asistent</div>
           <div style={{ fontSize: 11, opacity: 0.8 }}>{aktivnaFaza ? `Grupa radova: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}</div>
         </div>
         <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✕ Zatvori</button>
+      </div>
+
+      {/* Brojač potrošnje tokena — ažurira se uživo poslije svake AI poruke (vidi posalji()).
+          Napomena: ovo je INTERNI brojač potrošnje za mjerenje stvarne upotrebe prije nego što se
+          uvede pravi mjesečni limit i dokup tokena — kad ta logika bude gotova, ovdje se dodaje
+          druga linija ("Preostalo: X od Y") pored ove. */}
+      <div title="Interni brojač potrošnje AI tokena — koristi se za mjerenje stvarne upotrebe prije uvođenja mjesečnog limita"
+        style={{ padding: '6px 16px', background: '#F5F4F0', borderBottom: '1px solid #E8E5DC', fontSize: 10.5, color: '#888', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <span>🪙</span>
+        {potrosnjaMjesec.ucitano
+          ? <span>Potrošeno ovog mjeseca: <strong style={{ color: '#4A637C' }}>{fmtTokeni(potrosnjaMjesec.tokena)}</strong> tokena (~${potrosnjaMjesec.cijenaUsd.toFixed(3)})</span>
+          : <span>Učitavam potrošnju...</span>}
       </div>
 
       {/* Modal procjene cijena */}
