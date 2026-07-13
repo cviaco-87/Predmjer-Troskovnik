@@ -79,7 +79,16 @@ const toRoman = n => {
 }
 
 const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm¹').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
+// NAPOMENA: m1 (obična cifra 1) i m¹ (stari superskript zapis) se OBA svode na običnu "m" —
+// u praksi se dužni metar piše prosto kao "m", ne kao "m1" ili "m¹" (dogovoreno sa Aleksandrom,
+// jul 2026). Drugi replace hvata slučaj da je neka stavka ranije već sačuvana kao "m¹".
+const fmtJmj = j => (j || '').replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm').replace(/m¹/g, 'm').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
+
+// Ako opis pozicije eksplicitno pominje paušalni obračun ("Obračun paušalno...", ili bez
+// dijakritike "pausalno"), jedinica mjere treba automatski biti "pau." — bez obzira odakle
+// stavka dolazi (baza, AI, ručni unos) — da opis i stvarna jedinica u tabeli/exportu ne bi
+// ostali neusklađeni (npr. piše "obračun paušalno" a jedinica je i dalje m²).
+const jeOpisPausalan = tekst => /pau[šs]al/i.test(tekst || '')
 
 // Automatski prilagođava visinu textarea elementa sadržaju — poziva se na SVAKI unos teksta
 // (uključujući Enter), tako da ćelija "raste" ispred korisnika dok piše, umjesto da tekst
@@ -757,7 +766,10 @@ export default function App() {
     // stavku umjesto da dodaješ novu — isti ID, isto mjesto u tabeli, ista šifra pozicije.
     if (zamjenaPozicijaId) {
       const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
-      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: item.m, cijena: cijenaUValuti, kategorija: item.k, sifra: item.s || null })
+      // Ako opis stavke kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
+      // umjesto one upisane u bazi (vidi jeOpisPausalan gore) — sprečava neusklađenost teksta i jedinice.
+      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: jedinicaZaUpis, cijena: cijenaUValuti, kategorija: item.k, sifra: item.s || null })
       return
     }
 
@@ -768,8 +780,11 @@ export default function App() {
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
       const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
+      // Ako opis stavke kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
+      // umjesto one upisane u bazi — sprečava neusklađenost teksta i jedinice u tabeli/exportu.
+      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
       const { data, error } = await supabase.from('pozicije').insert({
-        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: jedinicaZaUpis,
         cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
       }).select().single()
       if (error) { alert('Greška pri dodavanju stavke: ' + error.message); return }
@@ -782,7 +797,8 @@ export default function App() {
   const dodajIzMojeBaze = useCallback(async (item) => {
     // Ista logika zamjene kao u dodajPoziciju gore, ali za stavke iz "Moja baza" taba.
     if (zamjenaPozicijaId) {
-      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: item.m, cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
+      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: jedinicaZaUpis, cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
       return
     }
 
@@ -791,8 +807,9 @@ export default function App() {
     try {
       const roditelji = pozicije.filter(p => !p.parent_id)
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      const jedinicaZaUpis = jeOpisPausalan(item.n) ? 'pau.' : item.m
       const { data, error } = await supabase.from('pozicije').insert({
-        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: item.m,
+        faza_id: aktivnaFaza.id, naziv: item.n, jedinica: jedinicaZaUpis,
         cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
       if (error) { alert('Greška pri dodavanju stavke iz moje baze: ' + error.message); return }
@@ -1366,7 +1383,7 @@ export default function App() {
               <td class="c" style="font-size:11pt;color:#002060;font-weight:600;vertical-align:middle">${rb++}</td>
               <td class="c" style="font-size:8.5pt;color:#8A94A0;vertical-align:middle">${sifra||'—'}</td>
               <td class="opis">${naziv}</td>
-              <td class="c" style="vertical-align:bottom">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+              <td class="c" style="vertical-align:bottom">${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
               <td class="r" style="vertical-align:bottom">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
               <td class="r" style="vertical-align:bottom">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
               <td class="r bold" style="vertical-align:bottom">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
@@ -1379,7 +1396,7 @@ export default function App() {
                   <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
                   <td></td>
                   <td class="pod-opis">${dNaziv}</td>
-                  <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+                  <td class="c" style="font-size:8.5pt">${(d.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
                   <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
                   <td class="r" style="color:#4A637C;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
@@ -1389,7 +1406,7 @@ export default function App() {
               rows += `<tr class="pod-sum">
                 <td></td>
                 <td></td>
-                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')}</td>
+                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${(p.jedinica||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m').replace(/m¹/g,'m')}</td>
                 <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
               </tr>`
             }
@@ -1603,13 +1620,17 @@ ${globalnaRekapitulacijaHtml}
     // Ukloni ** Markdown bold iz naziva
     const cleanNaziv = (stavka.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').trim()
 
+    // Ako AI-jev opis kaže "obračun paušalno", jedinica se automatski postavlja na "pau."
+    // umjesto one koju je AI (možda pogrešno) naveo u JMJ polju svog strukturiranog odgovora.
+    const jedinicaZaUpis = jeOpisPausalan(cleanNaziv) ? 'pau.' : (stavka.jedinica || 'm²')
+
     const rod = pozicije.filter(p => !p.parent_id)
     const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
 
     const { data, error } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id,
       naziv: cleanNaziv,
-      jedinica: stavka.jedinica || 'm²',
+      jedinica: jedinicaZaUpis,
       cijena: parseFloat(stavka.cijena) || 0,
       kategorija: aktivnaKategorija,
       redoslijed: red
@@ -2376,6 +2397,14 @@ ${globalnaRekapitulacijaHtml}
                                       onInput={e => autoGrowTextarea(e.target)}
                                       onBlur={e => {
                                         azurirajPoziciju(p.id, 'naziv', e.target.value)
+                                        // Ako je korisnik (ručno ili copy-paste) upisao opis koji kaže "obračun
+                                        // paušalno", a jedinica u tabeli je i dalje nešto drugo (npr. m²), sama
+                                        // se prebacuje na "pau." — bez ovoga bi opis i jedinica ostali neusklađeni
+                                        // dok korisnik to sam ne primijeti i ručno ispravi.
+                                        if (jeOpisPausalan(e.target.value) && p.jedinica !== 'pau.') {
+                                          azurirajPoziciju(p.id, 'jedinica', 'pau.')
+                                          setRevizija(r => r + 1) // forsira select da prikaže novu jedinicu (koristi defaultValue)
+                                        }
                                         // Sačuvaj trenutnu visinu — auto-grow (onInput) je već namjestio tačnu
                                         // visinu dok je korisnik kucao, ovdje je samo trajno upisujemo u bazu
                                         // (hvata i ručno povlačenje ivice, ne samo kucanje)
@@ -2427,7 +2456,7 @@ ${globalnaRekapitulacijaHtml}
                                       style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                       onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                       onBlur={e => e.target.style.border = '1px solid transparent'}>
-                                      {['m²','m³','m¹','m1','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                      {['m²','m³','m','kom.','pau.','kg','t','l','h','dan'].map(j => (
                                         <option key={j} value={j}>{j}</option>
                                       ))}
                                     </select>}
@@ -2490,6 +2519,11 @@ ${globalnaRekapitulacijaHtml}
                                             onBlur={e => {
                                               // Snimi u bazu i azuriraj stil
                                               azurirajPoziciju(d.id, 'naziv', e.target.value)
+                                              // Isti auto-ispravak jedinice kao kod glavne stavke — vidi komentar gore.
+                                              if (jeOpisPausalan(e.target.value) && d.jedinica !== 'pau.') {
+                                                azurirajPoziciju(d.id, 'jedinica', 'pau.')
+                                                setRevizija(r => r + 1)
+                                              }
                                               // Sačuvaj i trenutnu visinu — isti mehanizam kao kod glavne stavke,
                                               // tako da tekst podstavke sad isto raste ispred korisnika dok kuca
                                               // (Enter dodaje red i ćelija se odmah proširi), umjesto da se sadržaj
@@ -2516,7 +2550,7 @@ ${globalnaRekapitulacijaHtml}
                                           style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
                                           onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                           onBlur={e => e.target.style.border = '1px solid transparent'}>
-                                          {['m²','m³','m¹','m1','kom.','pau.','kg','t','l','h','dan'].map(j => (
+                                          {['m²','m³','m','kom.','pau.','kg','t','l','h','dan'].map(j => (
                                             <option key={j} value={j}>{j}</option>
                                           ))}
                                         </select>
