@@ -115,15 +115,24 @@ const fmtJmj = j => {
 const prepoznajJedinicu = tekst => {
   if (!tekst) return null
   if (/pau[šs]al/i.test(tekst)) return 'pau.'
-  const match = tekst.match(/obra[čc]un[\s\S]*$/i)
-  const klauzula = (match ? match[0] : tekst).toLowerCase()
+  // Traži POSLJEDNJU pojavu riječi "obračun" (ne prvu) — opis nekad spomene "obračun" i ranije
+  // u tekstu usput, a stvarna klauzula sa jedinicom je uvijek na samom kraju. Uzimanje teksta
+  // tek od POSLJEDNJE pojave drži klauzulu kratkom i preciznom — bitno za jednoslovne skraćenice
+  // (t, l, h, m) koje bi inače lakše lažno pogodile nešto slučajno usred dužeg opisa.
+  const svaPojavljivanja = [...tekst.matchAll(/obra[čc]un/gi)]
+  const klauzulaSirova = svaPojavljivanja.length > 0
+    ? tekst.slice(svaPojavljivanja[svaPojavljivanja.length - 1].index)
+    : tekst
+  const klauzula = klauzulaSirova.toLowerCase()
   if (/(?<!m)m\s*2\b|(?<!m)m²|kvadratn/i.test(klauzula)) return 'm²'
   if (/(?<!m)m\s*3\b|(?<!m)m³|kubn/i.test(klauzula)) return 'm³'
   if (/\bkom\.?\b|komad/i.test(klauzula)) return 'kom.'
   if (/\bkg\b|kilogram/i.test(klauzula)) return 'kg'
-  if (/\bton[ae]?\b/i.test(klauzula)) return 't'
-  if (/\blitr/i.test(klauzula)) return 'l'
-  if (/\bsat[au]?\b|\bčas[au]?\b|\bcas[au]?\b/i.test(klauzula)) return 'h'
+  // Skraćenice t/l/h se prepoznaju i kao samostalno slovo (npr. "Obračun po t.") i kao puna
+  // riječ (tona/litar/sat/čas) — ranije je bila prepoznata SAMO puna riječ, ne i skraćenica.
+  if (/\bton[ae]?\b|\bt\b/i.test(klauzula)) return 't'
+  if (/\blitr\w*|\bl\b/i.test(klauzula)) return 'l'
+  if (/\bsat[au]?\b|\bčas[au]?\b|\bcas[au]?\b|\bh\b/i.test(klauzula)) return 'h'
   if (/\bdan[au]?\b/i.test(klauzula)) return 'dan'
   if (/\bm\s*1\b|m¹|dužn\w*\s*metar|duzn\w*\s*metar|\bm\b/i.test(klauzula)) return 'm'
   return null
