@@ -1,5 +1,4 @@
 import { proveriAutentikaciju } from './_authCheck.js'
-
 // ── OSNOVNI RATE LIMITING (u memoriji servera) ──
 // Napomena: ovo je jednostavna, "najbolji-mogući" zaštita koja radi unutar jedne
 // pokrenute instance servera. Vercel serverless funkcije mogu povremeno pokrenuti
@@ -8,7 +7,6 @@ import { proveriAutentikaciju } from './_authCheck.js'
 // ali ovo već znatno otežava zloupotrebu u odnosu na potpuno otvoren endpoint.
 const zahtjeviPoKorisniku = new Map() // userId -> [timestamp, timestamp, ...]
 const MAX_ZAHTJEVA_PO_SATU = 30
-
 function jeLimitPredjen(userId) {
   const sada = Date.now()
   const jedanSat = 60 * 60 * 1000
@@ -21,33 +19,30 @@ function jeLimitPredjen(userId) {
   zahtjeviPoKorisniku.set(userId, postojeci)
   return false
 }
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
   // ── PROVJERA PRIJAVE — bez ovoga bilo ko na internetu može trošiti Anthropic budžet ──
   const auth = await proveriAutentikaciju(req)
   if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
-
   // ── RATE LIMITING — sprečava da jedan korisnik (ili neko ko mu ukrade token) potroši sav budžet ──
   if (jeLimitPredjen(auth.userId)) {
     return res.status(429).json({ error: 'Previše zahtjeva. Molimo pokušajte ponovo za nekoliko minuta.' })
   }
-
   try {
     const { system, messages, webSearch = false } = req.body
-
     const body = {
-      model: 'claude-opus-4-5',
+      // Sonnet 5 — bolji odnos cijene i kvaliteta od Opusa za ovu vrstu zadatka (procjena cijena,
+      // generisanje pozicija). Uvodna cijena $2/$10 po milion tokena važi do 31.8.2026, poslije
+      // toga standardnih $3/$15 — u oba slučaja i dalje znatno jeftinije od Opusa ($5/$25).
+      model: 'claude-sonnet-5',
       max_tokens: 8000,
       system,
       messages
     }
-
     // Dodaj web search tool kada AI treba aktuelne cijene
     if (webSearch) {
       body.tools = [
@@ -58,7 +53,6 @@ export default async function handler(req, res) {
         }
       ]
     }
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -69,18 +63,13 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(body)
     })
-
     const data = await response.json()
-
     if (!response.ok) {
       return res.status(response.status).json({ error: data.error?.message || 'API greška' })
     }
-
     // Izvuci samo text blokove (ignorisi tool_use i tool_result blokove)
     const textContent = data.content?.filter(b => b.type === 'text') || []
-
     return res.status(200).json({ content: textContent })
-
   } catch (err) {
     console.error('Chat API greška:', err)
     return res.status(500).json({ error: err.message })
