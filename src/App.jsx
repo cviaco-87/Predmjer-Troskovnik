@@ -124,16 +124,28 @@ const prepoznajJedinicu = tekst => {
     ? tekst.slice(svaPojavljivanja[svaPojavljivanja.length - 1].index)
     : tekst
   const klauzula = klauzulaSirova.toLowerCase()
-  if (/(?<!m)m\s*2\b|(?<!m)m²|kvadratn/i.test(klauzula)) return 'm²'
-  if (/(?<!m)m\s*3\b|(?<!m)m³|kubn/i.test(klauzula)) return 'm³'
+
+  const imaM2 = /(?<!m)m\s*2\b|(?<!m)m²|kvadratn/i.test(klauzula)
+  const imaM3 = /(?<!m)m\s*3\b|(?<!m)m³|kubn/i.test(klauzula)
+  const imaDan = /\bdan\w*\b/i.test(klauzula)
+
+  // Složena jedinica "m²/dan" (zauzeće javne površine po danu) — provjerava se PRIJE običnog
+  // m², jer se oba pojma obično navode zajedno ("obračun po m²/dan zauzete površine").
+  if (imaM2 && imaDan) return 'm²/dan'
+  if (imaM2) return 'm²'
+  if (imaM3) return 'm³'
   if (/\bkom\.?\b|komad/i.test(klauzula)) return 'kom.'
   if (/\bkg\b|kilogram/i.test(klauzula)) return 'kg'
   // Skraćenice t/l/h se prepoznaju i kao samostalno slovo (npr. "Obračun po t.") i kao puna
-  // riječ (tona/litar/sat/čas) — ranije je bila prepoznata SAMO puna riječ, ne i skraćenica.
-  if (/\bton[ae]?\b|\bt\b/i.test(klauzula)) return 't'
+  // riječ KROZ SVE PADEŽE — \w* hvata bilo koji nastavak poslije korijena (tona/tone/toni/
+  // tonu/tonom, litar/litra/litru/litrom, sat/sata/satu/satom, čas/časa/času/časom), ne samo
+  // nominativ kako je bilo ranije.
+  if (/\bton\w*|\bt\b/i.test(klauzula)) return 't'
   if (/\blitr\w*|\bl\b/i.test(klauzula)) return 'l'
-  if (/\bsat[au]?\b|\bčas[au]?\b|\bcas[au]?\b|\bh\b/i.test(klauzula)) return 'h'
-  if (/\bdan[au]?\b/i.test(klauzula)) return 'dan'
+  if (/\bsat\w*|\bčas\w*|\bcas\w*|\bh\b/i.test(klauzula)) return 'h'
+  if (imaDan) return 'dan'
+  // "Voz" (kamion/vozilo šuta i sl.) — npr. "obračun po vozilu", "obračun po vozu"
+  if (/\bvoz\w*/i.test(klauzula)) return 'voz'
   if (/\bm\s*1\b|m¹|dužn\w*\s*metar|duzn\w*\s*metar|\bm\b/i.test(klauzula)) return 'm'
   return null
 }
