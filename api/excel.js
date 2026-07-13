@@ -63,7 +63,23 @@ export default async function handler(req, res) {
       const dj = poz.filter(d => d.parent_id === p.id)
       return dj.length > 0 ? dj.reduce((s,d) => s+calcSimple(d), 0) : calcSimple(p)
     }
-    const fmtJmj = j => (j||'').replace(/m2\b/g,'m²').replace(/m3\b/g,'m³').replace(/m1\b/g,'m¹')
+    // ── NORMALIZACIJA JEDINICE MJERE — ISTA LOGIKA KAO fmtJmj U App.jsx ──
+    // baza.js koristi PUNE RIJEČI ("Paušalno", "Kom.", "Čas") koje se nikad nisu poklapale sa
+    // skraćenicama koje frontend dropdown koristi ("pau.", "kom.", "h") — otkriveno auditom
+    // jul 2026, pogađa ~295 od 1.091 stavki (27%). Ako se ova funkcija ikad ponovo promijeni u
+    // App.jsx, ISTU izmjenu treba primijeniti i ovdje (dva odvojena fajla, nema zajedničkog
+    // modula dostupnog serverless funkciji). m1/m¹ se svodi na običnu "m".
+    const fmtJmj = j => {
+      const t = (j || '').trim()
+      const punaRijec = {
+        'm¹': 'm', 'm1': 'm', 'm2': 'm²', 'm3': 'm³', 'M2': 'M²', 'M3': 'M³',
+        'Kom.': 'kom.', 'Kom': 'kom.', 'kom': 'kom.',
+        'Paušalno': 'pau.', 'paušalno': 'pau.', 'Pausalno': 'pau.', 'pausalno': 'pau.',
+        'Čas': 'h', 'čas': 'h', 'Cas': 'h', 'cas': 'h', 'Sat': 'h', 'sat': 'h',
+      }
+      if (punaRijec[t]) return punaRijec[t]
+      return t.replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm').replace(/m¹/g, 'm').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
+    }
     const strip = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
     const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n }
 
