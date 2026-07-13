@@ -365,6 +365,10 @@ export default function App() {
   const [kloniranjeLoading, setKloniranjeLoading] = useState(false)
   const [uvozLoading, setUvozLoading] = useState(false)
   const uvozInputRef = React.useRef(null)
+  // Ref na polje "Novi projekat..." u sidebaru — koristi se da centralni ekran za izbor
+  // projekta (kad nijedan projekat nije aktivan) može fokusirati baš OVO polje umjesto da
+  // duplira logiku unosa/kreiranja projekta na dva mjesta.
+  const noviProjekatInputRef = React.useRef(null)
   // Sprečava preklapajuće pozive dodavanja pozicije (npr. brz dupli klik na istu ili različitu
   // "dodaj stavku" akciju) — broj pozicije (redoslijed) se računa iz trenutnog stanja na
   // ekranu, pa dva gotovo istovremena poziva mogu pročitati ISTI "trenutni max" prije nego što
@@ -453,9 +457,17 @@ export default function App() {
         struke = struke.map((s, i) => i === 0 ? { ...s, uvecanjePct: staroUvecanje, umanjenjePct: staroUmanjenje } : s)
         supabase.from('projekti').update({ struke }).eq('id', aktivniProjekat.id).then(() => {})
       }
-      const pocetnaStruka = struke[0]?.kod || 'gradjevinski'
+      // Otvori projekat na FAZI/GRUPI RADOVA gdje je korisnik posljednji put stao u OVOM
+      // projektu — ne uvijek na prvoj. "zadnja_struka_kod" pamti posljednju aktivnu strukу
+      // (kolona na projektu), a "zadnjaFazaId" unutar same struke (u JSON polju struke) pamti
+      // posljednju grupu radova koja je bila otvorena baš u toj struci. Ako ništa nije zapamćeno
+      // (stariji projekat, ili prvi ulazak), pada nazad na prvu strukу — staro ponašanje.
+      const pocetnaStruka = (aktivniProjekat.zadnja_struka_kod && struke.some(s => s.kod === aktivniProjekat.zadnja_struka_kod))
+        ? aktivniProjekat.zadnja_struka_kod
+        : (struke[0]?.kod || 'gradjevinski')
       setAktivnaStruka(pocetnaStruka)
-      ucitajFaze(aktivniProjekat.id, pocetnaStruka)
+      const zapamcenaFazaId = struke.find(s => s.kod === pocetnaStruka)?.zadnjaFazaId || null
+      ucitajFaze(aktivniProjekat.id, pocetnaStruka, zapamcenaFazaId)
       setPozicije([])
       // Vrati stvarnu valutu OVOG projekta (u kojoj su cijene stvarno upisane), ne uvijek EUR
       setValuta(aktivniProjekat.valuta || 'EUR')
@@ -488,22 +500,25 @@ export default function App() {
     const { data, error } = await supabase.from('projekti').select('*').order('azuriran_at', { ascending: false })
     if (error) { console.error('Greška pri učitavanju projekata:', error); alert('Greška pri učitavanju liste projekata: ' + error.message) }
     setProjekti(data || [])
-    if (data?.length > 0 && !aktivniProjekat) {
-      setAktivniProjekat(data[0])
-    }
+    // NAMJERNO: ne bira se automatski prvi projekat. Svaki ulazak u aplikaciju (i svako
+    // osvježavanje stranice) treba da prikaže početni ekran za izbor/kreiranje projekta —
+    // korisnik uvijek eksplicitno bira sa čim radi, umjesto da aplikacija nagađa umjesto njega.
   }
 
-  const ucitajFaze = async (projektId, pocetnaStruka) => {
+  const ucitajFaze = async (projektId, pocetnaStruka, zadnjaFazaId = null) => {
     const { data, error } = await supabase.from('faze').select('*').eq('projekat_id', projektId).order('redoslijed')
     if (error) console.error('Greška pri učitavanju grupa radova:', error)
     const uceitaneFaze = data || []
     setFaze(uceitaneFaze)
-    // Automatski izaberi PRVU grupu radova unutar aktivne faze/struke — bez ovoga bi
-    // korisnik pri svakom ulasku u aplikaciju (ili promjeni faze) morao ručno birati
-    // grupu radova prije nego se pozicije uopšte prikažu na desnoj strani.
+    // Izaberi grupu radova unutar aktivne struke: prvo pokušaj onu koju je korisnik POSLJEDNJU
+    // gledao u ovoj struci (zadnjaFazaId, ako je proslijeđen i još uvijek postoji), a tek ako
+    // takva ne postoji (nova struka, obrisana grupa, stariji projekat bez zapamćene vrijednosti)
+    // padni nazad na prvu grupu radova — bez ovoga bi korisnik pri svakom ulasku u aplikaciju
+    // (ili promjeni struke) morao ručno birati grupu radova prije nego se pozicije prikažu.
     if (pocetnaStruka) {
-      const prvaUFazi = uceitaneFaze.find(f => (f.struka_kod || 'gradjevinski') === pocetnaStruka)
-      setAktivnaFaza(prvaUFazi || null)
+      const fazeUStruci = uceitaneFaze.filter(f => (f.struka_kod || 'gradjevinski') === pocetnaStruka)
+      const zapamcena = zadnjaFazaId ? fazeUStruci.find(f => f.id === zadnjaFazaId) : null
+      setAktivnaFaza(zapamcena || fazeUStruci[0] || null)
     }
   }
 
@@ -651,6 +666,34 @@ export default function App() {
 
   // ── STRUKE (grupisanje faza po disciplini) ──
   const struke = aktivniProjekat?.struke || DEFAULT_STRUKE
+
+  // Zapamti posljednju aktivnu strukу na nivou PROJEKTA (kolona zadnja_struka_kod), da se
+  // sljedeći put kad se ovaj projekat otvori vrati tačno na tu strukу, ne uvijek na prvu.
+  useEffect(() => {
+    if (!aktivniProjekat) return
+    if (aktivniProjekat.zadnja_struka_kod === aktivnaStruka) return // već zapamćeno, izbjegni suvišan upis
+    supabase.from('projekti').update({ zadnja_struka_kod: aktivnaStruka }).eq('id', aktivniProjekat.id).then(({ error }) => {
+      if (error) { console.error('Zadnja aktivna faza (struka) nije zapamćena:', error); return }
+      setAktivniProjekat(prev => prev ? { ...prev, zadnja_struka_kod: aktivnaStruka } : prev)
+      setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, zadnja_struka_kod: aktivnaStruka } : p))
+    })
+  }, [aktivnaStruka, aktivniProjekat?.id])
+
+  // Zapamti posljednju aktivnu grupu radova UNUTAR trenutne struke (zadnjaFazaId, upisano u
+  // samu struku u JSON polju struke) — svaka struka pamti svoju vlastitu posljednju grupu
+  // radova, tako da povratak na npr. Hidrotehničku instalaciju otvara baš onu grupu radova
+  // koju je korisnik tamo posljednji put gledao, nezavisno od Građevinsko-zanatskih radova.
+  useEffect(() => {
+    if (!aktivniProjekat || !aktivnaFaza) return
+    const trenutnaStruka = struke.find(s => s.kod === aktivnaStruka)
+    if (!trenutnaStruka || trenutnaStruka.zadnjaFazaId === aktivnaFaza.id) return // već zapamćeno
+    const nove = struke.map(s => s.kod === aktivnaStruka ? { ...s, zadnjaFazaId: aktivnaFaza.id } : s)
+    supabase.from('projekti').update({ struke: nove }).eq('id', aktivniProjekat.id).then(({ error }) => {
+      if (error) { console.error('Zadnja grupa radova nije zapamćena:', error); return }
+      setAktivniProjekat(prev => prev ? { ...prev, struke: nove } : prev)
+      setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, struke: nove } : p))
+    })
+  }, [aktivnaFaza?.id, aktivnaStruka, aktivniProjekat?.id])
 
   const azurirajStruke = async (noveStruke) => {
     if (!aktivniProjekat) return
@@ -1911,6 +1954,7 @@ ${globalnaRekapitulacijaHtml}
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 14 }}>
             <input type="text" value={noviProjekat} onChange={e => setNoviProjekat(e.target.value)}
+              ref={noviProjekatInputRef}
               spellCheck={false}
               onKeyDown={e => e.key === 'Enter' && dodajProjekat()}
               placeholder="Novi projekat..."
@@ -1963,12 +2007,16 @@ ${globalnaRekapitulacijaHtml}
                     // Ako je već aktivna ova ista struka, ne diraj ništa (izbjegava nepotreban re-fetch pozicija)
                     if (s.kod === aktivnaStruka) return
                     setAktivnaStruka(s.kod)
-                    // Automatski izaberi PRVU grupu radova nove faze/struke (ili ništa ako je nema),
-                    // bez obzira na to je li prethodno nešto bilo izabrano — inače bi klik na strukу
-                    // nakon strukе bez grupa radova (aktivnaFaza je null) ostao bez efekta.
-                    const prvaUFazi = faze.find(f => (f.struka_kod || 'gradjevinski') === s.kod)
-                    setAktivnaFaza(prvaUFazi || null)
-                    if (!prvaUFazi) setPozicije([])
+                    // Izaberi grupu radova nove struke: prvo pokušaj onu koju je korisnik
+                    // POSLJEDNJU gledao baš u ovoj struci (s.zadnjaFazaId), a tek ako ne postoji
+                    // (nova struka, obrisana grupa) padni nazad na prvu — ista logika kao pri
+                    // otvaranju projekta (vidi ucitajFaze), samo bez ponovnog dohvata iz baze
+                    // jer su sve grupe radova projekta već učitane u "faze".
+                    const fazeUStruci = faze.filter(f => (f.struka_kod || 'gradjevinski') === s.kod)
+                    const zapamcena = s.zadnjaFazaId ? fazeUStruci.find(f => f.id === s.zadnjaFazaId) : null
+                    const izabrana = zapamcena || fazeUStruci[0] || null
+                    setAktivnaFaza(izabrana)
+                    if (!izabrana) setPozicije([])
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer',
                     background: s.kod === aktivnaStruka ? '#556575' : 'transparent',
@@ -2119,9 +2167,46 @@ ${globalnaRekapitulacijaHtml}
         {/* RIGHT PANEL */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!aktivniProjekat ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, color: '#aaa' }}>
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              <p style={{ fontSize: 15 }}>Dodajte ili odaberite projekat</p>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
+              <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: '#fff', borderRadius: 14, padding: '42px 36px', boxShadow: '0 2px 10px rgba(0,0,0,.08)' }}>
+                <div style={{ width: 68, height: 68, borderRadius: '50%', background: '#E8ECF0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#4A637C" strokeWidth="1.6"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M12 11v6M9 14h6"/></svg>
+                </div>
+                <div style={{ fontSize: 19, fontWeight: 700, color: '#1B2F43', marginBottom: 8 }}>
+                  {projekti.length === 0 ? 'Kreirajte prvi projekat' : 'Izaberite ili kreirajte projekat'}
+                </div>
+                <div style={{ fontSize: 13, color: '#777', lineHeight: 1.6, marginBottom: 22, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+                  {projekti.length === 0
+                    ? 'Nemate još nijedan projekat. Kreirajte prvi da počnete unos predmjera.'
+                    : 'Otvorite postojeći projekat sa liste ispod, ili kreirajte novi.'}
+                </div>
+
+                {projekti.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 22, textAlign: 'left' }}>
+                    {projekti.slice(0, 5).map(p => (
+                      <button key={p.id} onClick={() => setAktivniProjekat(p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: '1px solid #E5E2D8', borderRadius: 8, padding: '10px 12px', background: '#F5F4F0', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#EEF0F2'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#F5F4F0'}>
+                        <span style={{ fontSize: 15 }}>📁</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1B2F43', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.naziv}</span>
+                        <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0 }}>Otvori →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={() => { noviProjekatInputRef.current?.focus(); noviProjekatInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+                    style={{ background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    + Novi projekat
+                  </button>
+                  <button onClick={() => uvozInputRef.current?.click()}
+                    style={{ background: '#fff', color: '#1B2F43', border: '1px solid #C7CDD3', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    📥 Uvezi projekat
+                  </button>
+                </div>
+              </div>
             </div>
           ) : !aktivnaFaza ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, color: '#aaa' }}>
