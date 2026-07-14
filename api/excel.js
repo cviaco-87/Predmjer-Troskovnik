@@ -295,6 +295,25 @@ export default async function handler(req, res) {
           row.getCell('B').border = borderBottom('medium', Z)
           row.eachCell({includeEmpty:true}, c => { c.fill = fill(PLAVA) })
 
+          // ── OPŠTI USLOVI GRUPE RADOVA (ako su unijeti) — prikazuju se kao blok teksta ispod
+          // naslova grupe, prije zaglavlja kolona. Visina reda se procjenjuje iz dužine teksta
+          // (ExcelJS ne prelama automatski visinu po sadržaju kao HTML), pa računamo grubu
+          // visinu na osnovu broja znakova i broja redova (\n). ──
+          if (f.opsti_uslovi && f.opsti_uslovi.trim()) {
+            const uslovTekst = f.opsti_uslovi.trim()
+            const uslovRow = ws.addRow(['', uslovTekst,'','','','',''])
+            ws.mergeCells(`A${uslovRow.number}:G${uslovRow.number}`)
+            // Procjena visine: ~95 znakova po redu na ovoj širini/fontu, +1 red po svakom \n
+            const brLinija = (uslovTekst.match(/\n/g) || []).length + 1
+            const brRedova = Math.max(brLinija, Math.ceil(uslovTekst.length / 95))
+            uslovRow.height = Math.min(400, brRedova * 12 + 6)
+            uslovRow.getCell('B').value = uslovTekst
+            uslovRow.getCell('B').font = font({size:8.5, color:'333333'})
+            uslovRow.getCell('B').alignment = { horizontal:'left', vertical:'top', wrapText:true }
+            uslovRow.eachCell({includeEmpty:true}, c => { c.fill = fill('F7F8FA') })
+            uslovRow.getCell('B').border = { left: {style:'medium', color:{argb:'FF4A637C'}} }
+          }
+
           // ── ZAGLAVLJE KOLONA ──
           row = ws.addRow(['R.br.','Šifra','Opis pozicije','J.mj.',`Jed. cijena (${CUR})`,'Količina',`Ukupno (${CUR})`])
           row.height = 27.95
