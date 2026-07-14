@@ -1241,6 +1241,49 @@ export default function App() {
     setRevizija(r => r + 1)
   }
 
+  // ── DOHVAT SVIH POZICIJA CIJELOG PROJEKTA (za AI procjenu cijena cijelog projekta) ──
+  // Vraća { faze: [{id, naziv, struka_kod}], pozicijePoFazi: { fazaId: [...pozicije] } }
+  // Ovo koristi AIAsistent kad korisnik traži procjenu cijena za CIJELI projekat (sve faze),
+  // ne samo trenutno aktivnu grupu radova. Aktivna faza već ima pozicije učitane u "pozicije",
+  // ali ostale faze projekta nisu — moraju se dohvatiti iz baze.
+  const dohvatiSvePozicijeProjekta = async () => {
+    if (!aktivniProjekat || faze.length === 0) return { faze: [], pozicijePoFazi: {} }
+    const pozicijePoFazi = {}
+    // Paralelni dohvat pozicija za sve faze (brže od redom jednu-po-jednu)
+    const rezultati = await Promise.all(
+      faze.map(f => supabase.from('pozicije').select('*').eq('faza_id', f.id).order('redoslijed'))
+    )
+    faze.forEach((f, i) => {
+      const { data, error } = rezultati[i]
+      if (error) { console.error('Greška pri dohvatu pozicija faze', f.naziv, error); pozicijePoFazi[f.id] = []; return }
+      pozicijePoFazi[f.id] = data || []
+    })
+    return {
+      faze: faze.map(f => ({ id: f.id, naziv: f.naziv, struka_kod: f.struka_kod || 'gradjevinski' })),
+      pozicijePoFazi
+    }
+  }
+
+  // Upiši procijenjene cijene za pozicije koje mogu biti u BILO KOJOJ fazi projekta (ne samo
+  // aktivnoj) — koristi se kod procjene cijelog projekta. Ista logika kao procijeniCijene, ali
+  // NE pretpostavlja da su sve pozicije u aktivnoj fazi, pa na kraju osvježava samo aktivnu
+  // fazu u prikazu (ostale faze će se ionako ponovo učitati kad korisnik pređe na njih).
+  const procijeniCijeneViseFaza = async (stavkeNoveCijene) => {
+    // stavkeNoveCijene = [{id, cijena}]
+    setPozicije(prev => prev.map(p => {
+      const nova = stavkeNoveCijene.find(s => s.id === p.id)
+      return nova ? { ...p, cijena: nova.cijena } : p
+    }))
+    let neuspjelo = 0
+    for (const s of stavkeNoveCijene) {
+      const { error } = await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
+      if (error) { neuspjelo++; console.error('Greška pri upisu cijene za', s.id, error) }
+    }
+    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`)
+    if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
+    setRevizija(r => r + 1)
+  }
+
   // ── AI PREGLED I POBOLJŠANJE POSTOJEĆIH STAVKI ──
   const primijeniIzmjene = async (stavkeIzmjene) => {
     // stavkeIzmjene = [{id, noviOpis}]
@@ -2810,6 +2853,10 @@ ${globalnaRekapitulacijaHtml}
           pozicije={pozicije}
           onDodajStavku={dodajStavkuIzAI}
           onProcijeniCijene={procijeniCijene}
+          onProcijeniCijeneViseFaza={procijeniCijeneViseFaza}
+          onDohvatiSvePozicije={dohvatiSvePozicijeProjekta}
+          imaProjekat={!!aktivniProjekat}
+          brojFaza={faze.length}
           onPrimijeniIzmjene={primijeniIzmjene}
           onSetValuta={postaviValutuNakonAI}
           onClose={() => setShowAI(false)}
