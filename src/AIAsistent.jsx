@@ -159,7 +159,7 @@ function formatOdgovor(text) {
 // Formatira broj tokena čitljivo (npr. 12500 -> "12.500", 1250000 -> "1.250.000")
 const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onPrimijeniIzmjene, onSetValuta, onClose, session }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, onClose, session }) {
   const [poruke, setPoruke] = useState([{
     uloga: 'asistent',
     tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
@@ -195,6 +195,16 @@ Kako mogu pomoći? Npr:
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const [historija, setHistorija] = useState([])
+
+  // ── PROCJENA CIJENA U PAKETIMA (batch) ──
+  // Napredak grupne procjene cijena (jedne faze ili cijelog projekta), prikazuje se u traci
+  // dok traje: { aktivna: bool, tekst, tekuci, ukupno } gdje tekuci/ukupno mjere pakete.
+  const [batchNapredak, setBatchNapredak] = useState({ aktivna: false, tekst: '', tekuci: 0, ukupno: 0 })
+  // Dijalog potvrde troška prije velike procjene: { stavki, procjenaTokena, procjenaUsd, pokreni }
+  // "pokreni" je funkcija koja se poziva ako korisnik potvrdi. null = dijalog zatvoren.
+  const [potvrdaTroska, setPotvrdaTroska] = useState(null)
+  // Prekid tekuće batch procjene (korisnik kliknuo "Prekini") — provjerava se između paketa.
+  const prekiniBatchRef = useRef(false)
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [poruke])
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -261,6 +271,223 @@ Kako mogu pomoći? Npr:
       }
     })
     return linije.join('\n')
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // PROCJENA CIJENA U PAKETIMA (batch)
+  // ────────────────────────────────────────────────────────────────────────────
+  // Zašto paketi: kod velikih faza (100+ stavki) jedan AI poziv rizikuje da odgovor bude
+  // odsječen (model ima ograničen max_tokens izlaz), ili da jedna greška u velikom JSON-u
+  // obori procjenu za sve stavke. Dijeljenjem na pakete od ~30 stavki svaki paket je mali,
+  // siguran i nezavisan — ako jedan padne, ostali su svejedno primijenjeni.
+  const VELICINA_PAKETA = 30
+
+  // Gruba procjena tokena za procjenu cijena N stavki. Bazirano na iskustvu (Sonnet 5):
+  // ulaz ~250-350 tok/stavka (opis + sistem prompt podijeljen), izlaz ~120-160 tok/stavka
+  // (cijena + kratko obrazloženje). Web pretraga dodaje ulaz. Namjerno malo precijenjeno da
+  // korisnik ne bude neprijatno iznenađen — bolja gornja nego donja granica.
+  const procijeniTokeneIUsd = (brojStavki, saWebom) => {
+    const ulaz = brojStavki * 320 + (saWebom ? brojStavki * 400 : 0) + 900 /*sistem prompt po paketu*/ * Math.ceil(brojStavki / VELICINA_PAKETA)
+    const izlaz = brojStavki * 150
+    // Sonnet 5 uvodna cijena (do 31.8.2026): $2/M ulaz, $10/M izlaz. Web pretraga ~$0.01/poziv.
+    const brojPaketa = Math.ceil(brojStavki / VELICINA_PAKETA)
+    const usd = (ulaz / 1e6) * 2 + (izlaz / 1e6) * 10 + (saWebom ? brojPaketa * 0.01 : 0)
+    return { tokena: ulaz + izlaz, usd }
+  }
+
+  // Formatira spisak stavki jednog paketa u tekst za AI (id + opis, sažeto — bez podstavki bez
+  // naziva pošto one nasljeđuju cijenu). Vraća { tekst, brojStavki } gdje su brojStavki stvarno
+  // procjenjive stavke (one koje AI treba ocijeniti).
+  const formatirajPaket = (pozicijeArr) => {
+    const roditelji = pozicijeArr.filter(p => !p.parent_id)
+    const linije = []
+    let broj = 0
+    for (const p of roditelji) {
+      const djeca = pozicijeArr.filter(d => d.parent_id === p.id)
+      const naziv = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 240)
+      if (djeca.length > 0) {
+        // Roditelj sa podstavkama: cijena ide na podstavke, ne na roditelja
+        for (const d of djeca) {
+          const nazivD = (d.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1') || naziv
+          linije.push(`ID:${d.id} | ${d.jedinica || 'm²'} | ${naziv} — ${nazivD}`.slice(0, 300))
+          broj++
+        }
+      } else {
+        linije.push(`ID:${p.id} | ${p.jedinica || 'm²'} | ${naziv}`)
+        broj++
+      }
+    }
+    return { tekst: linije.join('\n'), brojStavki: broj }
+  }
+
+  // Pošalje JEDAN paket stavki na procjenu cijena i vrati parsirane cijene [{id, cijena, obrazlozenje}].
+  // Ne dira UI direktno (osim brojača potrošnje) — pozivalac (pokreniBatchProcjenu) skuplja
+  // rezultate svih paketa i tek na kraju otvara modal za pregled.
+  const posaljiPaket = async (pozicijeArr, valutaZnak, saWebom) => {
+    const { tekst: spisak, brojStavki } = formatirajPaket(pozicijeArr)
+    if (brojStavki === 0) return []
+
+    const userContent = `Procijeni realne tržišne cijene za sljedeće stavke predmjera (valuta: ${valutaZnak}).${saWebom ? ' Koristi web pretragu za aktuelne cijene materijala/radova gdje pomaže.' : ''}
+
+STAVKE (format: ID | jedinica | opis):
+${spisak}
+
+Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni ID. Cijene neka budu realne za tržište BiH/Srbije, bez preuveličavanja.`
+
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token || ''}` },
+      body: JSON.stringify({
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userContent }],
+        webSearch: saWebom,
+        tip: 'masovno'
+      })
+    })
+    let data
+    try { data = await response.json() }
+    catch(e) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
+    if (!response.ok) throw new Error('API greška ' + response.status + ': ' + (data?.error || ''))
+
+    // Ažuriraj brojač potrošnje uživo (isto kao u posalji)
+    if (data.potrosnja) {
+      setPotrosnjaMjesec(prev => ({
+        tokena: prev.tokena + (data.potrosnja.ulazniTokeni || 0) + (data.potrosnja.izlazniTokeni || 0),
+        cijenaUsd: prev.cijenaUsd + (data.potrosnja.cijenaUsd || 0),
+        ucitano: true
+      }))
+    }
+
+    const odgovorTekst = data.content?.[0]?.text || ''
+    const cijeneData = parseCijene(odgovorTekst)
+    return (cijeneData?.stavke || [])
+  }
+
+  // Glavni pokretač: procjenjuje cijene za dati spisak pozicija (jedna faza ILI cijeli projekat),
+  // u paketima, prikazuje napredak, i na kraju otvara modal za pregled sa SVIM prikupljenim
+  // cijenama. mapaPozicija = { id: pozicijaObjekat } za brzo pronalaženje starih cijena/naziva.
+  const pokreniBatchProcjenu = async (svePozicije, mapaPozicija, valutaZnak, saWebom, viseFaza) => {
+    prekiniBatchRef.current = false
+    setLoading(true)
+
+    // Podijeli na pakete od VELICINA_PAKETA roditeljskih stavki (podstavke idu uz roditelja)
+    const roditelji = svePozicije.filter(p => !p.parent_id)
+    const paketi = []
+    for (let i = 0; i < roditelji.length; i += VELICINA_PAKETA) {
+      const grupaRoditelja = roditelji.slice(i, i + VELICINA_PAKETA)
+      const idSet = new Set(grupaRoditelja.map(r => r.id))
+      // Uključi i podstavke tih roditelja
+      const paket = svePozicije.filter(p => idSet.has(p.id) || (p.parent_id && idSet.has(p.parent_id)))
+      paketi.push(paket)
+    }
+
+    const sveCijene = []
+    let greske = 0
+    for (let i = 0; i < paketi.length; i++) {
+      if (prekiniBatchRef.current) break
+      setBatchNapredak({ aktivna: true, tekst: `Procjenjujem cijene… paket ${i + 1} od ${paketi.length}`, tekuci: i + 1, ukupno: paketi.length })
+      try {
+        const cijene = await posaljiPaket(paketi[i], valutaZnak, saWebom)
+        sveCijene.push(...cijene)
+      } catch (e) {
+        greske++
+        console.error('Greška u paketu', i + 1, e)
+      }
+    }
+
+    setBatchNapredak({ aktivna: false, tekst: '', tekuci: 0, ukupno: 0 })
+    setLoading(false)
+
+    if (prekiniBatchRef.current) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: '⏹ Procjena cijena je prekinuta. Do sada procijenjene cijene možete pregledati u modalu ako se pojavio.', stavka: null, cijene: null }])
+    }
+
+    // Sastavi modal iz svih prikupljenih cijena
+    const modalStavke = sveCijene.map(s => {
+      const poz = mapaPozicija[s.id]
+      if (!poz) return null
+      let prikazNaziv = (poz.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 80)
+      if (poz.parent_id && !prikazNaziv.trim()) {
+        const roditelj = mapaPozicija[poz.parent_id]
+        prikazNaziv = `(podstavka) ${(roditelj?.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 60)}`
+      } else if (poz.parent_id) {
+        prikazNaziv = `↳ ${prikazNaziv}`
+      }
+      return {
+        id: s.id,
+        naziv: prikazNaziv,
+        staraCijena: poz.cijena || 0,
+        novaCijena: s.cijena,
+        obrazlozenje: s.obrazlozenje || '',
+        prihvacena: true,
+        viseFaza  // oznaka da primjena ide preko onProcijeniCijeneViseFaza (ne samo aktivna faza)
+      }
+    }).filter(Boolean)
+
+    if (modalStavke.length > 0) {
+      setModalCijene({ valuta: valutaZnak, stavke: modalStavke, viseFaza })
+      const dodatak = greske > 0 ? ` (${greske} paket(a) nije uspjelo — te stavke nemaju prijedlog)` : ''
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: `Procjena gotova — ${modalStavke.length} stavki spremno za pregled u modalu ispod.${dodatak} ✅`, stavka: null, cijene: null }])
+    } else if (!prekiniBatchRef.current) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: `Nisam uspio da procijenim cijene${greske > 0 ? ` (${greske} paket(a) nije uspjelo)` : ''}. Pokušajte ponovo ili procijenite manju grupu.`, stavka: null, cijene: null }])
+    }
+  }
+
+  // Pripremi procjenu za AKTIVNU fazu (dugme "Procijeni ovu fazu")
+  const procijeniOvuFazu = async (saWebom = true) => {
+    if (loading) return
+    if (!pozicije || pozicije.length === 0) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Ova grupa radova je prazna — nema stavki za procjenu cijena.', stavka: null, cijene: null }])
+      return
+    }
+    const valutaZnak = 'EUR' // procjena uvijek u EUR (interna valuta baze); korisnik kasnije konvertuje
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const brojProcjenjivih = pozicije.filter(p => !p.parent_id && pozicije.filter(d => d.parent_id === p.id).length === 0).length
+      + pozicije.filter(p => p.parent_id).length
+    const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
+    const mapa = Object.fromEntries(pozicije.map(p => [p.id, p]))
+
+    const pokreni = () => pokreniBatchProcjenu(pozicije, mapa, valutaZnak, saWebom, false)
+
+    // Upozorenje o trošku samo za velike procjene (prag: preko ~50 stavki ILI preko ~$0.20)
+    if (brojProcjenjivih > 50 || usd > 0.20) {
+      setPotvrdaTroska({ stavki: brojProcjenjivih, procjenaTokena: tokena, procjenaUsd: usd, faza: aktivnaFaza?.naziv || 'ova grupa radova', pokreni })
+    } else {
+      pokreni()
+    }
+  }
+
+  // Pripremi procjenu za CIJELI PROJEKAT (dugme "Procijeni cijeli projekat")
+  const procijeniCijeliProjekat = async (saWebom = true) => {
+    if (loading) return
+    if (!onDohvatiSvePozicije) return
+    setBatchNapredak({ aktivna: true, tekst: 'Učitavam sve faze projekta…', tekuci: 0, ukupno: 0 })
+    const { faze: sveFaze, pozicijePoFazi } = await onDohvatiSvePozicije()
+    setBatchNapredak({ aktivna: false, tekst: '', tekuci: 0, ukupno: 0 })
+
+    // Spoji sve pozicije svih faza u jedan niz
+    const svePozicije = []
+    for (const f of sveFaze) svePozicije.push(...(pozicijePoFazi[f.id] || []))
+
+    if (svePozicije.length === 0) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Projekat nema nijednu stavku ni u jednoj fazi — nema šta procjenjivati.', stavka: null, cijene: null }])
+      return
+    }
+
+    const valutaZnak = 'EUR'
+    const brojProcjenjivih = svePozicije.filter(p => !p.parent_id && svePozicije.filter(d => d.parent_id === p.id).length === 0).length
+      + svePozicije.filter(p => p.parent_id).length
+    const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
+    const mapa = Object.fromEntries(svePozicije.map(p => [p.id, p]))
+
+    const pokreni = () => pokreniBatchProcjenu(svePozicije, mapa, valutaZnak, saWebom, true)
+
+    // Cijeli projekat je skoro uvijek velik — gotovo uvijek prikaži procjenu troška
+    if (brojProcjenjivih > 50 || usd > 0.20) {
+      setPotvrdaTroska({ stavki: brojProcjenjivih, procjenaTokena: tokena, procjenaUsd: usd, faza: `cijeli projekat (${sveFaze.length} faza)`, pokreni })
+    } else {
+      pokreni()
+    }
   }
 
   const posalji = async () => {
@@ -420,7 +647,11 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
     setPrimjenaLoading(true)
     if (onSetValuta) onSetValuta(modalCijene.valuta)
     const prihvacene = modalCijene.stavke.filter(s => s.prihvacena)
-    if (onProcijeniCijene) await onProcijeniCijene(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
+    // Ako je procjena obuhvatala VIŠE faza (cijeli projekat), koristi funkciju koja ne
+    // pretpostavlja da su sve pozicije u aktivnoj fazi. Inače (procjena jedne, aktivne faze)
+    // koristi standardnu onProcijeniCijene. Fallback na onProcijeniCijene ako novi prop nije prisutan.
+    const primijeni = (modalCijene.viseFaza && onProcijeniCijeneViseFaza) ? onProcijeniCijeneViseFaza : onProcijeniCijene
+    if (primijeni) await primijeni(prihvacene.map(s => ({ id: s.id, cijena: s.novaCijena })))
     setPrimjenaLoading(false)
     setModalCijene(null)
     // Zapamti staru/novu vrijednost svake stavke da bi "Opozovi" mogao vratiti tačno ove cijene
@@ -525,6 +756,86 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           ? <span>Potrošeno ovog mjeseca: <strong style={{ color: '#4A637C' }}>{fmtTokeni(potrosnjaMjesec.tokena)}</strong> tokena (~${potrosnjaMjesec.cijenaUsd.toFixed(3)})</span>
           : <span>Učitavam potrošnju...</span>}
       </div>
+
+      {/* ── DUGMAD ZA PROCJENU CIJENA (batch) ── */}
+      {/* Dva odvojena toka: "ova faza" (svakodnevni, ciljan) i "cijeli projekat" (finalni prolaz
+          pred predaju). Oba interno rade u paketima od ~30 stavki. Sakriveno dok traje neka druga
+          radnja (loading) ili dok je batch već u toku. */}
+      {!batchNapredak.aktivna && (
+        <div style={{ padding: '8px 12px', background: '#EEF2F5', borderBottom: '1px solid #E8E5DC', display: 'flex', gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={() => procijeniOvuFazu(true)}
+            disabled={loading || !aktivnaFaza || !pozicije || pozicije.length === 0}
+            title={!aktivnaFaza ? 'Odaberite grupu radova' : (!pozicije || pozicije.length === 0 ? 'Ova grupa radova je prazna' : 'Procijeni realne tržišne cijene za stavke ove grupe radova')}
+            style={{ flex: 1, background: (loading || !aktivnaFaza || !pozicije || pozicije.length === 0) ? '#C7CDD3' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 6px', fontSize: 11.5, fontWeight: 600, cursor: (loading || !aktivnaFaza || !pozicije || pozicije.length === 0) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', lineHeight: 1.2 }}>
+            💶 Procijeni ovu fazu
+          </button>
+          <button
+            onClick={() => procijeniCijeliProjekat(true)}
+            disabled={loading || !imaProjekat || brojFaza === 0}
+            title={!imaProjekat ? 'Nema aktivnog projekta' : (brojFaza === 0 ? 'Projekat nema faza' : 'Procijeni cijene za SVE faze projekta odjednom (finalni prolaz pred predaju)')}
+            style={{ flex: 1, background: (loading || !imaProjekat || brojFaza === 0) ? '#C7CDD3' : '#2D4B6A', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 6px', fontSize: 11.5, fontWeight: 600, cursor: (loading || !imaProjekat || brojFaza === 0) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', lineHeight: 1.2 }}>
+            📊 Procijeni cijeli projekat
+          </button>
+        </div>
+      )}
+
+      {/* ── TRAKA NAPRETKA BATCH PROCJENE ── */}
+      {batchNapredak.aktivna && (
+        <div style={{ padding: '10px 12px', background: '#FFF8E8', borderBottom: '1px solid #E8D9B0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, color: '#8A6524', fontWeight: 600 }}>⏳ {batchNapredak.tekst}</span>
+            <button onClick={() => { prekiniBatchRef.current = true }}
+              style={{ background: 'transparent', border: '1px solid #C9954E', borderRadius: 6, color: '#8A6524', cursor: 'pointer', fontSize: 10.5, padding: '2px 8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              ⏹ Prekini
+            </button>
+          </div>
+          {batchNapredak.ukupno > 0 && (
+            <div style={{ height: 6, background: '#EADFC4', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.round((batchNapredak.tekuci / batchNapredak.ukupno) * 100)}%`, background: '#C9954E', borderRadius: 3, transition: 'width 0.3s' }}></div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── DIJALOG POTVRDE TROŠKA (samo za velike procjene) ── */}
+      {potvrdaTroska && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 340, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ background: '#1B2F43', color: '#fff', padding: '12px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>💰 Procjena troška</div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontSize: 12.5, color: '#333', lineHeight: 1.6, marginBottom: 12 }}>
+                Procjena cijena za <strong>{potvrdaTroska.faza}</strong> obuhvata <strong>{potvrdaTroska.stavki}</strong> stavki.
+              </div>
+              <div style={{ background: '#F5F4F0', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#666' }}>Približan trošak:</span>
+                  <strong style={{ color: '#1B2F43' }}>~${potvrdaTroska.procjenaUsd.toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#666' }}>Približno tokena:</span>
+                  <strong style={{ color: '#4A637C' }}>~{fmtTokeni(potvrdaTroska.procjenaTokena)}</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#999', lineHeight: 1.5, marginBottom: 4 }}>
+                Procjena je okvirna (stvarni trošak zavisi od web pretrage i dužine odgovora). Radi se u paketima — možete prekinuti u svakom trenutku.
+              </div>
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
+              <button onClick={() => setPotvrdaTroska(null)}
+                style={{ flex: 1, background: '#F0F2F5', color: '#666', border: '1px solid #D8D5CC', borderRadius: 8, padding: '9px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Odustani
+              </button>
+              <button onClick={() => { const fn = potvrdaTroska.pokreni; setPotvrdaTroska(null); fn() }}
+                style={{ flex: 1.4, background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Nastavi procjenu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal procjene cijena */}
       {modalCijene && (
