@@ -3,6 +3,7 @@ import AIAsistent from "./AIAsistent.jsx"
 import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
+import { SABLONI_USLOVI } from './sabloniUslovi.js'
 
 // Redoslijed kategorija prema šifarniku baze (01, 02, 03...) i podjela na dvije faze izvođenja:
 // grubi (konstruktivni) građevinski radovi i završni (zanatski/instalaterski) radovi,
@@ -411,6 +412,9 @@ export default function App() {
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  // Prikaz uređivača opštih uslova aktivne grupe radova (sklopivo — sakriveno po defaultu da
+  // ne zauzima prostor dok korisniku ne zatreba)
+  const [showUslovi, setShowUslovi] = useState(false)
   const [exportMeni, setExportMeni] = useState(null) // null | 'excel' | 'pdf'
   const [valuta, setValuta] = useState('EUR') // EUR | KM | RSD | USD
   const [revizija, setRevizija] = useState(0) // brojač koji se povećava samo pri AI grupnim izmjenama (forsira osvježenje polja)
@@ -731,6 +735,34 @@ export default function App() {
     if (error) { alert('Greška pri preimenovanju grupe radova: ' + error.message); return }
     setFaze(prev => prev.map(f => f.id === id ? { ...f, naziv: noviNaziv.trim() } : f))
     setAktivnaFaza(prev => prev && prev.id === id ? { ...prev, naziv: noviNaziv.trim() } : prev)
+  }
+
+  // ── OPŠTI USLOVI GRUPE RADOVA ──
+  // Uvodni tekst (tehnički uslovi obračuna, kvaliteta, normativi) koji se prikazuje prije
+  // stavki grupe radova i u Excel/PDF exportu. Čuva se u koloni "opsti_uslovi" na tabeli faze.
+  const sacuvajUslove = async (fazaId, tekst) => {
+    const vrijednost = (tekst || '').trim() || null
+    const { error } = await supabase.from('faze').update({ opsti_uslovi: vrijednost }).eq('id', fazaId)
+    if (error) {
+      // Najvjerovatniji uzrok: kolona još ne postoji u bazi (migracija nije pokrenuta).
+      // Ne rušimo aplikaciju — javljamo jasno i tiho ostavljamo tekst u lokalnom stanju.
+      console.error('Greška pri čuvanju opštih uslova:', error)
+      alert('Opšti uslovi nisu sačuvani. Ako je ovo prvi put — provjerite da je u bazi pokrenuta migracija koja dodaje kolonu "opsti_uslovi" na tabelu faze.')
+      return
+    }
+    setFaze(prev => prev.map(f => f.id === fazaId ? { ...f, opsti_uslovi: vrijednost } : f))
+    setAktivnaFaza(prev => prev && prev.id === fazaId ? { ...prev, opsti_uslovi: vrijednost } : prev)
+  }
+
+  // Vrati predefinisani šablon uslova za kategoriju koja dominira u aktivnoj grupi radova.
+  // Kategorija se određuje iz PRVE (glavne) pozicije u grupi — ista logika kao za šifru u
+  // exportu. Ako grupa nema stavki ili kategorija nema šablon, vraća null (korisnik piše ručno
+  // ili traži AI predlog).
+  const sablonZaAktivnuFazu = () => {
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const kategorija = roditelji[0]?.kategorija
+    if (!kategorija) return null
+    return SABLONI_USLOVI[kategorija] || null
   }
 
   // ── STRUKE (grupisanje faza po disciplini) ──
@@ -1525,6 +1557,7 @@ export default function App() {
           const naslovFaze = escHtml(sifFaze ? `${sifFaze}. ${f.naziv.toUpperCase()}` : f.naziv.toUpperCase())
           sviFazeSadrzaj += `
             <div class="faza-header"><h2>${naslovFaze}</h2></div>
+            ${f.opsti_uslovi ? `<div class="opsti-uslovi">${escHtml(f.opsti_uslovi).replace(/\n/g, '<br>')}</div>` : ''}
             <table>
               <thead><tr>
                 <th class="c" style="width:30px">R.br.</th>
@@ -1630,6 +1663,7 @@ export default function App() {
   .struka-korekcija { margin:0 0 22px; }
   .struka-korekcija td { font-size:9.5pt; padding:4px 12px; border-bottom:none; }
   .faza-header h2 { font-size:14pt; color:#1B2F43; margin:14px 0 5px; padding:6px 10px; border-bottom:1px solid #4A637C; background:#B9CDE5 !important; border-radius:2px; }
+  .opsti-uslovi { font-size:8.5pt; color:#333; line-height:1.5; margin:0 0 10px; padding:8px 12px; background:#F7F8FA !important; border-left:3px solid #4A637C; text-align:justify; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
   th { background:#1B2F43 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
   th.r { text-align:right; } th.c { text-align:center; }
@@ -2414,6 +2448,58 @@ ${globalnaRekapitulacijaHtml}
                 zamjenaNaziv={zamjenaPozicijaId ? (pozicije.find(p => p.id === zamjenaPozicijaId)?.naziv || '(bez naziva)') : null}
                 onOtkaziZamjenu={() => setZamjenaPozicijaId(null)}
               />
+              </div>
+
+              {/* ── OPŠTI USLOVI GRUPE RADOVA (sklopivo) ── */}
+              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', flexShrink: 0, border: '1px solid #D8D5CC' }}>
+                <div onClick={() => setShowUslovi(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none' }}>
+                  <span style={{ fontSize: 13 }}>{showUslovi ? '▼' : '▶'}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2F43', flex: 1 }}>
+                    📋 Opšti uslovi grupe radova
+                    {aktivnaFaza?.opsti_uslovi && <span style={{ fontSize: 10.5, fontWeight: 400, color: '#4A637C', marginLeft: 8 }}>✓ popunjeno</span>}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: '#999' }}>{showUslovi ? 'sakrij' : 'prikaži'}</span>
+                </div>
+                {showUslovi && (
+                  <div style={{ padding: '10px 12px', background: '#fff', borderTop: '1px solid #E8E5DC' }}>
+                    <div style={{ fontSize: 11, color: '#888', lineHeight: 1.5, marginBottom: 8 }}>
+                      Uvodni tekst koji se prikazuje prije stavki ove grupe radova u Excel i PDF izvještaju
+                      (tehnički uslovi, način obračuna, kvalitet, normativi). Opcion — možete ga ostaviti prazan.
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                      {sablonZaAktivnuFazu() && (
+                        <button onClick={() => {
+                            const sablon = sablonZaAktivnuFazu()
+                            if (!sablon) return
+                            if (aktivnaFaza?.opsti_uslovi && !confirm('Zamijeniti postojeći tekst uslova predefinisanim šablonom?')) return
+                            sacuvajUslove(aktivnaFaza.id, sablon)
+                          }}
+                          style={{ background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          📥 Ubaci šablon za ovu grupu
+                        </button>
+                      )}
+                      <button onClick={() => { setShowAI(true); setTimeout(() => alert('U AI asistentu upišite: "Napiši opšte uslove za ovu grupu radova" — asistent će predložiti tekst koji možete prekopirati ovdje.'), 100) }}
+                        title="Otvori AI asistenta za predlog uslova (korisno za grupe koje nemaju predefinisan šablon)"
+                        style={{ background: '#F0F2F5', color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        ✨ AI predlog uslova
+                      </button>
+                      {aktivnaFaza?.opsti_uslovi && (
+                        <button onClick={() => { if (confirm('Obrisati opšte uslove ove grupe radova?')) sacuvajUslove(aktivnaFaza.id, '') }}
+                          style={{ background: 'transparent', color: '#C0392B', border: '1px solid #f5c6c2', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                          🗑 Obriši
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      key={`uslovi-${aktivnaFaza.id}`}
+                      defaultValue={aktivnaFaza?.opsti_uslovi || ''}
+                      spellCheck={false}
+                      onBlur={e => { if ((e.target.value || '').trim() !== (aktivnaFaza?.opsti_uslovi || '').trim()) sacuvajUslove(aktivnaFaza.id, e.target.value) }}
+                      placeholder="Upišite opšte uslove za ovu grupu radova, ili kliknite 'Ubaci šablon' iznad..."
+                      style={{ width: '100%', minHeight: 120, border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#FAFAF8', color: '#2B2B26' }} />
+                  </div>
+                )}
               </div>
 
               {/* Tabela */}
