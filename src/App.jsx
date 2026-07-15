@@ -2511,11 +2511,12 @@ ${globalnaRekapitulacijaHtml}
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
                       {sablonZaAktivnuFazu() && (
-                        <button onClick={() => {
+                        <button onClick={async () => {
                             const sablon = sablonZaAktivnuFazu()
                             if (!sablon) return
                             if (aktivnaFaza?.opsti_uslovi && !confirm('Zamijeniti postojeći tekst uslova predefinisanim šablonom?')) return
-                            sacuvajUslove(aktivnaFaza.id, sablon)
+                            await sacuvajUslove(aktivnaFaza.id, sablon)
+                            setRevizija(r => r + 1) // remount textarea da odmah prikaže ubačeni šablon
                           }}
                           style={{ background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                           📥 Ubaci šablon za ovu grupu
@@ -2527,7 +2528,7 @@ ${globalnaRekapitulacijaHtml}
                         ✨ AI predlog uslova
                       </button>
                       {aktivnaFaza?.opsti_uslovi && (
-                        <button onClick={() => { if (confirm('Obrisati opšte tehničke uslove ove grupe radova?')) sacuvajUslove(aktivnaFaza.id, '') }}
+                        <button onClick={async () => { if (confirm('Obrisati opšte tehničke uslove ove grupe radova?')) { await sacuvajUslove(aktivnaFaza.id, ''); setRevizija(r => r + 1) } }}
                           style={{ background: 'transparent', color: '#C0392B', border: '1px solid #f5c6c2', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>
                           🗑 Obriši
                         </button>
@@ -2540,7 +2541,15 @@ ${globalnaRekapitulacijaHtml}
                       spellCheck={false}
                       onInput={e => autoGrowTextarea(e.target)}
                       onDoubleClick={e => autoGrowTextarea(e.currentTarget)}
-                      onBlur={e => { if ((e.target.value || '').trim() !== (aktivnaFaza?.opsti_uslovi || '').trim()) sacuvajUslove(aktivnaFaza.id, e.target.value) }}
+                      onBlur={e => {
+                        // Sačuvaj SAMO ako se sadržaj polja stvarno razlikuje od onoga što je
+                        // trenutno u fazi. Bez ove provjere, ako korisnik obriše uslove drugim
+                        // dugmetom ("Obriši"), blur ovog polja bi vratio (vaskrsnuo) stari tekst
+                        // nazad u bazu. Čitamo aktuelnu vrijednost iz aktivnaFaza u trenutku blur-a.
+                        const novo = (e.target.value || '').trim()
+                        const trenutno = (aktivnaFaza?.opsti_uslovi || '').trim()
+                        if (novo !== trenutno) sacuvajUslove(aktivnaFaza.id, e.target.value)
+                      }}
                       title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu cijelom tekstu"
                       placeholder="Upišite opšte tehničke uslove za ovu grupu radova, ili kliknite 'Ubaci šablon' / 'AI predlog uslova' iznad..."
                       style={{ width: '100%', minHeight: 120, border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#FAFAF8', color: '#2B2B26', overflow: 'hidden' }} />
