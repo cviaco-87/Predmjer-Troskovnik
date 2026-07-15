@@ -1715,7 +1715,7 @@ export default function App() {
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
   @page {
-    margin: 14mm 12mm 18mm 12mm;
+    margin: 14mm 12mm 18mm 20mm;
     @bottom-right {
       content: "Strana " counter(page) " od " counter(pages);
       font-size: 8pt;
