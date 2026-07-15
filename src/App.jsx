@@ -4,6 +4,7 @@ import { supabase } from './supabase.js'
 import Auth from './Auth.jsx'
 import MojaBaza from './MojaBaza.jsx'
 import { SABLONI_USLOVI } from './sabloniUslovi.js'
+import Uputstvo from './Uputstvo.jsx'
 
 // Redoslijed kategorija prema šifarniku baze (01, 02, 03...) i podjela na dvije faze izvođenja:
 // grubi (konstruktivni) građevinski radovi i završni (zanatski/instalaterski) radovi,
@@ -412,6 +413,7 @@ export default function App() {
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [showUputstvo, setShowUputstvo] = useState(false)
   // Prikaz uređivača opštih uslova aktivne grupe radova (sklopivo — sakriveno po defaultu da
   // ne zauzima prostor dok korisniku ne zatreba)
   const [showUslovi, setShowUslovi] = useState(false)
@@ -2061,6 +2063,11 @@ ${globalnaRekapitulacijaHtml}
           <span style={{ fontSize: 11, background: 'rgba(255,255,255,.15)', borderRadius: 20, padding: '3px 10px' }}>
             {session.user.email}
           </span>
+          <button onClick={() => setShowUputstvo(true)}
+            title="Uputstvo za korišćenje"
+            style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
+            📖 Uputstvo
+          </button>
           <button onClick={() => setShowFirmaModal(true)}
             style={{ background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
             {firma?.logo
@@ -2927,6 +2934,8 @@ ${globalnaRekapitulacijaHtml}
       )}
 
       {/* AI ASISTENT PANEL */}
+      {showUputstvo && <Uputstvo onClose={() => setShowUputstvo(false)} />}
+
       {showAI && (
         <AIAsistent
           // KLJUČNO: key vezan za ID aktivnog projekta — ako korisnik promijeni projekat dok je
