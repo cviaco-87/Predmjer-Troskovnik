@@ -18,8 +18,17 @@ Tvoja uloga je da pomažeš korisnicima da:
 5. Procjenjuju i ažuriraju cijene za sve stavke
 6. Pišu opšte uslove za grupu radova (uvodni tehnički tekst prije stavki)
 
-OPŠTI USLOVI GRUPE RADOVA:
-Kada korisnik traži da napišeš "opšte uslove" za neku grupu radova (npr. betonski, zidarski, izolaterski), napiši uvodni tehnički tekst koji obuhvata: šta grupa radova obuhvata, način obračuna (šta jedinična cijena sadrži), zahtjeve kvaliteta i standarda, uslove izvođenja (npr. temperatura, zaštita), i po potrebi reference na normative koji se koriste u praksi u BiH/Srbiji (npr. "Normativi i standardi rada u građevinarstvu - Visokogradnja"). Piši realno i praktično, bez izmišljanja nepostojećih normativa ili brojeva propisa kojih nisi siguran — ako nisi siguran u tačan broj normativa, izostavi ga i navedi samo opšti tehnički uslov. Tekst formatiraj kao numerisane tačke ili pasuse. Piši ISKLJUČIVO ijekavicom.
+OPŠTI TEHNIČKI USLOVI GRUPE RADOVA:
+Kada korisnik traži da napišeš "opšte tehničke uslove" (ili "opšte uslove") za neku grupu radova (npr. betonski, zidarski, izolaterski), napiši uvodni tehnički tekst koji obuhvata: šta grupa radova obuhvata, način obračuna (šta jedinična cijena sadrži), zahtjeve kvaliteta i standarda, uslove izvođenja (npr. temperatura, zaštita), i po potrebi reference na normative koji se koriste u praksi u BiH/Srbiji (npr. "Normativi i standardi rada u građevinarstvu - Visokogradnja"). Piši realno i praktično, bez izmišljanja nepostojećih normativa ili brojeva propisa kojih nisi siguran — ako nisi siguran u tačan broj normativa, izostavi ga i navedi samo opšti tehnički uslov. Tekst mora biti POTPUNO UOPŠTEN — bez ijedne reference na konkretan objekat, njegovu namjenu (škola, bolnica...), konkretne dimenzije ili konkretne stavke tog projekta. Formatiraj kao numerisane tačke ili pasuse. Piši ISKLJUČIVO ijekavicom.
+
+FORMAT ODGOVORA KADA PREDLAŽEŠ OPŠTE TEHNIČKE USLOVE:
+Kada korisnik traži da predložiš opšte tehničke uslove za grupu radova, vrati tekst uslova između markera, a NAKON markera možeš dodati kratku napomenu korisniku. Format:
+
+---USLOVI---
+[ovdje ide kompletan tekst opštih tehničkih uslova, uopšten, ijekavica, formatiran u tačke ili pasuse]
+---KRAJ-USLOVA---
+
+Tekst između markera je čist tekst (NE JSON) — biće upisan direktno u polje opštih tehničkih uslova te grupe radova.
 
 
 PRAVILA ZA GENERISANJE STAVKI:
@@ -153,18 +162,28 @@ function parseIzmjene(text) {
   catch(e) { return null }
 }
 
+// Uslovi se prenose kao ČIST TEKST (ne JSON) između markera — jer je to slobodan višeredni
+// tekst opštih tehničkih uslova, ne strukturisani podaci. Vrati sam tekst ili null.
+function parseUslove(text) {
+  const match = text.match(/---USLOVI---([\s\S]*?)---KRAJ-USLOVA---/)
+  if (!match) return null
+  const t = match[1].trim()
+  return t.length > 0 ? t : null
+}
+
 function formatOdgovor(text) {
   return text
     .replace(/---STAVKA---[\s\S]*?---KRAJ---/, '')
     .replace(/---CIJENE---[\s\S]*?---KRAJ-CIJENA---/, '')
     .replace(/---IZMJENE---[\s\S]*?---KRAJ-IZMJENA---/, '')
+    .replace(/---USLOVI---[\s\S]*?---KRAJ-USLOVA---/, '')
     .trim()
 }
 
 // Formatira broj tokena čitljivo (npr. 12500 -> "12.500", 1250000 -> "1.250.000")
 const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, onClose, session }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session }) {
   const [poruke, setPoruke] = useState([{
     uloga: 'asistent',
     tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
@@ -189,7 +208,13 @@ Kako mogu pomoći? Npr:
   const [loading, setLoading] = useState(false)
   const [modalCijene, setModalCijene] = useState(null)
   const [modalIzmjene, setModalIzmjene] = useState(null) // { stavke: [{id, stariOpis, noviOpis, obrazlozenje, prihvacena}] }
+  // Modal za predložene opšte tehničke uslove: { fazaId, nazivGrupe, tekst, imaPostojece }
+  const [modalUslovi, setModalUslovi] = useState(null)
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
+  // Pamti za koju fazu je posljednji AI zahtjev za uslove poslat (da parser zna gdje da upiše
+  // rezultat kad AI vrati ---USLOVI--- blok). Ref jer se čita unutar async posalji, a ne treba
+  // da izaziva re-render.
+  const fazaZaUsloveRef = useRef(null)
   // Posljednja primijenjena AI grupna izmjena (cijene ili opisi) — omogućava opoziv jednim
   // klikom, sve dok korisnik ne primijeni neku SLJEDEĆU grupnu izmjenu (samo jedan nivo undo-a,
   // isto kao i undo brisanja pozicije u App.jsx — jednostavno i predvidljivo, ne pun undo/redo stog).
@@ -495,6 +520,81 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
     }
   }
 
+  // Automatski AI zahtjev za opšte tehničke uslove — pokreće se kad korisnik u glavnom ekranu
+  // klikne "✨ AI predlog uslova". Ne traži da korisnik išta kuca: sam sastavi prompt za datu
+  // grupu radova, pošalje ga, i kad AI vrati ---USLOVI--- blok, parser (u posalji toku dijeli
+  // isti fetch obrazac) prikaže modal za primjenu. Ovdje je zaseban, jednostavniji fetch (ne
+  // treba mu detekcija tipa kao posalji), ali koristi isti /api/chat i isti brojač potrošnje.
+  const posaljiZahtjevUslovi = async (kategorija, nazivGrupe) => {
+    if (loading) return
+    const uputa = `Predloži kompletne opšte tehničke uslove za grupu radova: „${nazivGrupe}" (vrsta radova: ${kategorija}). Tekst mora biti potpuno uopšten (bez reference na konkretan objekat ili namjenu), na srpskom ijekavicom, formatiran u numerisane tačke ili pasuse. Vrati ga u ---USLOVI--- formatu.`
+
+    setPoruke(prev => [...prev, { uloga: 'korisnik', tekst: `✨ Zatraženi opšti tehnički uslovi za grupu: „${nazivGrupe}"`, stavka: null, cijene: null }])
+    setLoading(true)
+
+    const novaHistorija = [...historija, { role: 'user', content: uputa }]
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: false, tip: 'uslovi' })
+      })
+      let data
+      try { data = await response.json() }
+      catch(e) { throw new Error('Server vratio neispravan odgovor (status: ' + response.status + ')') }
+      if (!response.ok) throw new Error('API greška ' + response.status + ': ' + (data?.error || ''))
+
+      if (data.potrosnja) {
+        setPotrosnjaMjesec(prev => ({
+          tokena: prev.tokena + (data.potrosnja.ulazniTokeni || 0) + (data.potrosnja.izlazniTokeni || 0),
+          cijenaUsd: prev.cijenaUsd + (data.potrosnja.cijenaUsd || 0),
+          ucitano: true
+        }))
+      }
+
+      const odgovorTekst = data.content?.[0]?.text || 'Prazan odgovor.'
+      const usloviData = parseUslove(odgovorTekst)
+      const prikazTekst = formatOdgovor(odgovorTekst)
+
+      if (usloviData && fazaZaUsloveRef.current) {
+        setModalUslovi({
+          fazaId: fazaZaUsloveRef.current.fazaId,
+          nazivGrupe: fazaZaUsloveRef.current.nazivGrupe,
+          imaPostojece: fazaZaUsloveRef.current.imaPostojece,
+          tekst: usloviData
+        })
+      }
+
+      setPoruke(prev => [...prev, {
+        uloga: 'asistent',
+        tekst: usloviData
+          ? `Pripremio sam predlog opštih tehničkih uslova za „${nazivGrupe}". Pogledajte ga u okviru ispod i kliknite „Primijeni" da ga upišete. ✅`
+          : (prikazTekst || odgovorTekst),
+        stavka: null, cijene: null
+      }])
+      setHistorija([...novaHistorija, { role: 'assistant', content: odgovorTekst }])
+    } catch (e) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Greška pri traženju uslova: ' + (e.message || ''), stavka: null, cijene: null }])
+    }
+    setLoading(false)
+  }
+
+  // Reaguj na zahtjev za uslove poslat iz glavnog ekrana (klik na "✨ AI predlog uslova").
+  // zahtjevZaUslove sadrži { fazaId, kategorija, nazivGrupe, imaPostojece, token }. Token se
+  // mijenja svaki klik pa se effect okine i za uzastopne zahtjeve. Nakon slanja, javljamo App-u
+  // (onZahtjevUslovaObradjen) da poništi zahtjev, da se ne pošalje dvaput.
+  useEffect(() => {
+    if (!zahtjevZaUslove) return
+    fazaZaUsloveRef.current = {
+      fazaId: zahtjevZaUslove.fazaId,
+      nazivGrupe: zahtjevZaUslove.nazivGrupe,
+      imaPostojece: zahtjevZaUslove.imaPostojece
+    }
+    posaljiZahtjevUslovi(zahtjevZaUslove.kategorija, zahtjevZaUslove.nazivGrupe)
+    if (onZahtjevUslovaObradjen) onZahtjevUslovaObradjen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zahtjevZaUslove?.token])
+
   const posalji = async () => {
     const tekst = input.trim()
     if (!tekst || loading) return
@@ -579,7 +679,20 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       const stavka = parseStavka(odgovorTekst)
       const cijeneData = parseCijene(odgovorTekst)
       const izmjeneData = parseIzmjene(odgovorTekst)
+      const usloviData = parseUslove(odgovorTekst)
       const prikazTekst = formatOdgovor(odgovorTekst)
+
+      // Ako je AI vratio predlog opštih tehničkih uslova, pripremi modal za pregled/primjenu.
+      // fazaZaUsloveRef pamti za koju je grupu radova zahtjev poslat (postavljeno u zatraziAIUslove
+      // toku, odnosno u useEffect koji obrađuje zahtjevZaUslove).
+      if (usloviData && fazaZaUsloveRef.current) {
+        setModalUslovi({
+          fazaId: fazaZaUsloveRef.current.fazaId,
+          nazivGrupe: fazaZaUsloveRef.current.nazivGrupe,
+          imaPostojece: fazaZaUsloveRef.current.imaPostojece,
+          tekst: usloviData
+        })
+      }
 
       if (cijeneData && cijeneData.stavke && pozicije) {
         const modalStavke = cijeneData.stavke.map(s => {
@@ -630,6 +743,8 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           ? (izmjeneData.stavke?.length > 0
               ? `Pregledao sam predmjer i pronašao ${izmjeneData.stavke.length} stavki koje mogu poboljšati. Prijedlog izmjena je spreman za pregled — pogledajte modal ispod. ✅`
               : `Pregledao sam predmjer — sve stavke izgledaju kompletno, nemam prijedloge za izmjenu. 👍`)
+          : usloviData
+          ? `Pripremio sam predlog opštih tehničkih uslova. Pogledajte ga u okviru ispod i kliknite „Primijeni" da ga upišete. ✅`
           : (prikazTekst || odgovorTekst),
         stavka: stavka || null,
         cijene: cijeneData
@@ -686,6 +801,23 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       uloga: 'asistent',
       tekst: `✅ Primijenjeno ${prihvacene.length} izmjena direktno u postojeće stavke. Ništa nije dodato kao nova stavka.`,
       stavka: null, cijene: null, mozeOpozvati: true
+    }])
+  }
+
+  // Primijeni predložene opšte tehničke uslove — upisuje tekst iz modala u polje uslova te
+  // grupe radova (preko onPrimijeniUslove callbacka u App.jsx). Zamjenjuje postojeći tekst
+  // (korisnik je već svjesno potvrdio dugmetom „Zamijeni postojeće" kad polje nije prazno).
+  const primijeniPredlozeneUslove = async () => {
+    if (!modalUslovi) return
+    setPrimjenaLoading(true)
+    if (onPrimijeniUslove) await onPrimijeniUslove(modalUslovi.fazaId, modalUslovi.tekst)
+    setPrimjenaLoading(false)
+    const naziv = modalUslovi.nazivGrupe
+    setModalUslovi(null)
+    setPoruke(prev => [...prev, {
+      uloga: 'asistent',
+      tekst: `✅ Opšti tehnički uslovi su upisani u grupu „${naziv}". Možete ih dodatno urediti u polju uslova.`,
+      stavka: null, cijene: null
     }])
   }
 
@@ -926,6 +1058,42 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
               <button onClick={primijeniIzmjene} disabled={primjenaLoading}
                 style={{ flex: 2, background: primjenaLoading ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: primjenaLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
                 {primjenaLoading ? 'Primjenjujem...' : `✅ Primijeni ${modalIzmjene.stavke.filter(s=>s.prihvacena).length} izmjena`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: PREDLOŽENI OPŠTI TEHNIČKI USLOVI ── */}
+      {modalUslovi && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxHeight: '90%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ background: '#1B2F43', color: '#fff', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>📋 Predlog opštih tehničkih uslova</div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Grupa: {modalUslovi.nazivGrupe}</div>
+              </div>
+              <button onClick={() => setModalUslovi(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+              {modalUslovi.imaPostojece && (
+                <div style={{ fontSize: 11, color: '#8A6524', background: '#FFF8E8', border: '1px solid #E8D9B0', borderRadius: 6, padding: '7px 10px', marginBottom: 8 }}>
+                  ⚠️ Ova grupa već ima upisane uslove. Primjena će ih <strong>zamijeniti</strong> ovim tekstom.
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Tekst možete urediti prije primjene:</div>
+              <textarea
+                value={modalUslovi.tekst}
+                spellCheck={false}
+                onChange={e => setModalUslovi(prev => ({ ...prev, tekst: e.target.value }))}
+                rows={14}
+                style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.55, background: '#FAFAF8', color: '#2B2B26' }} />
+            </div>
+            <div style={{ padding: '10px 12px', borderTop: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
+              <button onClick={() => setModalUslovi(null)} style={{ flex: 1, background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, padding: '8px 0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Otkaži</button>
+              <button onClick={primijeniPredlozeneUslove} disabled={primjenaLoading || !modalUslovi.tekst.trim()}
+                style={{ flex: 2, background: (primjenaLoading || !modalUslovi.tekst.trim()) ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: (primjenaLoading || !modalUslovi.tekst.trim()) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {primjenaLoading ? 'Primjenjujem...' : (modalUslovi.imaPostojece ? '✅ Zamijeni postojeće uslove' : '✅ Primijeni')}
               </button>
             </div>
           </div>
