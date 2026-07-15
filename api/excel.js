@@ -151,9 +151,10 @@ export default async function handler(req, res) {
       // Broj znakova po redu: širina kolone u "Excel jedinicama" ~ broj znakova Calibri 11;
       // za manji font stane malo više. Koristimo blagi faktor i oduzimamo marginu ćelije.
       // Broj znakova po redu: širina kolone u "Excel jedinicama" ≈ broj znakova Calibri 11.
-      // Koristimo konzervativan faktor (0.92) i oduzimamo marginu ćelije, jer je bolje da red
-      // bude malo viši nego da zadnja linija teksta bude odsječena. Za manji font stane više.
-      const znPoRedu = Math.max(8, Math.floor((sirinaKol - 1.5) * 0.92 * (11 / fontSize)))
+      // Faktor 1.0 (umjesto ranijeg 0.92) — LibreOffice/Excel u praksi stane malo više znakova
+      // po redu nego što je konzervativna procjena pretpostavljala, pa je ranije ostajao prazan
+      // prostor ispod teksta. Za manji font stane proporcionalno više.
+      const znPoRedu = Math.max(8, Math.floor((sirinaKol - 1.5) * 1.0 * (11 / fontSize)))
       // Prelomi po eksplicitnim novim redovima, pa svaki paragraf po dužini
       const paragrafi = t.split('\n')
       let ukupnoRedova = 0
@@ -161,8 +162,9 @@ export default async function handler(req, res) {
         const duz = p.length
         ukupnoRedova += Math.max(1, Math.ceil(duz / znPoRedu))
       }
-      // Visina po redu: ~1.42 × fontSize u točkama, bezbjedno za Calibri (npr. 10pt → ~14.2)
-      const pxRed = fontSize * 1.42
+      // Visina po redu: ~1.32 × fontSize u točkama (npr. 10pt → ~13.2) — tješnje nego ranije
+      // (1.42) da nema viška praznog prostora, ali sa dovoljnom rezervom da se tekst ne siječe.
+      const pxRed = fontSize * 1.32
       const visina = Math.ceil(ukupnoRedova * pxRed + 4) // +4 mala gornja/donja margina
       return Math.max(minH, Math.min(maxH, visina))
     }
@@ -334,18 +336,57 @@ export default async function handler(req, res) {
           // visinu na osnovu broja znakova i broja redova (\n). ──
           if (f.opsti_uslovi && f.opsti_uslovi.trim()) {
             const uslovTekst = f.opsti_uslovi.trim()
-            const uslovRow = ws.addRow(['', uslovTekst,'','','','',''])
-            ws.mergeCells(`A${uslovRow.number}:G${uslovRow.number}`)
-            // Uslovi se prostiru preko svih 7 kolona (A:G ≈ zbir širina ~108 jed.), font 8.5pt.
-            // Koristimo preciznu procjenu bez tvrdog gornjeg reza da se dugački uslovi (betonski
-            // preko 2000 znakova) ne odsijeku — Excel će red prelomiti na sljedeću stranicu.
             const sirinaAG = 6.71 + 9.43 + 46.71 + 4.86 + 10.71 + 13.86 + 16.5
-            uslovRow.height = procijeniVisinu(uslovTekst, sirinaAG, 8.5, 20, 4000)
-            uslovRow.getCell('B').value = uslovTekst
-            uslovRow.getCell('B').font = font({size:8.5, color:'333333'})
-            uslovRow.getCell('B').alignment = { horizontal:'left', vertical:'top', wrapText:true }
-            uslovRow.eachCell({includeEmpty:true}, c => { c.fill = fill('F7F8FA') })
-            uslovRow.getCell('B').border = { left: {style:'medium', color:{argb:'FF4A637C'}} }
+
+            // Excel ima TVRD limit visine reda od 409.5 tačaka. Dugački uslovi (betonski/zidarski
+            // preko 4000 znakova) traže i preko 600 — što premašuje limit, pa Excel odbija da
+            // razvuče red (autofit ga zbije, ručno razvlačenje stane na ~2/3). Zato tekst koji ne
+            // stane u jedan red DIJELIMO na više uzastopnih redova, svaki bezbjedno ispod limita.
+            const MAX_VISINA_REDA = 380 // sigurnosno ispod Excel limita (409.5)
+            // Koliko znakova stane u jedan red teksta preko A:G na 8.5pt (za prelamanje po dužini)
+            const znPoRedu = Math.max(8, Math.floor((sirinaAG - 1.5) * 0.92 * (11 / 8.5)))
+            // Koliko REDOVA teksta stane u jedan Excel-red visine MAX_VISINA_REDA (8.5pt × 1.42)
+            const redovaTekstaPoBloku = Math.floor(MAX_VISINA_REDA / (8.5 * 1.42))
+
+            // Podijeli cijeli tekst uslova na "blokove" — svaki blok je komad teksta koji staje u
+            // jedan Excel-red ispod limita. Poštujemo prelome po \n (ne sječemo usred pasusa ako
+            // može stati), a duge pasuse sječemo po broju vizuelnih redova.
+            const pasusi = uslovTekst.split('\n')
+            const blokovi = []
+            let tekuciBlok = []
+            let tekuciBrRedova = 0
+            const flush = () => { if (tekuciBlok.length) { blokovi.push(tekuciBlok.join('\n')); tekuciBlok = []; tekuciBrRedova = 0 } }
+            for (const pasus of pasusi) {
+              const redovaPasusa = Math.max(1, Math.ceil(pasus.length / znPoRedu))
+              if (redovaPasusa > redovaTekstaPoBloku) {
+                // Pasus sam po sebi prelazi jedan blok — prvo zatvori tekući, pa ga isijeci na dijelove
+                flush()
+                const znPoBloku = redovaTekstaPoBloku * znPoRedu
+                for (let i = 0; i < pasus.length; i += znPoBloku) {
+                  blokovi.push(pasus.slice(i, i + znPoBloku))
+                }
+              } else if (tekuciBrRedova + redovaPasusa > redovaTekstaPoBloku) {
+                // Ne staje u tekući blok — zatvori ga i počni novi sa ovim pasusom
+                flush()
+                tekuciBlok.push(pasus); tekuciBrRedova = redovaPasusa
+              } else {
+                tekuciBlok.push(pasus); tekuciBrRedova += redovaPasusa
+              }
+            }
+            flush()
+
+            // Ispiši svaki blok kao zaseban merge-ovan red bezbjedne visine
+            blokovi.forEach((blok, bi) => {
+              const uslovRow = ws.addRow(['', blok,'','','','',''])
+              ws.mergeCells(`A${uslovRow.number}:G${uslovRow.number}`)
+              uslovRow.height = procijeniVisinu(blok, sirinaAG, 8.5, 20, MAX_VISINA_REDA)
+              uslovRow.getCell('B').value = blok
+              uslovRow.getCell('B').font = font({size:8.5, color:'333333'})
+              uslovRow.getCell('B').alignment = { horizontal:'left', vertical:'top', wrapText:true }
+              uslovRow.eachCell({includeEmpty:true}, c => { c.fill = fill('F7F8FA') })
+              // Lijeva linija (akcenat) na svakom bloku; time izgleda kao jedan neprekidan okvir
+              uslovRow.getCell('B').border = { left: {style:'medium', color:{argb:'FF4A637C'}} }
+            })
           }
 
           // ── ZAGLAVLJE KOLONA ──
