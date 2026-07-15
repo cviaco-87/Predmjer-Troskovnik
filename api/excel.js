@@ -108,18 +108,20 @@ export default async function handler(req, res) {
       pageSetup: {
         orientation: 'portrait',
         paperSize: 9,           // A4
-        fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,         // 0 = koliko god stranica po visini treba (ne stišći na 1 stranicu visine)
         scale: 83,
         horizontalCentered: false,
         verticalCentered: false,
         margins: {
+          // Lijeva margina 2 cm (0.7874") zbog koričenja/uvezivanja u fasciklu — da tekst ne
+          // uđe u pregib. Ostale margine uske radi maksimalnog iskorišćenja lista.
           top: 0.5905511811023623, bottom: 0.5905511811023623,
-          left: 0.984251968503937, right: 0.3937007874015748,
+          left: 0.7874015748031497, right: 0.3937007874015748,
           header: 0.31496062992125984, footer: 0.31496062992125984,
         },
       },
+      properties: { defaultRowHeight: 15 },
     })
 
     // ── KOLONE: A-G (A je sad R.br., B je Šifra, ostalo nepromijenjeno) ──
@@ -133,6 +135,37 @@ export default async function handler(req, res) {
       {width: 13.86},  // F - Količina
       {width: 16.5},   // G - Ukupno (proširena za velike iznose s formatom valute, npr. milionske sume)
     ]
+
+    // ── PRECIZNA PROCJENA VISINE REDA ZA WRAP TEKST ──
+    // Excel ne prilagođava visinu reda automatski kad je visina eksplicitno zadata, pa je moramo
+    // sami izračunati. Raniji izračun je koristio 58 znakova/red (previše za širinu kolone C od
+    // ~46) i 12px/red (premalo za Calibri 10-11pt), zbog čega je tekst "curio" ispod ćelije.
+    //
+    // Parametri (empirijski, za Calibri):
+    //   znChar  — prosječan broj znakova koji stane u jedan red pri datoj širini kolone i fontu
+    //   pxRed   — visina jednog reda teksta u točkama (points), zavisi od veličine fonta
+    // Tekst se prelama i po eksplicitnim \n (novi red) I po dužini (wrap), pa se broje oba.
+    const procijeniVisinu = (tekst, sirinaKol, fontSize = 10, minH = 14, maxH = 2000) => {
+      const t = String(tekst || '')
+      if (!t.trim()) return minH
+      // Broj znakova po redu: širina kolone u "Excel jedinicama" ~ broj znakova Calibri 11;
+      // za manji font stane malo više. Koristimo blagi faktor i oduzimamo marginu ćelije.
+      // Broj znakova po redu: širina kolone u "Excel jedinicama" ≈ broj znakova Calibri 11.
+      // Koristimo konzervativan faktor (0.92) i oduzimamo marginu ćelije, jer je bolje da red
+      // bude malo viši nego da zadnja linija teksta bude odsječena. Za manji font stane više.
+      const znPoRedu = Math.max(8, Math.floor((sirinaKol - 1.5) * 0.92 * (11 / fontSize)))
+      // Prelomi po eksplicitnim novim redovima, pa svaki paragraf po dužini
+      const paragrafi = t.split('\n')
+      let ukupnoRedova = 0
+      for (const p of paragrafi) {
+        const duz = p.length
+        ukupnoRedova += Math.max(1, Math.ceil(duz / znPoRedu))
+      }
+      // Visina po redu: ~1.42 × fontSize u točkama, bezbjedno za Calibri (npr. 10pt → ~14.2)
+      const pxRed = fontSize * 1.42
+      const visina = Math.ceil(ukupnoRedova * pxRed + 4) // +4 mala gornja/donja margina
+      return Math.max(minH, Math.min(maxH, visina))
+    }
 
     const Z   = '1B2F43'
     const ZS  = 'EEF0F3'
@@ -303,10 +336,11 @@ export default async function handler(req, res) {
             const uslovTekst = f.opsti_uslovi.trim()
             const uslovRow = ws.addRow(['', uslovTekst,'','','','',''])
             ws.mergeCells(`A${uslovRow.number}:G${uslovRow.number}`)
-            // Procjena visine: ~95 znakova po redu na ovoj širini/fontu, +1 red po svakom \n
-            const brLinija = (uslovTekst.match(/\n/g) || []).length + 1
-            const brRedova = Math.max(brLinija, Math.ceil(uslovTekst.length / 95))
-            uslovRow.height = Math.min(400, brRedova * 12 + 6)
+            // Uslovi se prostiru preko svih 7 kolona (A:G ≈ zbir širina ~108 jed.), font 8.5pt.
+            // Koristimo preciznu procjenu bez tvrdog gornjeg reza da se dugački uslovi (betonski
+            // preko 2000 znakova) ne odsijeku — Excel će red prelomiti na sljedeću stranicu.
+            const sirinaAG = 6.71 + 9.43 + 46.71 + 4.86 + 10.71 + 13.86 + 16.5
+            uslovRow.height = procijeniVisinu(uslovTekst, sirinaAG, 8.5, 20, 4000)
             uslovRow.getCell('B').value = uslovTekst
             uslovRow.getCell('B').font = font({size:8.5, color:'333333'})
             uslovRow.getCell('B').alignment = { horizontal:'left', vertical:'top', wrapText:true }
@@ -352,7 +386,8 @@ export default async function handler(req, res) {
             const ispar   = par%2===1
             const bg      = ispar ? SI : 'FFFFFF'
             const naziv   = strip(p.naziv||'')
-            const visina  = Math.max(14, Math.min(150, Math.ceil(naziv.length/58)*12+4))
+            // Visina po stvarnom prelamanju teksta u koloni C (širina ~46.71), font 10pt.
+            const visina  = procijeniVisinu(naziv, 46.71, 10, 14, 2000)
 
             // ── GLAVNA STAVKA ──
             row = ws.addRow(['','','','','','',''])
@@ -429,7 +464,7 @@ export default async function handler(req, res) {
               djeca.forEach((d, di) => {
                 const dNaziv = strip(d.naziv||'')
                 const dRow = ws.addRow(['','','','','','',''])
-                dRow.height = Math.max(14, Math.ceil(dNaziv.length/58)*11+4)
+                dRow.height = procijeniVisinu(dNaziv, 46.71, 10, 14, 2000)
                 childRowNums.push(dRow.number)
 
                 dRow.getCell('A').value     = `${rb}.${di+1}`
