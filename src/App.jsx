@@ -767,6 +767,41 @@ export default function App() {
     return SABLONI_USLOVI[kategorija] || null
   }
 
+  // ── AI PREDLOG OPŠTIH TEHNIČKIH USLOVA ──
+  // Klik na "✨ AI predlog uslova" u panelu uslova: otvara AI asistenta (da se vidi tok) i
+  // automatski mu prosljeđuje zahtjev da predloži uslove za aktivnu grupu radova. AI vrati
+  // tekst u posebnom formatu (---USLOVI---), asistent prikaže pregled i dugme "Primijeni",
+  // koje onda pozove primijeniAIUslove niže (ista logika kao procjena cijena / izmjene stavki).
+  // Prosljeđuje se preko state-a "zahtjevZaUslove" koji AIAsistent prima kao prop i reaguje na
+  // njega jednom (sam ga poništi nakon slanja).
+  const [zahtjevZaUslove, setZahtjevZaUslove] = useState(null)
+
+  const zatraziAIUslove = () => {
+    if (!aktivnaFaza) return
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const kategorija = roditelji[0]?.kategorija || aktivnaFaza.naziv
+    // Otvori AI panel da korisnik vidi tok generisanja
+    setShowAI(true)
+    // Postavi zahtjev — AIAsistent će ga pokupiti i automatski poslati (vidi useEffect u AIAsistent)
+    setZahtjevZaUslove({
+      fazaId: aktivnaFaza.id,
+      kategorija,
+      nazivGrupe: aktivnaFaza.naziv,
+      imaPostojece: !!(aktivnaFaza.opsti_uslovi && aktivnaFaza.opsti_uslovi.trim()),
+      // token da AIAsistent zna da je ovo novi zahtjev (mijenja se svaki put)
+      token: Date.now()
+    })
+  }
+
+  // Poziva AIAsistent kad korisnik klikne "Primijeni" na predložene uslove. Upisuje tekst u
+  // polje opštih tehničkih uslova aktivne grupe (zamjenjuje postojeći — potvrda je već data u
+  // modalu asistenta). setRevizija forsira remount textarea da prikaže novi tekst i izmjeri visinu.
+  const primijeniAIUslove = async (fazaId, tekst) => {
+    await sacuvajUslove(fazaId, tekst)
+    setShowUslovi(true) // otvori panel da korisnik odmah vidi upisan tekst
+    setRevizija(r => r + 1)
+  }
+
   // ── STRUKE (grupisanje faza po disciplini) ──
   const struke = aktivniProjekat?.struke || DEFAULT_STRUKE
 
@@ -2457,13 +2492,13 @@ ${globalnaRekapitulacijaHtml}
               />
               </div>
 
-              {/* ── OPŠTI USLOVI GRUPE RADOVA (sklopivo) ── */}
+              {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
               <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', flexShrink: 0, border: '1px solid #D8D5CC' }}>
                 <div onClick={() => setShowUslovi(v => !v)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none' }}>
                   <span style={{ fontSize: 13 }}>{showUslovi ? '▼' : '▶'}</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2F43', flex: 1 }}>
-                    📋 Opšti uslovi grupe radova
+                    📋 Opšti tehnički uslovi grupe radova
                     {aktivnaFaza?.opsti_uslovi && <span style={{ fontSize: 10.5, fontWeight: 400, color: '#4A637C', marginLeft: 8 }}>✓ popunjeno</span>}
                   </span>
                   <span style={{ fontSize: 10.5, color: '#999' }}>{showUslovi ? 'sakrij' : 'prikaži'}</span>
@@ -2486,25 +2521,29 @@ ${globalnaRekapitulacijaHtml}
                           📥 Ubaci šablon za ovu grupu
                         </button>
                       )}
-                      <button onClick={() => { setShowAI(true); setTimeout(() => alert('U AI asistentu upišite: "Napiši opšte uslove za ovu grupu radova" — asistent će predložiti tekst koji možete prekopirati ovdje.'), 100) }}
-                        title="Otvori AI asistenta za predlog uslova (korisno za grupe koje nemaju predefinisan šablon)"
+                      <button onClick={() => zatraziAIUslove()}
+                        title="AI asistent će automatski predložiti opšte tehničke uslove za ovu grupu radova"
                         style={{ background: '#F0F2F5', color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                         ✨ AI predlog uslova
                       </button>
                       {aktivnaFaza?.opsti_uslovi && (
-                        <button onClick={() => { if (confirm('Obrisati opšte uslove ove grupe radova?')) sacuvajUslove(aktivnaFaza.id, '') }}
+                        <button onClick={() => { if (confirm('Obrisati opšte tehničke uslove ove grupe radova?')) sacuvajUslove(aktivnaFaza.id, '') }}
                           style={{ background: 'transparent', color: '#C0392B', border: '1px solid #f5c6c2', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>
                           🗑 Obriši
                         </button>
                       )}
                     </div>
                     <textarea
-                      key={`uslovi-${aktivnaFaza.id}`}
+                      key={`uslovi-${aktivnaFaza.id}-${revizija}`}
+                      ref={el => { if (el && aktivnaFaza?.opsti_uslovi) autoGrowTextarea(el) }}
                       defaultValue={aktivnaFaza?.opsti_uslovi || ''}
                       spellCheck={false}
+                      onInput={e => autoGrowTextarea(e.target)}
+                      onDoubleClick={e => autoGrowTextarea(e.currentTarget)}
                       onBlur={e => { if ((e.target.value || '').trim() !== (aktivnaFaza?.opsti_uslovi || '').trim()) sacuvajUslove(aktivnaFaza.id, e.target.value) }}
-                      placeholder="Upišite opšte uslove za ovu grupu radova, ili kliknite 'Ubaci šablon' iznad..."
-                      style={{ width: '100%', minHeight: 120, border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#FAFAF8', color: '#2B2B26' }} />
+                      title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu cijelom tekstu"
+                      placeholder="Upišite opšte tehničke uslove za ovu grupu radova, ili kliknite 'Ubaci šablon' / 'AI predlog uslova' iznad..."
+                      style={{ width: '100%', minHeight: 120, border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#FAFAF8', color: '#2B2B26', overflow: 'hidden' }} />
                   </div>
                 )}
               </div>
@@ -2954,6 +2993,9 @@ ${globalnaRekapitulacijaHtml}
           brojFaza={faze.length}
           onPrimijeniIzmjene={primijeniIzmjene}
           onSetValuta={postaviValutuNakonAI}
+          zahtjevZaUslove={zahtjevZaUslove}
+          onZahtjevUslovaObradjen={() => setZahtjevZaUslove(null)}
+          onPrimijeniUslove={primijeniAIUslove}
           onClose={() => setShowAI(false)}
           session={session}
         />
