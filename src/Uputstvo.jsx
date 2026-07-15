@@ -60,7 +60,7 @@ const POGLAVLJA = [
   { id: 'projekti', naziv: '4. Projekti', ikona: '📁' },
   { id: 'faze', naziv: '5. Faze i grupe radova', ikona: '🏗️' },
   { id: 'stavke', naziv: '6. Unos stavki', ikona: '📝' },
-  { id: 'uslovi', naziv: '7. Opšti uslovi', ikona: '📋' },
+  { id: 'uslovi', naziv: '7. Opšti tehnički uslovi', ikona: '📋' },
   { id: 'ai', naziv: '8. AI asistent', ikona: '✨' },
   { id: 'cijene', naziv: '9. Cijene i valute', ikona: '💶' },
   { id: 'izvoz', naziv: '10. Izvoz (Excel/PDF)', ikona: '📊' },
@@ -90,7 +90,7 @@ export default function Uputstvo({ onClose }) {
         <Korak broj="4" naslov="Dodajte grupu radova.">U panelu „Grupe radova" kreirajte grupu (npr. „Betonski radovi").</Korak>
         <Korak broj="5" naslov="Unesite stavke.">Pretražite bazu i kliknite na poziciju, ili koristite <B>+ Vlastita stavka</B> / <B>AI asistenta (✨)</B>. Zatim unesite količine.</Korak>
         <Korak broj="6" naslov="Izvezite predmjer.">U traci na vrhu kliknite <B>📊 Excel</B> ili <B>🖨 Print/PDF</B>.</Korak>
-        <Info naslov="✓ To je to" boja={ZLATNA}>Ovih šest koraka pokriva osnovni tok. Sve ostalo — podstavke, opšti uslovi, AI procjena cijena, uvećanja — su dodatne mogućnosti koje koristite po potrebi.</Info>
+        <Info naslov="✓ To je to" boja={ZLATNA}>Ovih šest koraka pokriva osnovni tok. Sve ostalo — podstavke, opšti tehnički uslovi, AI procjena cijena, uvećanja — su dodatne mogućnosti koje koristite po potrebi.</Info>
       </>
     ),
     organizacija: (
@@ -164,14 +164,14 @@ export default function Uputstvo({ onClose }) {
     ),
     uslovi: (
       <>
-        <H>7. Opšti uslovi grupe radova</H>
-        <P>Iznad tabele je sklopivi panel <B>„📋 Opšti uslovi grupe radova"</B>. Ovdje unosite uvodni tehnički tekst (obračun, kvalitet, uslovi izvođenja, normativi) koji se u Excel i PDF izvozu prikazuje prije stavki grupe.</P>
+        <H>7. Opšti tehnički uslovi grupe radova</H>
+        <P>Iznad tabele je sklopivi panel <B>„📋 Opšti tehnički uslovi grupe radova"</B>. Ovdje unosite uvodni tehnički tekst (obračun, kvalitet, uslovi izvođenja, normativi) koji se u Excel i PDF izvozu prikazuje prije stavki grupe.</P>
         <Ul>
           <Li><B>📥 Ubaci šablon za ovu grupu:</B> gotov, pripremljen tekst uslova (za 15 glavnih grupa: betonski, zidarski, izolaterski, fasaderski, molerski i druge).</Li>
-          <Li><B>✨ AI predlog uslova:</B> za grupe bez šablona, AI predlaže tekst.</Li>
+          <Li><B>✨ AI predlog uslova:</B> jednim klikom AI asistent automatski predloži uslove za tu grupu radova; vi ih pregledate i primijenite (kao kod cijena).</Li>
           <Li>Tekst slobodno uređujete ili obrišete. Polje je opciono.</Li>
         </Ul>
-        <Info naslov="💡 Zašto koristiti opšte uslove">Oni definišu šta jedinična cijena obuhvata i po kojim se pravilima vrši obračun — čime se štitite od nesporazuma sa izvođačem i dokument izgleda profesionalnije.</Info>
+        <Info naslov="💡 Zašto koristiti opšte tehničke uslove">Oni definišu šta jedinična cijena obuhvata i po kojim se pravilima vrši obračun — čime se štitite od nesporazuma sa izvođačem i dokument izgleda profesionalnije.</Info>
       </>
     ),
     ai: (
@@ -183,7 +183,7 @@ export default function Uputstvo({ onClose }) {
           <Li><B>Generisanje stavki</B> na osnovu vašeg opisa.</Li>
           <Li><B>Poboljšanje</B> postojećih opisa.</Li>
           <Li><B>Predlaganje proizvoda</B> poznatih proizvođača (Knauf, Weber, Mapei, Rockwool, Ytong…).</Li>
-          <Li><B>Opšti uslovi</B> za grupu radova.</Li>
+          <Li><B>Opšti tehnički uslovi</B> za grupu radova.</Li>
           <Li><B>Procjena cijena</B> — pojedinačno ili za cijeli projekat.</Li>
         </Ul>
         <H3>Procjena cijena — dva dugmeta</H3>
@@ -211,7 +211,7 @@ export default function Uputstvo({ onClose }) {
           <Li><B>📊 Excel:</B> tabela sa formulama (zbirovi se računaju automatski). Birate izabranu fazu ili kompletan predmjer.</Li>
           <Li><B>🖨 Print/PDF:</B> pregled za štampu / snimanje u PDF.</Li>
         </Ul>
-        <P>Oba sadrže zaglavlje sa podacima o projektu, stavke po grupama radova sa međuzbirovima, opšte uslove (ako su unijeti), i završnu <B>rekapitulaciju</B> sa sveukupnim iznosom.</P>
+        <P>Oba sadrže zaglavlje sa podacima o projektu, stavke po grupama radova sa međuzbirovima, opšte tehničke uslove (ako su unijeti), i završnu <B>rekapitulaciju</B> sa sveukupnim iznosom.</P>
         <H3>Logo firme</H3>
         <P>Kroz <B>🏢 Firma</B> (gore desno) učitavate logo i naziv firme koji se pojavljuju u zaglavlju i podnožju dokumenata.</P>
       </>
@@ -259,7 +259,7 @@ export default function Uputstvo({ onClose }) {
           <Li><B>Klonirajte slične projekte</B> umjesto unosa iznova.</Li>
           <Li><B>Gradite Moju bazu</B> — često korišćene stavke sačuvajte sa ⭐.</Li>
           <Li><B>Cijene ostavite za kraj</B> — unesite sve, pa AI-jem osvježite na tržište pred predaju.</Li>
-          <Li><B>Koristite opšte uslove</B> — ubacite šablon za svaku grupu.</Li>
+          <Li><B>Koristite opšte tehničke uslove</B> — ubacite šablon za svaku grupu.</Li>
           <Li><B>Podstavke za etaže</B> kad se pozicija ponavlja po spratovima.</Li>
           <Li><B>Provjerite prije predaje</B> — AI cijene su orijentacija.</Li>
         </Ul>
