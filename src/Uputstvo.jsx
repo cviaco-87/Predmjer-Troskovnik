@@ -66,6 +66,7 @@ const POGLAVLJA = [
   { id: 'izvoz', naziv: '10. Izvoz (Excel/PDF)', ikona: '📊' },
   { id: 'referenca', naziv: '11. Brza referenca', ikona: '📑' },
   { id: 'savjeti', naziv: '12. Savjeti', ikona: '💡' },
+  { id: 'problemi', naziv: '13. Česta pitanja', ikona: '❓' },
 ]
 
 export default function Uputstvo({ onClose }) {
@@ -169,8 +170,10 @@ export default function Uputstvo({ onClose }) {
         <Ul>
           <Li><B>📥 Ubaci šablon za ovu grupu:</B> gotov, pripremljen tekst uslova (za 15 glavnih grupa: betonski, zidarski, izolaterski, fasaderski, molerski i druge).</Li>
           <Li><B>✨ AI predlog uslova:</B> jednim klikom AI asistent automatski predloži uslove za tu grupu radova; vi ih pregledate i primijenite (kao kod cijena).</Li>
-          <Li>Tekst slobodno uređujete ili obrišete. Polje je opciono.</Li>
+          <Li><B>🗑 Obriši:</B> uklanja uslove. Tekst se automatski širi dok kucate; dvoklik namješta visinu cijelom tekstu.</Li>
+          <Li>Tekst slobodno uređujete. Polje je opciono — ako je prazno, u izvozu se ništa ne prikazuje.</Li>
         </Ul>
+        <Info naslov="↩ Opoziv brisanja" boja={ZLATNA}>Ako obrišete uslove (ili ih zamijenite šablonom/AI predlogom) greškom, pojavi se traka <B>„Vrati prethodni tekst"</B> — klik na nju vraća prethodni sadržaj.</Info>
         <Info naslov="💡 Zašto koristiti opšte tehničke uslove">Oni definišu šta jedinična cijena obuhvata i po kojim se pravilima vrši obračun — čime se štitite od nesporazuma sa izvođačem i dokument izgleda profesionalnije.</Info>
       </>
     ),
@@ -264,6 +267,22 @@ export default function Uputstvo({ onClose }) {
           <Li><B>Provjerite prije predaje</B> — AI cijene su orijentacija.</Li>
         </Ul>
         <Info naslov="Podrška" boja={ZLATNA}>Za dodatna pitanja ili prijedloge obratite se timu Kapitel d.o.o.</Info>
+      </>
+    ),
+    problemi: (
+      <>
+        <H>13. Česta pitanja i rješavanje problema</H>
+        <H3>Ne vidim svoje projekte</H3>
+        <P>Provjerite da ste prijavljeni sa <B>istim nalogom</B> (istom e-poštom). Projekti su vezani za nalog — sa drugog naloga se ne vide. Podaci se ne brišu sami.</P>
+        <H3>Slučajno sam nešto obrisao</H3>
+        <P>Za stavku — kliknite traku <B>„Opozovi brisanje"</B> pri dnu (pojavi se na par sekundi). Za opšte tehničke uslove — <B>„↩ Vrati prethodni tekst"</B>. Za izmjene polja — dugme <B>↩ Opozovi</B> u traci.</P>
+        <H3>Izmjene se ne vide u izvozu</H3>
+        <P>Provjerite da izvozite pravu fazu — meni nudi „izabranu fazu" i „kompletan predmjer". Za sve odjednom birajte <B>kompletan predmjer</B>.</P>
+        <H3>AI asistent je spor</H3>
+        <P>AI-ju treba nekoliko sekundi, naročito za procjenu cijelog projekta (radi u paketima). Sačekajte traku napretka ili prekinite dugmetom <B>⏹ Prekini</B>.</P>
+        <H3>Klonirani projekat nema neke podatke</H3>
+        <P>Kloniranje kopira sve — faze, grupe, stavke, podstavke, cijene, količine i opšte tehničke uslove. Ako nešto nedostaje, provjerite da kloniranje nije prekinuto porukom o grešci, pa po potrebi ponovite.</P>
+        <Info naslov="💾 Savjet za sigurnost" boja={ZLATNA}>Prije velikih izmjena ili brisanja, izvezite projekat u fajl (📤) kao sigurnosnu kopiju. Tako imate rezervu ako nešto pođe naopako.</Info>
       </>
     ),
   }
