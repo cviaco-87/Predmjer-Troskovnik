@@ -2528,7 +2528,16 @@ ${globalnaRekapitulacijaHtml}
               />
               </div>
 
+              {/* ── ZAJEDNIČKI SKROL KONTEJNER (uslovi + tabela kao jedna cjelina) ──
+                  Umjesto dva odvojena skrol-okvira, uslovi i tabela idu u JEDAN scroll. Kad
+                  korisnik skroluje, opšti tehnički uslovi prirodno odlaze gore "u nevidljivo" a
+                  otkrivaju se stavke ispod — kao jedna duga stranica. Toolbar i pretraga baze
+                  iznad ostaju fiksni. Zaglavlje kolona tabele je "sticky" (lijepi se na vrh). */}
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
               {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
+              {/* Panel je prirodne visine (bez vlastitog scroll-a) — skroluje ga zajednički
+                  kontejner, zajedno sa tabelom, kao jedna cjelina. */}
               <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', flexShrink: 0, border: '1px solid #D8D5CC' }}>
                 <div onClick={() => setShowUslovi(v => !v)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none' }}>
@@ -2604,19 +2613,19 @@ ${globalnaRekapitulacijaHtml}
                 )}
               </div>
 
-              {/* Tabela */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 12px 12px' }}>
+              {/* Tabela — bez vlastitog scroll-a; skroluje je zajednički kontejner iznad. */}
+              <div style={{ padding: '0 12px 12px 12px' }}>
                 {pozicije.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '50px 20px', color: '#888' }}>
                     <div style={{ fontSize: 15, fontWeight: 600, color: '#333', marginBottom: 6 }}>Faza je prazna</div>
                     <div style={{ fontSize: 12 }}>Pretražite bazu iznad i kliknite na poziciju da je dodate.</div>
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 8, boxShadow: '0 1px 4px rgba(0,0,0,.07)', fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: '#556575', color: '#fff' }}>
                         {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#556575', zIndex: 3 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -2895,6 +2904,8 @@ ${globalnaRekapitulacijaHtml}
                   </table>
                 )}
               </div>
+
+              </div>{/* ── kraj ZAJEDNIČKOG SKROL KONTEJNERA (uslovi + tabela) ── */}
             </>
           )}
         </div>
