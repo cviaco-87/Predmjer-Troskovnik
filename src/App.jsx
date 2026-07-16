@@ -565,6 +565,7 @@ export default function App() {
   // projektu bi mogao vratiti izmjenu koja zapravo pripada originalnom dokumentu).
   useEffect(() => {
     setIstorijaIzmjena([])
+    setOpozivUslova(null)
     setOtkazivanjeBrisanja(prev => {
       if (prev?.timeoutId) clearTimeout(prev.timeoutId)
       return null
@@ -742,18 +743,47 @@ export default function App() {
   // ── OPŠTI USLOVI GRUPE RADOVA ──
   // Uvodni tekst (tehnički uslovi obračuna, kvaliteta, normativi) koji se prikazuje prije
   // stavki grupe radova i u Excel/PDF exportu. Čuva se u koloni "opsti_uslovi" na tabeli faze.
-  const sacuvajUslove = async (fazaId, tekst) => {
+  //
+  // opozivUslova: pamti posljednje OBRISANE (ili zamijenjene) uslove radi mogućnosti vraćanja
+  // preko trake "Vrati obrisane uslove". Kao i kod opoziva brisanja pozicije — samo jedan nivo
+  // (posljednja radnja), traka nestane nakon nekoliko sekundi ili nakon promjene grupe/projekta.
+  const [opozivUslova, setOpozivUslova] = useState(null) // { fazaId, nazivGrupe, stariTekst } | null
+
+  const sacuvajUslove = async (fazaId, tekst, _zaOpoziv = false) => {
     const vrijednost = (tekst || '').trim() || null
+    // Zapamti prethodni tekst PRIJE upisa — ako je bio nešto a sad postaje prazno (brisanje) ili
+    // se mijenja, nudimo opoziv. Ne nudimo opoziv za sam čin vraćanja (_zaOpoziv).
+    const faza = faze.find(f => f.id === fazaId)
+    const prethodni = faza?.opsti_uslovi || ''
+
     const { error } = await supabase.from('faze').update({ opsti_uslovi: vrijednost }).eq('id', fazaId)
     if (error) {
       // Najvjerovatniji uzrok: kolona još ne postoji u bazi (migracija nije pokrenuta).
       // Ne rušimo aplikaciju — javljamo jasno i tiho ostavljamo tekst u lokalnom stanju.
       console.error('Greška pri čuvanju opštih uslova:', error)
-      alert('Opšti uslovi nisu sačuvani. Ako je ovo prvi put — provjerite da je u bazi pokrenuta migracija koja dodaje kolonu "opsti_uslovi" na tabelu faze.')
+      alert('Opšti tehnički uslovi nisu sačuvani. Ako je ovo prvi put — provjerite da je u bazi pokrenuta migracija koja dodaje kolonu "opsti_uslovi" na tabelu faze.')
       return
     }
     setFaze(prev => prev.map(f => f.id === fazaId ? { ...f, opsti_uslovi: vrijednost } : f))
     setAktivnaFaza(prev => prev && prev.id === fazaId ? { ...prev, opsti_uslovi: vrijednost } : prev)
+
+    // Ponudi opoziv samo ako je stvarno nešto izgubljeno (bio tekst, pa obrisan ili zamijenjen)
+    // i ako ovo nije samo čin vraćanja. Postojeći → prazno (brisanje) je glavni slučaj, ali
+    // pamtimo i zamjenu (postojeći → drugi tekst) da se ne izgubi raniji ručni rad slučajno.
+    if (!_zaOpoziv && prethodni.trim() && prethodni.trim() !== vrijednost) {
+      setOpozivUslova({ fazaId, nazivGrupe: faza?.naziv || '', stariTekst: prethodni })
+    } else if (!_zaOpoziv) {
+      setOpozivUslova(null)
+    }
+  }
+
+  // Vrati posljednje obrisane/zamijenjene opšte tehničke uslove.
+  const vratiObrisaneUslove = async () => {
+    if (!opozivUslova) return
+    await sacuvajUslove(opozivUslova.fazaId, opozivUslova.stariTekst, true)
+    setOpozivUslova(null)
+    setShowUslovi(true)
+    setRevizija(r => r + 1)
   }
 
   // Vrati predefinisani šablon uslova za kategoriju koja dominira u aktivnoj grupi radova.
@@ -1827,6 +1857,13 @@ ${globalnaRekapitulacijaHtml}
         datum: aktivniProjekat.datum,
         uvecanje_pct: aktivniProjekat.uvecanje_pct,
         umanjenje_pct: aktivniProjekat.umanjenje_pct,
+        // Legacy polja uvećanja/umanjenja (razdvojeno materijal/radovi) — koriste se kao fallback
+        // kad uvecanje_pct/umanjenje_pct nisu postavljeni (vidi izračun staroUvecanje). Kloniramo
+        // ih da projekti sa starim načinom korekcije ne izgube te vrijednosti u kopiji.
+        uv_materijal: aktivniProjekat.uv_materijal ?? null,
+        uv_radovi: aktivniProjekat.uv_radovi ?? null,
+        um_materijal: aktivniProjekat.um_materijal ?? null,
+        um_radovi: aktivniProjekat.um_radovi ?? null,
         valuta: aktivniProjekat.valuta || 'EUR',
         // KLJUČNO: kopirati stvarne strukе originalnog projekta (nazivi, eventualno
         // preimenovani/obrisani/custom dodati, uvecanjePct/umanjenjePct po struci).
@@ -1847,7 +1884,10 @@ ${globalnaRekapitulacijaHtml}
           projekat_id: noviProj.id,
           naziv: f.naziv,
           redoslijed: f.redoslijed,
-          struka_kod: f.struka_kod
+          struka_kod: f.struka_kod,
+          // KLJUČNO: kloniraj i opšte tehničke uslove grupe radova — bez ovoga bi klon izgubio
+          // sav uneseni tekst uslova (šablon, AI predlog ili ručni unos) za svaku grupu radova.
+          opsti_uslovi: f.opsti_uslovi || null
         }).select().single()
 
         if (eNovaFaza || !novaFaza) { console.error('Greška pri kloniranju faze', f.naziv, eNovaFaza); continue }
@@ -1944,7 +1984,7 @@ ${globalnaRekapitulacijaHtml}
           kategorija: p.kategorija, redoslijed: p.redoslijed, sifra: p.sifra || null,
           opis_visina: p.opis_visina || null
         }))
-        return { naziv: f.naziv, redoslijed: f.redoslijed, struka_kod: f.struka_kod || 'gradjevinski', pozicije: izvozStavke }
+        return { naziv: f.naziv, redoslijed: f.redoslijed, struka_kod: f.struka_kod || 'gradjevinski', opsti_uslovi: f.opsti_uslovi || null, pozicije: izvozStavke }
       })
 
       const izvoz = {
@@ -2011,7 +2051,10 @@ ${globalnaRekapitulacijaHtml}
       for (const f of podaci.faze) {
         const { data: novaFaza, error: eFaza } = await supabase.from('faze').insert({
           projekat_id: noviProj.id, naziv: f.naziv || 'Grupa radova',
-          redoslijed: f.redoslijed ?? 0, struka_kod: f.struka_kod || 'gradjevinski'
+          redoslijed: f.redoslijed ?? 0, struka_kod: f.struka_kod || 'gradjevinski',
+          // Uvezi i opšte tehničke uslove ako ih fajl sadrži (izvezeni novijom verzijom aplikacije).
+          // Stariji fajlovi ih nemaju — tada ostaje null, što je ispravno.
+          opsti_uslovi: f.opsti_uslovi || null
         }).select().single()
         if (eFaza || !novaFaza) { console.error('Greška pri uvozu grupe radova', f.naziv, eFaza); continue }
 
@@ -2534,6 +2577,17 @@ ${globalnaRekapitulacijaHtml}
                         </button>
                       )}
                     </div>
+                    {/* Traka za vraćanje obrisanih/zamijenjenih uslova — pojavljuje se kad se izgubi
+                        prethodni tekst (brisanje ili zamjena šablonom/AI predlogom), za slučaj greške. */}
+                    {opozivUslova && opozivUslova.fazaId === aktivnaFaza.id && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FFF8E8', border: '1px solid #E8D9B0', borderRadius: 8, padding: '7px 12px', marginBottom: 8 }}>
+                        <span style={{ fontSize: 11.5, color: '#8A6524', flex: 1 }}>Prethodni tekst uslova je promijenjen.</span>
+                        <button onClick={vratiObrisaneUslove}
+                          style={{ background: '#C9954E', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                          ↩ Vrati prethodni tekst
+                        </button>
+                      </div>
+                    )}
                     <textarea
                       key={`uslovi-${aktivnaFaza.id}-${revizija}`}
                       ref={el => { if (el && aktivnaFaza?.opsti_uslovi) autoGrowTextarea(el) }}
