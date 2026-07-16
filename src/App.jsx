@@ -429,9 +429,26 @@ export default function App() {
   ]
   const valutaZnak = VALUTE.find(v => v.kod === valuta)?.znak || '€'
 
-  // Kursevi — koliko 1 EUR vrijedi u toj valuti. KM je fiksno vezan za EUR (1,95583), nikad se ne mijenja.
-  // RSD i USD su približni tržišni kursevi (ažurirano jul 2026.) — dovoljno tačno za potrebe predmjera.
-  const KURSEVI = { EUR: 1, KM: 1.95583, RSD: 117.34, USD: 1.1437 }
+  // Kursevi — koliko 1 EUR vrijedi u toj valuti. KM je fiksno vezan za EUR (1,95583, valutni
+  // odbor — taj odnos se ne mijenja). RSD i USD se automatski povlače sa /api/kurs (vidi
+  // useEffect ispod) sa zvaničnih izvora (NBS za RSD, ECB/Frankfurter za USD) i keširaju 24h
+  // u bazi. Vrijednosti ovdje su samo POČETNE/rezervne — dok se pravi kurs ne učita, ili ako
+  // povlačenje ikad zakaže (nikad ne blokira rad aplikacije).
+  const [KURSEVI, setKURSEVI] = useState({ EUR: 1, KM: 1.95583, RSD: 117.34, USD: 1.1437 })
+  const [kursDatum, setKursDatum] = useState(null) // datum zadnjeg stvarnog osvježenja kursa (prikaz korisniku)
+  useEffect(() => {
+    if (!session?.access_token) return
+    fetch('/api/kurs', { headers: { 'Authorization': `Bearer ${session.access_token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.kursevi) {
+          setKURSEVI(prev => ({ ...prev, ...data.kursevi }))
+          const datumi = [data.datumUSD, data.datumRSD].filter(Boolean)
+          if (datumi.length) setKursDatum(datumi.sort().pop())
+        }
+      })
+      .catch(e => console.error('Kurs valute nije učitan, koristim rezervne vrijednosti:', e.message))
+  }, [session])
   const konvertujCijenu = (iznos, izValute, uValutu) => {
     if (izValute === uValutu) return iznos
     const uEUR = iznos / (KURSEVI[izValute] || 1)
@@ -1730,7 +1747,7 @@ export default function App() {
   .struka-korekcija { margin:0 0 22px; }
   .struka-korekcija td { font-size:9.5pt; padding:4px 12px; border-bottom:none; }
   .faza-header h2 { font-size:14pt; color:#1B2F43; margin:14px 0 5px; padding:6px 10px; border-bottom:1px solid #4A637C; background:#B9CDE5 !important; border-radius:2px; }
-  .opsti-uslovi { font-size:8.5pt; color:#333; line-height:1.5; margin:0 0 10px; padding:8px 12px; background:#F7F8FA !important; border-left:3px solid #4A637C; text-align:justify; }
+  .opsti-uslovi { font-size:8.5pt; color:#333; line-height:1.5; margin:0 0 10px; padding:8px 12px; background:#F7F8FA !important; text-align:justify; }
   table { width:100%; border-collapse:collapse; margin-bottom:4px; }
   th { background:#1B2F43 !important; color:#fff !important; padding:5px 6px; text-align:left; font-size:8pt; text-transform:uppercase; }
   th.r { text-align:right; } th.c { text-align:center; }
@@ -2467,7 +2484,7 @@ ${globalnaRekapitulacijaHtml}
                 <div style={{ flex: 1 }}></div>
                 {/* Valutni meni */}
                 <select value={valuta} onChange={e => promijeniValutu(e.target.value)} disabled={loading}
-                  title={loading ? 'Konvertujem cijene...' : undefined}
+                  title={loading ? 'Konvertujem cijene...' : (kursDatum ? `Kurs USD/RSD ažuriran: ${new Date(kursDatum).toLocaleString('sr-RS')}` : undefined)}
                   style={{ border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '5px 8px', fontSize: 12, fontFamily: 'inherit', background: 'rgba(255,255,255,.15)', color: '#fff', fontWeight: 600, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
                   {VALUTE.map(v => <option key={v.kod} value={v.kod} style={{ color: '#1B2F43' }}>Valuta ({v.kod})</option>)}
                 </select>
