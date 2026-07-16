@@ -1857,13 +1857,6 @@ ${globalnaRekapitulacijaHtml}
         datum: aktivniProjekat.datum,
         uvecanje_pct: aktivniProjekat.uvecanje_pct,
         umanjenje_pct: aktivniProjekat.umanjenje_pct,
-        // Legacy polja uvećanja/umanjenja (razdvojeno materijal/radovi) — koriste se kao fallback
-        // kad uvecanje_pct/umanjenje_pct nisu postavljeni (vidi izračun staroUvecanje). Kloniramo
-        // ih da projekti sa starim načinom korekcije ne izgube te vrijednosti u kopiji.
-        uv_materijal: aktivniProjekat.uv_materijal ?? null,
-        uv_radovi: aktivniProjekat.uv_radovi ?? null,
-        um_materijal: aktivniProjekat.um_materijal ?? null,
-        um_radovi: aktivniProjekat.um_radovi ?? null,
         valuta: aktivniProjekat.valuta || 'EUR',
         // KLJUČNO: kopirati stvarne strukе originalnog projekta (nazivi, eventualno
         // preimenovani/obrisani/custom dodati, uvecanjePct/umanjenjePct po struci).
