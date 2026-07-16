@@ -21,7 +21,10 @@ const CIJENA_PO_PRETRAZI = 0.01  // $ po jednoj web pretrazi (web_search alat)
 // pouzdanu zaštitu preko svih instanci trebao bi vanjski servis (npr. Upstash Redis),
 // ali ovo već znatno otežava zloupotrebu u odnosu na potpuno otvoren endpoint.
 const zahtjeviPoKorisniku = new Map() // userId -> [timestamp, timestamp, ...]
-const MAX_ZAHTJEVA_PO_SATU = 30
+// 100/sat: procjena cijena radi U PAKETIMA (svaki paket = zaseban poziv), pa jedan klik
+// "Procijeni cijeli projekat" na velikom projektu može biti 10+ poziva. 30/sat bi legitimnog
+// korisnika prebrzo blokirao; 100 pokriva realno intenzivno korišćenje a i dalje štiti budžet.
+const MAX_ZAHTJEVA_PO_SATU = 100
 function jeLimitPredjen(userId) {
   const sada = Date.now()
   const jedanSat = 60 * 60 * 1000
