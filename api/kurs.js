@@ -19,25 +19,34 @@ const KM_KURS = 1.95583
 // kurs I eksterni izvor istovremeno ne radi.
 const REZERVNI_KURSEVI = { EUR: 1, KM: KM_KURS, RSD: 117.37, USD: 1.1471 }
 
-// ── JEDAN IZVOR ZA USD I RSD — Narodna banka Srbije (preko kurs.resenje.org, besplatan
-// javni wrapper oko zvaničnih NBS podataka, bez ključa, ažurira se svaki dan u 8h). RANIJA
-// verzija je USD vukla sa ECB-a (Frankfurter) a RSD sa NBS-a — dva RAZLIČITA izvora za dvije
-// valute vezane za istu bazu (EUR), što je davalo primjetno odstupanje (do ~0.5-0.6%, otkriveno
-// jul 2026. poređenjem sa zvaničnim kursom) jer ECB i NBS objavljuju EUR/USD sa različitim
-// dnevnim presjekom tržišta. Sad se i USD i RSD računaju IZ ISTOG NBS očitavanja, pa su
-// međusobno i sa KM (koji je i sam NBS/valutni-odbor vezan za EUR) potpuno konzistentni —
-// isti "zvanični kurs" koji korisnik vidi kad provjeri NBS kursnu listu.
+// ── JEDAN IZVOR ZA USD I RSD — Narodna banka Srbije (preko kurs.resenje.org, besplatan javni
+// wrapper oko zvaničnih NBS podataka, bez ključa, ažurira se svaki dan u 8h; vikendom/praznikom
+// vraća zadnji objavljeni kurs). Oba kursa se čitaju iz ISTOG NBS presjeka (srednji kurs,
+// `exchange_middle`), pa su međusobno i sa KM (koji je i sam vezan za EUR) potpuno konzistentni.
+//
+// VAŽNO (ispravka jul 2026): raniji kod je gađao /api/v1/rates/today?currency_pair=EUR_RSD i
+// čitao polje `data.rates[].exchange_middle`. Taj oblik odgovora NE POSTOJI u ovom API-ju —
+// `exchange_middle` se vraća SAMO na endpointu za pojedinačnu valutu:
+//   GET /api/v1/currencies/<kod>/rates/today  ->  { code, date, ..., exchange_middle }
+// Zbog toga je stara funkcija bacala grešku pri SVAKOM pozivu, a aplikacija je tiho padala na
+// REZERVNI_KURSEVI (zamrznute vrijednosti), umjesto da prati stvarni dnevni kurs. Sad se gađaju
+// dva zvanična endpointa za pojedinačne valute.
+//
+// `exchange_middle` = koliko RSD vrijedi 1 jedinica te valute (npr. EUR ~117 RSD, USD ~102 RSD).
 async function povuciKurseveNBS() {
-  const r = await fetch('https://kurs.resenje.org/api/v1/rates/today?currency_pair=EUR_RSD')
-  if (!r.ok) throw new Error('Kurs API (NBS) nije dostupan (status ' + r.status + ')')
-  const data = await r.json()
-  const eur = (data?.rates || []).find(x => x.code === 'EUR')
-  const usd = (data?.rates || []).find(x => x.code === 'USD')
-  if (!eur?.exchange_middle) throw new Error('Kurs API nije vratio EUR/RSD kurs')
-  if (!usd?.exchange_middle) throw new Error('Kurs API nije vratio USD/RSD kurs')
+  const [eurR, usdR] = await Promise.all([
+    fetch('https://kurs.resenje.org/api/v1/currencies/eur/rates/today'),
+    fetch('https://kurs.resenje.org/api/v1/currencies/usd/rates/today'),
+  ])
+  if (!eurR.ok) throw new Error('Kurs API (NBS) EUR nije dostupan (status ' + eurR.status + ')')
+  if (!usdR.ok) throw new Error('Kurs API (NBS) USD nije dostupan (status ' + usdR.status + ')')
+  const eur = await eurR.json()
+  const usd = await usdR.json()
+  if (!eur?.exchange_middle) throw new Error('Kurs API nije vratio EUR/RSD srednji kurs')
+  if (!usd?.exchange_middle) throw new Error('Kurs API nije vratio USD/RSD srednji kurs')
   return {
     RSD: eur.exchange_middle,                        // koliko RSD vrijedi 1 EUR
-    USD: eur.exchange_middle / usd.exchange_middle,   // koliko USD vrijedi 1 EUR (isti NBS presjek za oba)
+    USD: eur.exchange_middle / usd.exchange_middle,  // koliko USD vrijedi 1 EUR (isti NBS presjek za oba)
   }
 }
 
