@@ -14,42 +14,62 @@ const CIJENA_ULAZ_PO_MTOK = 2    // $ po milion ulaznih tokena
 const CIJENA_IZLAZ_PO_MTOK = 10  // $ po milion izlaznih tokena
 const CIJENA_PO_PRETRAZI = 0.01  // $ po jednoj web pretrazi (web_search alat)
 
-// ── OSNOVNI RATE LIMITING (u memoriji servera) ──
-// Napomena: ovo je jednostavna, "najbolji-mogući" zaštita koja radi unutar jedne
-// pokrenute instance servera. Vercel serverless funkcije mogu povremeno pokrenuti
-// novu instancu (hladni start), pri čemu se ovo brojanje resetuje na nulu. Za punu,
-// pouzdanu zaštitu preko svih instanci trebao bi vanjski servis (npr. Upstash Redis),
-// ali ovo već znatno otežava zloupotrebu u odnosu na potpuno otvoren endpoint.
-const zahtjeviPoKorisniku = new Map() // userId -> [timestamp, timestamp, ...]
+// ── RATE LIMITING (iz baze — tabela ai_potrosnja) ──
+// RANIJE: brojač u memoriji instance (Map). Radio je unutar JEDNE pokrenute instance, ali
+// Vercel povremeno pokrene više instanci (svaka svoj brojač) ili "ohladi" instancu (brojač se
+// resetuje na nulu) — pa limit nije bio pouzdan preko svih instanci.
+// SADA: broji se koliko je AI poziva ovaj korisnik napravio u zadnjih sat vremena direktno iz
+// tabele `ai_potrosnja` (koristi indeks ai_potrosnja_user_datum_idx). Baza je jedan zajednički
+// izvor istine za SVE instance, pa hladni start i više instanci više ne prave rupu. Nema nove
+// infrastrukture — koristi tabelu i indeks koji već postoje.
+//
 // 100/sat: procjena cijena radi U PAKETIMA (svaki paket = zaseban poziv), pa jedan klik
 // "Procijeni cijeli projekat" na velikom projektu može biti 10+ poziva. 30/sat bi legitimnog
 // korisnika prebrzo blokirao; 100 pokriva realno intenzivno korišćenje a i dalje štiti budžet.
 const MAX_ZAHTJEVA_PO_SATU = 100
-function jeLimitPredjen(userId) {
-  const sada = Date.now()
-  const jedanSat = 60 * 60 * 1000
-  const postojeci = (zahtjeviPoKorisniku.get(userId) || []).filter(t => sada - t < jedanSat)
-  if (postojeci.length >= MAX_ZAHTJEVA_PO_SATU) {
-    zahtjeviPoKorisniku.set(userId, postojeci)
-    return true
+
+async function jeLimitPredjen(supabase, userId) {
+  const prijeSatVremena = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  // head:true + count:'exact' → vraća SAMO broj redova (ne i same redove) = brz upit.
+  const { count, error } = await supabase
+    .from('ai_potrosnja')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('kreiran_at', prijeSatVremena)
+  if (error) {
+    // FAIL-OPEN: ako brojanje iz bilo kog razloga padne (npr. kratak prekid baze), NE blokiramo
+    // korisnika — radije propuštamo poziv nego da zaustavimo rad zbog greške u pomoćnoj provjeri.
+    // Prijava (proveriAutentikaciju) i dalje štiti endpoint od potpuno stranih poziva.
+    console.error('Rate limit - greška pri brojanju iz baze, propuštam zahtjev:', error)
+    return false
   }
-  postojeci.push(sada)
-  zahtjeviPoKorisniku.set(userId, postojeci)
-  return false
+  return (count || 0) >= MAX_ZAHTJEVA_PO_SATU
 }
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
   // ── PROVJERA PRIJAVE — bez ovoga bilo ko na internetu može trošiti Anthropic budžet ──
   const auth = await proveriAutentikaciju(req)
   if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
+
+  // Klijent autentifikovan JWT-om OVOG korisnika — koristi se i za rate-limit brojanje i za
+  // upis potrošnje. Kroz RLS (auth.uid() = user_id) svaki korisnik vidi/piše samo svoje redove.
+  const authHeader = req.headers['authorization'] || req.headers['Authorization']
+  const token = authHeader.slice('Bearer '.length).trim()
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  })
+
   // ── RATE LIMITING — sprečava da jedan korisnik (ili neko ko mu ukrade token) potroši sav budžet ──
-  if (jeLimitPredjen(auth.userId)) {
-    return res.status(429).json({ error: 'Previše zahtjeva. Molimo pokušajte ponovo za nekoliko minuta.' })
+  if (await jeLimitPredjen(supabase, auth.userId)) {
+    return res.status(429).json({ error: 'Previše zahtjeva u proteklom satu. Molimo pokušajte ponovo kasnije.' })
   }
+
   try {
     const { system, messages, webSearch = false, tip = 'opste' } = req.body
     const body = {
@@ -91,6 +111,8 @@ export default async function handler(req, res) {
     // Ovo je best-effort: ako upis u bazu ne uspije iz bilo kog razloga, korisnik i dalje
     // dobija svoj AI odgovor normalno — logovanje potrošnje nikad ne smije blokirati ili
     // pokvariti stvarnu funkcionalnost AI Asistenta.
+    // NAPOMENA: ovaj upis je ujedno i "brojač" za rate-limit gore — svaki uspješan poziv doda
+    // jedan red, koji se broji u narednih sat vremena.
     let potrosnja = null
     try {
       const ulazniTokeni = data.usage?.input_tokens || 0
@@ -103,18 +125,7 @@ export default async function handler(req, res) {
 
       potrosnja = { ulazniTokeni, izlazniTokeni, brojPretraga, cijenaUsd }
 
-      // KLJUČNO: klijent ovdje MORA biti autentifikovan JWT tokenom OVOG korisnika (isti token
-      // koji je već provjeren u proveriAutentikaciju), ne anon ključem "golim" i ne service role
-      // ključem. Bez ovoga bi auth.uid() unutar RLS politike bio prazan i upis bi pao (ili bi
-      // trebalo zaobići RLS service role ključem, što uvodi novu tajnu i veći sigurnosni rizik
-      // bez stvarne potrebe — ovako upis prolazi kroz ISTI RLS mehanizam kao i svaki drugi upis
-      // u aplikaciji, auth.uid() = user_id).
-      const authHeader = req.headers['authorization'] || req.headers['Authorization']
-      const token = authHeader.slice('Bearer '.length).trim()
-      const supabaseKorisnik = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      })
-      const { error: logError } = await supabaseKorisnik.from('ai_potrosnja').insert({
+      const { error: logError } = await supabase.from('ai_potrosnja').insert({
         user_id: auth.userId,
         tip,
         ulazni_tokeni: ulazniTokeni,
