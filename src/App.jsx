@@ -80,7 +80,16 @@ const toRoman = n => {
   return res
 }
 
-const fmt = n => (n || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// Deterministički format brojeva po RS/BiH konvenciji: tačka za hiljade, zarez za decimale
+// (npr. 23.312,30). NE oslanja se na toLocaleString('bs-BA') jer taj u nekim okruženjima (npr.
+// print engine bez potpune ICU baze za bs-BA) tiho pada na engleski format (23,312.30) — što je
+// i bio uzrok pogrešnog prikaza. Ovako je rezultat isti svuda: ekran, PDF, svaki preglednik.
+const fmt = n => {
+  const num = Number(n) || 0
+  const neg = num < 0 ? '-' : ''
+  const [cijeli, dec] = Math.abs(num).toFixed(2).split('.')
+  return neg + cijeli.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec
+}
 
 // ── NORMALIZACIJA JEDINICE MJERE U KANONSKI OBLIK DROPDOWN-A ──
 // baza.js (izvorna baza od 1.091 stavke) koristi PUNE RIJEČI ("Paušalno", "Kom.", "Čas") koje
@@ -1520,7 +1529,23 @@ export default function App() {
     }
 
     const proj = aktivniProjekat
-    const fmtN = n => (n||0).toLocaleString('bs-BA', {minimumFractionDigits:2, maximumFractionDigits:2})
+    // Novčani iznosi (2 decimale) — RS/BiH format: tačka za hiljade, zarez za decimale. Isti
+    // deterministički pristup kao globalni fmt (ne oslanja se na bs-BA locale koji zna pasti na
+    // engleski format u print engine-u).
+    const fmtN = n => {
+      const num = Number(n) || 0
+      const neg = num < 0 ? '-' : ''
+      const [cijeli, dec] = Math.abs(num).toFixed(2).split('.')
+      return neg + cijeli.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec
+    }
+    // Količine — čuvaju vlastiti broj decimala (npr. 233,123 sa 3 decimale), ali sa RS/BiH
+    // separatorima: tačka za hiljade, zarez za decimale. Ne zaokružuje na 2 decimale.
+    const fmtKol = n => {
+      if (n == null || n === '') return ''
+      const [cijeli, dec] = String(n).split('.')
+      const ci = (cijeli || '0').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+      return dec != null ? ci + ',' + dec : ci
+    }
     // Isti obrazac zaštite od HTML specijalnih znakova koji se već koristi za naziv/šifru
     // pozicije, sad primijenjen i na podatke o projektu (naziv, investitor, adresa, datum) —
     // ranije SAMO naziv pozicije je bio zaštićen, ova polja nisu, pa bi npr. "&" ili "<" u
@@ -1600,8 +1625,8 @@ export default function App() {
               <td class="opis">${naziv}</td>
               <td class="c" style="vertical-align:bottom">${fmtJmj(p.jedinica)}</td>
               <td class="r" style="vertical-align:bottom">${!imadjece&&(p.cijena||0)>0?fmtN(p.cijena):(imadjece?'<em style="font-size:8pt;color:#888">zbir</em>':'—')}</td>
-              <td class="r" style="vertical-align:bottom">${!imadjece&&(p.kolicina||0)>0?p.kolicina:'—'}</td>
-              <td class="r bold" style="vertical-align:bottom">${u>0?fmtN(u)+' '+valutaZnak:'—'}</td>
+              <td class="r" style="vertical-align:bottom">${!imadjece&&(p.kolicina||0)>0?fmtKol(p.kolicina):'—'}</td>
+              <td class="r bold" style="vertical-align:bottom">${u>0?fmtN(u):'—'}</td>
             </tr>`
             if (imadjece) {
               p.djeca.forEach((d, di) => {
@@ -1613,16 +1638,16 @@ export default function App() {
                   <td class="pod-opis">${dNaziv}</td>
                   <td class="c" style="font-size:8.5pt">${fmtJmj(d.jedinica)}</td>
                   <td class="r" style="font-size:8.5pt">${(d.cijena||0)>0?fmtN(d.cijena):'—'}</td>
-                  <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?d.kolicina:'—'}</td>
-                  <td class="r" style="color:#4A637C;font-weight:600;font-size:8.5pt">${du>0?fmtN(du)+' '+valutaZnak:'—'}</td>
+                  <td class="r" style="font-size:8.5pt">${(d.kolicina||0)>0?fmtKol(d.kolicina):'—'}</td>
+                  <td class="r" style="color:#4A637C;font-weight:600;font-size:8.5pt">${du>0?fmtN(du):'—'}</td>
                 </tr>`
               })
               const ukKol = p.djeca.reduce((s,d) => s+(parseFloat(d.kolicina)||0), 0)
               rows += `<tr class="pod-sum">
                 <td></td>
                 <td></td>
-                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${ukKol.toFixed(2)} ${fmtJmj(p.jedinica)}</td>
-                <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)} ${valutaZnak}</td>
+                <td colspan="4" style="font-style:italic;font-size:8pt;color:#666">Ukupno: ${fmtKol(ukKol.toFixed(2))} ${fmtJmj(p.jedinica)}</td>
+                <td class="r" style="font-weight:bold;color:#1B2F43;font-size:9pt">${fmtN(u)}</td>
               </tr>`
             }
           }
@@ -1630,7 +1655,7 @@ export default function App() {
         const ft = poz.filter(p=>!p.parent_id).reduce((s,p)=>s+calcRow(p,poz),0)
         strukaUkupno += ft
         grupaSubtotali.push({ naziv: f.naziv, ukupno: ft })
-        rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA:</td><td class="r bold">${fmtN(ft)} ${valutaZnak}</td></tr>`
+        rows += `<tr class="total"><td colspan="6" style="text-align:right">UKUPNO GRUPA (${valutaZnak}):</td><td class="r bold">${fmtN(ft)}</td></tr>`
 
         if (prikaziDetalj) {
           // Šifra se uzima iz stvarne kategorije PRVE (glavne) pozicije u grupi radova, ne iz
@@ -1644,13 +1669,13 @@ export default function App() {
             ${f.opsti_uslovi ? `<div class="opsti-uslovi">${escHtml(f.opsti_uslovi).replace(/\n/g, '<br>')}</div>` : ''}
             <table>
               <thead><tr>
-                <th class="c" style="width:30px">R.br.</th>
-                <th class="c" style="width:60px">Šifra</th>
+                <th class="c" style="width:28px">R.br.</th>
+                <th class="c" style="width:56px">Šifra</th>
                 <th>Opis pozicije</th>
-                <th class="c" style="width:45px">J.mj.</th>
-                <th class="r" style="width:75px">Jed. cijena (${valutaZnak})</th>
-                <th class="r" style="width:65px">Količina</th>
-                <th class="r" style="width:80px">Ukupno (${valutaZnak})</th>
+                <th class="c" style="width:34px">J.mj.</th>
+                <th class="r" style="width:78px">Jed. cijena (${valutaZnak})</th>
+                <th class="r" style="width:62px">Količina</th>
+                <th class="r" style="width:95px">Ukupno (${valutaZnak})</th>
               </tr></thead>
               <tbody>${rows}</tbody>
             </table>
@@ -1759,6 +1784,7 @@ export default function App() {
   .pod-sum td { background:#F5F6F8 !important; border-top:1px solid #D8D5CC; border-bottom:1px solid #D8D5CC; }
   .total td { background:#EEF0F3 !important; font-weight:700; border-top:2px solid #1B2F43; }
   .c { text-align:center; } .r { text-align:right; }
+  td.c, td.r { white-space:nowrap; }
   .opis { line-height:1.4; } .bold { font-weight:700; }
   .page-break { page-break-before:always; margin-top:16px; }
   @page {
