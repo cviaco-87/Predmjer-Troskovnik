@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase.js'
 
-export default function MojaBaza({ onClose, onDodaj }) {
+export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije = [] }) {
+  const VALUTE = ['EUR', 'KM', 'RSD', 'USD']
   const [stavke, setStavke] = useState([])
   const [loading, setLoading] = useState(true)
   const [forma, setForma] = useState(false)
   const [editId, setEditId] = useState(null)
-  const [nova, setNova] = useState({ naziv: '', jedinica: 'kom', cijena: '', kategorija: 'Moje stavke' })
+  const [nova, setNova] = useState({ naziv: '', jedinica: 'kom.', cijena: '', valuta: 'EUR', kategorija: 'Moje stavke' })
   const [filter, setFilter] = useState('')
 
   useEffect(() => { ucitaj() }, [])
@@ -23,16 +24,16 @@ export default function MojaBaza({ onClose, onDodaj }) {
     if (editId) {
       await supabase.from('moja_baza').update({
         naziv: nova.naziv, jedinica: nova.jedinica,
-        cijena: parseFloat(nova.cijena) || 0, kategorija: nova.kategorija
+        cijena: parseFloat(nova.cijena) || 0, valuta: nova.valuta || 'EUR', kategorija: nova.kategorija
       }).eq('id', editId)
     } else {
       await supabase.from('moja_baza').insert({
         naziv: nova.naziv, jedinica: nova.jedinica,
-        cijena: parseFloat(nova.cijena) || 0, kategorija: nova.kategorija
+        cijena: parseFloat(nova.cijena) || 0, valuta: nova.valuta || 'EUR', kategorija: nova.kategorija
       })
     }
     setForma(false); setEditId(null)
-    setNova({ naziv: '', jedinica: 'kom', cijena: '', kategorija: 'Moje stavke' })
+    setNova({ naziv: '', jedinica: 'kom.', cijena: '', valuta: 'EUR', kategorija: 'Moje stavke' })
     ucitaj()
   }
 
@@ -44,7 +45,7 @@ export default function MojaBaza({ onClose, onDodaj }) {
 
   const uredi = (s) => {
     setEditId(s.id)
-    setNova({ naziv: s.naziv, jedinica: s.jedinica, cijena: s.cijena?.toString() || '', kategorija: s.kategorija })
+    setNova({ naziv: s.naziv, jedinica: s.jedinica, cijena: s.cijena?.toString() || '', valuta: s.valuta || 'EUR', kategorija: s.kategorija })
     setForma(true)
   }
 
@@ -54,6 +55,7 @@ export default function MojaBaza({ onClose, onDodaj }) {
     <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
       style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', marginBottom: 8 }} />
   )
+  const selStil = { width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', marginBottom: 8, cursor: 'pointer' }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -78,23 +80,33 @@ export default function MojaBaza({ onClose, onDodaj }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               <div>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Jedinica mjere</div>
-                {inp(nova.jedinica, v => setNova(p => ({...p, jedinica: v})), 'kom', 'text')}
+                <select value={nova.jedinica} onChange={e => setNova(p => ({...p, jedinica: e.target.value}))} style={selStil}>
+                  {(jedinice.includes(nova.jedinica) ? jedinice : [nova.jedinica, ...jedinice]).map(j => <option key={j} value={j}>{j}</option>)}
+                </select>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Cijena (€)</div>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Cijena</div>
                 {inp(nova.cijena, v => setNova(p => ({...p, cijena: v})), '0.00', 'number')}
               </div>
               <div>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Kategorija</div>
-                {inp(nova.kategorija, v => setNova(p => ({...p, kategorija: v})), 'Moje stavke')}
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Valuta</div>
+                <select value={nova.valuta} onChange={e => setNova(p => ({...p, valuta: e.target.value}))} style={selStil}>
+                  {VALUTE.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
               </div>
             </div>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Kategorija (grupa radova)</div>
+            <select value={nova.kategorija} onChange={e => setNova(p => ({...p, kategorija: e.target.value}))} style={selStil}>
+              <option value="Moje stavke">— Moje stavke (opšte) —</option>
+              {!kategorije.includes(nova.kategorija) && nova.kategorija !== 'Moje stavke' && <option value={nova.kategorija}>{nova.kategorija}</option>}
+              {kategorije.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={sacuvaj}
                 style={{ background: '#1B4332', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {editId ? '💾 Sačuvaj izmjenu' : '+ Dodaj u moju bazu'}
               </button>
-              <button onClick={() => { setForma(false); setEditId(null); setNova({ naziv: '', jedinica: 'kom', cijena: '', kategorija: 'Moje stavke' }) }}
+              <button onClick={() => { setForma(false); setEditId(null); setNova({ naziv: '', jedinica: 'kom.', cijena: '', valuta: 'EUR', kategorija: 'Moje stavke' }) }}
                 style={{ background: 'transparent', color: '#666', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Odustani
               </button>
@@ -141,7 +153,7 @@ export default function MojaBaza({ onClose, onDodaj }) {
                     <td style={{ padding: '9px 16px', lineHeight: 1.4 }}>{s.naziv}</td>
                     <td style={{ padding: '9px 10px', textAlign: 'center', color: '#888' }}>{s.jedinica}</td>
                     <td style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 600, color: '#1B4332', fontVariantNumeric: 'tabular-nums' }}>
-                      {s.cijena > 0 ? `${s.cijena.toFixed(2)} €` : '—'}
+                      {s.cijena > 0 ? `${s.cijena.toFixed(2)} ${s.valuta || 'EUR'}` : '—'}
                     </td>
                     <td style={{ padding: '9px 10px', color: '#888', fontSize: 12 }}>{s.kategorija}</td>
                     <td style={{ padding: '9px 10px' }}>
