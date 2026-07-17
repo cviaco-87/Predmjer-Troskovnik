@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS faze (
 ALTER TABLE faze ALTER COLUMN user_id SET DEFAULT auth.uid();
 ALTER TABLE faze ADD COLUMN IF NOT EXISTS struka_kod TEXT DEFAULT 'gradjevinski';
 ALTER TABLE faze ADD COLUMN IF NOT EXISTS opsti_uslovi TEXT;   -- opšti tehnički uslovi grupe radova
+ALTER TABLE faze ADD COLUMN IF NOT EXISTS kategorija TEXT;     -- vezana kategorija šifarnika (predefinisana grupa); NULL = prilagođena
 
 
 -- =============================================================
