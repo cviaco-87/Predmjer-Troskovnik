@@ -229,6 +229,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
+  const [prikaziRezultate, setPrikaziRezultate] = useState(true) // sakrij/prikaži listu rezultata baze
 
   // Prilagođene (korisnički dodane) faze nemaju unaprijed poznato mapiranje kategorija baze,
   // pa im NE ograničavamo pretragu — vide cijelu bazu i sami biraju šta je relevantno.
@@ -370,7 +371,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       </div>
 
       {/* Rezultati */}
-      <div style={{ overflowY: 'auto', flex: 1 }}>
+      <div style={{ overflowY: 'auto', flex: prikaziRezultate ? 1 : 'none' }}>
         {tab === 'glavna' && bazaUcitavanje ? (
           <div style={{ padding: '18px 16px', textAlign: 'center', color: '#888' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#666' }}>⏳ Učitavam bazu pozicija...</div>
@@ -388,12 +389,16 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>{q.trim() ? `Nema rezultata za "${q}"` : 'Nema stavki u ovoj kategoriji'}</div>
         ) : (
           <>
-            <div style={{ padding: '4px 14px', fontSize: 11, color: '#666', background: '#f0f0ee', borderBottom: '1px solid #E0DDD5' }}>
-              {rezultati.length} rezultata — kliknite na poziciju da je dodate
+            <div onClick={() => setPrikaziRezultate(v => !v)}
+              title={prikaziRezultate ? 'Sakrij listu rezultata' : 'Prikaži listu rezultata'}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', fontSize: 11, color: '#4C5E6E', background: '#f0f0ee', borderBottom: '1px solid #E0DDD5', cursor: 'pointer', userSelect: 'none', fontWeight: 600, position: 'sticky', top: 0, zIndex: 2 }}>
+              <span style={{ fontSize: 10, transition: 'transform .15s', transform: prikaziRezultate ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+              <span style={{ flex: 1 }}>{rezultati.length} rezultata{prikaziRezultate ? ' — kliknite na poziciju da je dodate' : ''}</span>
+              <span style={{ fontSize: 10.5, color: '#8A94A0', fontWeight: 500 }}>{prikaziRezultate ? 'sakrij' : 'prikaži'}</span>
             </div>
-            {Object.entries(grouped).map(([k, items]) => (
+            {prikaziRezultate && Object.entries(grouped).map(([k, items]) => (
               <div key={k}>
-                <div style={{ padding: '4px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B6860', background: '#F5F4F0', position: 'sticky', top: 0 }}>{k}</div>
+                <div style={{ padding: '4px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B6860', background: '#F5F4F0', position: 'sticky', top: 27 }}>{k}</div>
                 {items.map((item, i) => (
                   <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
                     style={{ padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: '1px solid #EEECEA' }}
@@ -2382,50 +2387,45 @@ ${globalnaRekapitulacijaHtml}
             {(() => {
               const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
-              return fazeUFazi.length > 0 ? (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <select value={aktivnaPripada ? aktivnaFaza.id : ''}
-                      onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
-                      style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                      <option value="" disabled>— Odaberite grupu radova —</option>
-                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.kategorija && SIFRA_KATEGORIJE_MAP.get(f.kategorija) ? SIFRA_KATEGORIJE_MAP.get(f.kategorija) + ' · ' : ''}{f.naziv}</option>)}
-                    </select>
-                    {aktivnaPripada && (
-                      <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
-                        style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
+              const dodate = new Set(fazeUFazi.map(f => f.kategorija).filter(Boolean))
+              const dostupne = KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka && !dodate.has(k))
+              const prefiks = f => (f.kategorija && SIFRA_KATEGORIJE_MAP.get(f.kategorija)) ? SIFRA_KATEGORIJE_MAP.get(f.kategorija) + ' · ' : ''
+              // JEDNA lista radi oboje: sekcija „Vaše grupe radova" prebacuje aktivnu grupu, a
+              // „Dodaj grupu iz šifarnika" dodaje novu. Vrijednost 'add::<kategorija>' razlikuje
+              // dodavanje od prebacivanja. Custom grupe se dodaju poljem ispod i pojave se na kraju
+              // gornje sekcije (jer im poredakFaze daje najveći redni broj).
+              return (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                  <select value={aktivnaPripada ? aktivnaFaza.id : ''}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (!v) return
+                      if (v.startsWith('add::')) dodajFazu(v.slice(5), v.slice(5))
+                      else setAktivnaFaza(fazeUFazi.find(f => f.id === v) || null)
+                    }}
+                    style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <option value="" disabled>{fazeUFazi.length ? '— Odaberite ili dodajte grupu —' : '➕ Dodaj grupu radova…'}</option>
+                    {fazeUFazi.length > 0 && (
+                      <optgroup label="Vaše grupe radova">
+                        {fazeUFazi.map(f => <option key={f.id} value={f.id}>{prefiks(f)}{f.naziv}</option>)}
+                      </optgroup>
                     )}
-                  </div>
+                    {dostupne.length > 0 && (
+                      <optgroup label="➕ Dodaj grupu iz šifarnika">
+                        {dostupne.map(k => <option key={'add::' + k} value={'add::' + k}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                  {aktivnaPripada && (
+                    <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
+                      style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 16, padding: '6px 10px', fontFamily: 'inherit', flexShrink: 0 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
+                  )}
                 </div>
-              ) : (
-                <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>Još nema grupa radova u ovoj fazi.</div>
               )
             })()}
-            <div style={{ marginTop: 6, marginBottom: 16 }}>
-              {/* Predefinisane grupe radova — izbor ODMAH dodaje grupu (bez ručnog kucanja) i
-                  veže je za kategoriju iz šifarnika. Već dodate grupe se ne nude ponovo (bez duplikata). */}
-              {(() => {
-                const dodate = new Set(faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka).map(f => f.kategorija).filter(Boolean))
-                const dostupne = KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka && !dodate.has(k))
-                const opt = k => <option key={k} value={k}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>
-                const ostalo = dostupne.filter(k => !['pripremni', 'grubi', 'zavrsni'].includes(GRUPA_MAP.get(k)))
-                return (
-                  <select value="" onChange={e => { if (e.target.value) dodajFazu(e.target.value, e.target.value); e.target.value = '' }}
-                    style={{ width: '100%', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 12.5, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', marginBottom: 8 }}>
-                    <option value="">➕ Dodaj grupu radova iz šifarnika…</option>
-                    {aktivnaStruka === 'gradjevinski' ? (
-                      <>
-                        <optgroup label="Pripremni radovi i rušenje">{dostupne.filter(k => GRUPA_MAP.get(k) === 'pripremni').map(opt)}</optgroup>
-                        <optgroup label="Grubi građevinski radovi">{dostupne.filter(k => GRUPA_MAP.get(k) === 'grubi').map(opt)}</optgroup>
-                        <optgroup label="Završni građevinsko-zanatski radovi">{dostupne.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(opt)}</optgroup>
-                        {ostalo.length > 0 && <optgroup label="Ostalo">{ostalo.map(opt)}</optgroup>}
-                      </>
-                    ) : dostupne.map(opt)}
-                  </select>
-                )
-              })()}
+            <div style={{ marginBottom: 16 }}>
               {/* Prilagođena (custom) grupa — slobodan naziv, vidi cijelu bazu, ide na kraj liste */}
               <div style={{ fontSize: 10.5, color: '#aaa', marginBottom: 3 }}>ili prilagođena grupa (van šifarnika):</div>
               <div style={{ display: 'flex', gap: 6 }}>
