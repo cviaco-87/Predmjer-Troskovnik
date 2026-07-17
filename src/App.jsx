@@ -65,6 +65,9 @@ const poredakFaze = f => {
 }
 const sortirajFaze = arr => [...(arr || [])].sort((a, b) => poredakFaze(a) - poredakFaze(b))
 
+// Kanonske mjerne jedinice za padajuće menije (isti spisak koji koristi tabela pozicija).
+const JEDINICE_OPCIJE = ['m²', 'm³', 'm', 'kom.', 'pau.', 'kg', 't', 'l', 'h', 'dan', 'voz', 'm²/dan']
+
 // Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
 // sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
 // vanjsko uređenje, njihove kategorije se samo dodaju ovdje)
@@ -261,7 +264,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           return terms.every(t => n.includes(t))
         })
         .slice(0, 60)
-        .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija, _moja: true, _id: s.id }))
+        .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija, v: s.valuta, _moja: true, _id: s.id }))
     }
     const out = []
     const limit = imaTekst ? 80 : 200
@@ -1014,8 +1017,12 @@ export default function App() {
     // Ista logika zamjene kao u dodajPoziciju gore, ali za stavke iz "Moja baza" taba. fmtJmj
     // ovdje je "besplatan" no-op za stavke koje su već u kanonskom obliku, i sigurnosna mreža
     // za starije, ranije sačuvane stavke koje bi mogle imati zastarjeli zapis jedinice.
+    // Cijena stavke iz Moje baze čuva se u SVOJOJ valuti (item.v); pri ubacivanju u projekat
+    // preračunava se u valutu projekta po tekućem kursu. Starije stavke bez valute = EUR.
+    const izVal = item.v || 'EUR'
+    const cijenaUProjektu = izVal === valuta ? (item.c || 0) : Math.round(konvertujCijenu(item.c || 0, izVal, valuta) * 100) / 100
     if (zamjenaPozicijaId) {
-      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: fmtJmj(item.m), cijena: item.c, kategorija: item.k || 'Moje stavke', sifra: null })
+      await zamijeniPoziciju(zamjenaPozicijaId, { naziv: item.n, jedinica: fmtJmj(item.m), cijena: cijenaUProjektu, kategorija: item.k || 'Moje stavke', sifra: null })
       return
     }
 
@@ -1026,14 +1033,14 @@ export default function App() {
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       const { data, error } = await supabase.from('pozicije').insert({
         faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
-        cijena: item.c, kategorija: item.k || 'Moje stavke', redoslijed: red
+        cijena: cijenaUProjektu, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
       if (error) { alert('Greška pri dodavanju stavke iz moje baze: ' + error.message); return }
       if (data) setPozicije(prev => [...prev, data])
     } finally {
       dodavanjeUTokuRef.current = false
     }
-  }, [aktivnaFaza, pozicije, zamjenaPozicijaId])
+  }, [aktivnaFaza, pozicije, zamjenaPozicijaId, valuta, KURSEVI])
 
   const dodajVlastitupoziciju = async () => {
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
@@ -3018,8 +3025,10 @@ ${globalnaRekapitulacijaHtml}
       {/* Moja baza modal */}
       {showMojaBaza && (
         <MojaBaza
+          jedinice={JEDINICE_OPCIJE}
+          kategorije={KATEGORIJE}
           onClose={() => { setShowMojaBaza(false); ucitajMojuBazu() }}
-          onDodaj={item => { dodajIzMojeBaze({ n: item.naziv, c: item.cijena, m: item.jedinica, k: item.kategorija }); setShowMojaBaza(false) }}
+          onDodaj={item => { dodajIzMojeBaze({ n: item.naziv, c: item.cijena, m: item.jedinica, k: item.kategorija, v: item.valuta }); setShowMojaBaza(false) }}
         />
       )}
 
