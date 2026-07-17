@@ -53,6 +53,18 @@ const SIFRA_KATEGORIJE_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.
 // čekati taj fajl da bi se dropdown filteri prikazali korisniku bez kašnjenja.
 const KATEGORIJE = REDOSLIJED_KATEGORIJA.map(r => r.naziv)
 
+// ── SORTIRANJE GRUPA RADOVA PO NUMERACIJI KATEGORIJA ──
+// Predefinisane grupe (vezane za kategoriju iz REDOSLIJED_KATEGORIJA) slažu se po istom
+// redoslijedu kao padajući meni (01, 02, 03…), bez obzira kojim su redom dodate — pa kad
+// korisnik naknadno ubaci zaboravljenu grupu, ona sama sjedne na svoje mjesto. Prilagođene
+// (custom) grupe nemaju vezanu kategoriju i idu na KRAJ, čuvajući međusobni redoslijed dodavanja.
+const poredakFaze = f => {
+  const k = f && f.kategorija
+  if (k && REDOSLIJED_MAP.has(k)) return REDOSLIJED_MAP.get(k)
+  return 10000 + (f?.redoslijed ?? 0)
+}
+const sortirajFaze = arr => [...(arr || [])].sort((a, b) => poredakFaze(a) - poredakFaze(b))
+
 // Mapiranje postojećih kategorija baze na strukе (danas samo hidro-podskup je izdvojen,
 // sve ostalo pripada građevinsko-zanatskim radovima; kad se dodaju baze za elektro/mašinstvo/
 // vanjsko uređenje, njihove kategorije se samo dodaju ovdje)
@@ -213,7 +225,7 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -228,6 +240,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
   // Reset kategorije filtera ako više ne pripada aktivnoj struci (npr. korisnik promijeni fazu)
   useEffect(() => { if (kat && !kategorijeZaStruku.includes(kat)) setKat('') }, [aktivnaStruka])
+
+  // Zaključavanje filtera na predefinisanu grupu: ako je aktivna grupa vezana za kategoriju iz
+  // šifarnika, centralni filter se forsira na tu kategoriju (ostale su zasivljene). Kad je aktivna
+  // prilagođena (custom) grupa — zakljucanaKategorija je prazna — filter se otključava i vraća na
+  // „Sve kategorije", pa korisnik slobodno bira. Efekat se pokreće samo kad se grupa PROMIJENI.
+  useEffect(() => { setKat(zakljucanaKategorija || '') }, [zakljucanaKategorija])
 
   const rezultati = useMemo(() => {
     const imaTekst = q.trim().length >= 2
@@ -300,7 +318,9 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
         {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
-            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            disabled={!!zakljucanaKategorija}
+            title={zakljucanaKategorija ? 'Kategorija je zaključana na aktivnu grupu radova. Za slobodan izbor koristite prilagođenu grupu.' : undefined}
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: zakljucanaKategorija ? '#E7EBEF' : '#fff', color: zakljucanaKategorija ? '#556575' : 'inherit', cursor: zakljucanaKategorija ? 'not-allowed' : 'pointer' }}>
             <option value="">— Sve kategorije —</option>
             {jePoznataStruka ? (
               aktivnaStruka === 'gradjevinski' ? (
@@ -610,7 +630,7 @@ export default function App() {
   const ucitajFaze = async (projektId, pocetnaStruka, zadnjaFazaId = null) => {
     const { data, error } = await supabase.from('faze').select('*').eq('projekat_id', projektId).order('redoslijed')
     if (error) console.error('Greška pri učitavanju grupa radova:', error)
-    const uceitaneFaze = data || []
+    const uceitaneFaze = sortirajFaze(data || [])
     setFaze(uceitaneFaze)
     // Izaberi grupu radova unutar aktivne struke: prvo pokušaj onu koju je korisnik POSLJEDNJU
     // gledao u ovoj struci (zadnjaFazaId, ako je proslijeđen i još uvijek postoji), a tek ako
@@ -733,13 +753,23 @@ export default function App() {
   }
 
   // ── FAZE ──
-  const dodajFazu = async () => {
-    if (!novaFaza.trim() || !aktivniProjekat) return
+  // dodajFazu prima naziv i (opciono) kategoriju. Predefinisana grupa nosi kategoriju (naziv iz
+  // REDOSLIJED_KATEGORIJA) — po njoj se zaključava centralni filter i slaže redoslijed. Custom
+  // grupa ide bez kategorije (kategorija = null) → vidi cijelu bazu i staje na kraj liste.
+  const dodajFazu = async (naziv, kategorija = null) => {
+    const nazivTrim = (naziv || '').trim()
+    if (!nazivTrim || !aktivniProjekat) return
+    // Bez duplikata predefinisanih grupa u istoj struci — ista se može dodati samo jednom
+    // (za dvije iste koristi se prilagođena grupa). Custom grupe (bez kategorije) se ne provjeravaju.
+    if (kategorija && faze.some(f => f.kategorija === kategorija && (f.struka_kod || 'gradjevinski') === aktivnaStruka)) {
+      alert('Grupa „' + nazivTrim + '" je već dodata. Za dvije iste grupe koristite prilagođenu grupu (+ Dodaj).')
+      return
+    }
     const { data, error } = await supabase.from('faze').insert({
-      projekat_id: aktivniProjekat.id, naziv: novaFaza.trim(), redoslijed: faze.length, struka_kod: aktivnaStruka
+      projekat_id: aktivniProjekat.id, naziv: nazivTrim, redoslijed: faze.length, struka_kod: aktivnaStruka, kategorija: kategorija || null
     }).select().single()
     if (error) { alert('Greška pri dodavanju grupe radova: ' + error.message); return }
-    if (data) { setNovaFaza(''); setFaze(prev => [...prev, data]); setAktivnaFaza(data) }
+    if (data) { setNovaFaza(''); setFaze(prev => sortirajFaze([...prev, data])); setAktivnaFaza(data) }
   }
 
   const obrisiFeazu = async (id) => {
@@ -1923,7 +1953,10 @@ ${globalnaRekapitulacijaHtml}
           struka_kod: f.struka_kod,
           // KLJUČNO: kloniraj i opšte tehničke uslove grupe radova — bez ovoga bi klon izgubio
           // sav uneseni tekst uslova (šablon, AI predlog ili ručni unos) za svaku grupu radova.
-          opsti_uslovi: f.opsti_uslovi || null
+          opsti_uslovi: f.opsti_uslovi || null,
+          // Prenesi i vezu na kategoriju šifarnika (predefinisana grupa) — da klon zadrži
+          // zaključavanje filtera i redoslijed po numeraciji. Custom grupe imaju null.
+          kategorija: f.kategorija || null
         }).select().single()
 
         if (eNovaFaza || !novaFaza) { console.error('Greška pri kloniranju faze', f.naziv, eNovaFaza); continue }
@@ -2020,7 +2053,7 @@ ${globalnaRekapitulacijaHtml}
           kategorija: p.kategorija, redoslijed: p.redoslijed, sifra: p.sifra || null,
           opis_visina: p.opis_visina || null
         }))
-        return { naziv: f.naziv, redoslijed: f.redoslijed, struka_kod: f.struka_kod || 'gradjevinski', opsti_uslovi: f.opsti_uslovi || null, pozicije: izvozStavke }
+        return { naziv: f.naziv, redoslijed: f.redoslijed, struka_kod: f.struka_kod || 'gradjevinski', kategorija: f.kategorija || null, opsti_uslovi: f.opsti_uslovi || null, pozicije: izvozStavke }
       })
 
       const izvoz = {
@@ -2090,7 +2123,8 @@ ${globalnaRekapitulacijaHtml}
           redoslijed: f.redoslijed ?? 0, struka_kod: f.struka_kod || 'gradjevinski',
           // Uvezi i opšte tehničke uslove ako ih fajl sadrži (izvezeni novijom verzijom aplikacije).
           // Stariji fajlovi ih nemaju — tada ostaje null, što je ispravno.
-          opsti_uslovi: f.opsti_uslovi || null
+          opsti_uslovi: f.opsti_uslovi || null,
+          kategorija: f.kategorija || null
         }).select().single()
         if (eFaza || !novaFaza) { console.error('Greška pri uvozu grupe radova', f.naziv, eFaza); continue }
 
@@ -2355,7 +2389,7 @@ ${globalnaRekapitulacijaHtml}
                       onChange={e => setAktivnaFaza(fazeUFazi.find(f => f.id === e.target.value) || null)}
                       style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                       <option value="" disabled>— Odaberite grupu radova —</option>
-                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.naziv}</option>)}
+                      {fazeUFazi.map(f => <option key={f.id} value={f.id}>{f.kategorija && SIFRA_KATEGORIJE_MAP.get(f.kategorija) ? SIFRA_KATEGORIJE_MAP.get(f.kategorija) + ' · ' : ''}{f.naziv}</option>)}
                     </select>
                     {aktivnaPripada && (
                       <button onClick={() => obrisiFeazu(aktivnaFaza.id)} title="Obriši ovu grupu radova"
@@ -2369,13 +2403,39 @@ ${globalnaRekapitulacijaHtml}
                 <div style={{ fontSize: 12, color: '#aaa', marginBottom: 8 }}>Još nema grupa radova u ovoj fazi.</div>
               )
             })()}
-            <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 16 }}>
-              <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
-                spellCheck={false}
-                onKeyDown={e => e.key === 'Enter' && dodajFazu()}
-                placeholder="Naziv grupe radova..."
-                style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
-              <button onClick={dodajFazu} style={B('#556575')}>+ Dodaj</button>
+            <div style={{ marginTop: 6, marginBottom: 16 }}>
+              {/* Predefinisane grupe radova — izbor ODMAH dodaje grupu (bez ručnog kucanja) i
+                  veže je za kategoriju iz šifarnika. Već dodate grupe se ne nude ponovo (bez duplikata). */}
+              {(() => {
+                const dodate = new Set(faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka).map(f => f.kategorija).filter(Boolean))
+                const dostupne = KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka && !dodate.has(k))
+                const opt = k => <option key={k} value={k}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>
+                const ostalo = dostupne.filter(k => !['pripremni', 'grubi', 'zavrsni'].includes(GRUPA_MAP.get(k)))
+                return (
+                  <select value="" onChange={e => { if (e.target.value) dodajFazu(e.target.value, e.target.value); e.target.value = '' }}
+                    style={{ width: '100%', border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 12.5, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', marginBottom: 8 }}>
+                    <option value="">➕ Dodaj grupu radova iz šifarnika…</option>
+                    {aktivnaStruka === 'gradjevinski' ? (
+                      <>
+                        <optgroup label="Pripremni radovi i rušenje">{dostupne.filter(k => GRUPA_MAP.get(k) === 'pripremni').map(opt)}</optgroup>
+                        <optgroup label="Grubi građevinski radovi">{dostupne.filter(k => GRUPA_MAP.get(k) === 'grubi').map(opt)}</optgroup>
+                        <optgroup label="Završni građevinsko-zanatski radovi">{dostupne.filter(k => GRUPA_MAP.get(k) === 'zavrsni').map(opt)}</optgroup>
+                        {ostalo.length > 0 && <optgroup label="Ostalo">{ostalo.map(opt)}</optgroup>}
+                      </>
+                    ) : dostupne.map(opt)}
+                  </select>
+                )
+              })()}
+              {/* Prilagođena (custom) grupa — slobodan naziv, vidi cijelu bazu, ide na kraj liste */}
+              <div style={{ fontSize: 10.5, color: '#aaa', marginBottom: 3 }}>ili prilagođena grupa (van šifarnika):</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="text" value={novaFaza} onChange={e => setNovaFaza(e.target.value)}
+                  spellCheck={false}
+                  onKeyDown={e => e.key === 'Enter' && dodajFazu(novaFaza)}
+                  placeholder="Naziv prilagođene grupe..."
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                <button onClick={() => dodajFazu(novaFaza)} style={B('#556575')}>+ Dodaj</button>
+              </div>
             </div>
             </div>
             </div>
@@ -2568,6 +2628,7 @@ ${globalnaRekapitulacijaHtml}
                 onDodajVlastitu={dodajVlastitupoziciju}
                 zamjenaNaziv={zamjenaPozicijaId ? (pozicije.find(p => p.id === zamjenaPozicijaId)?.naziv || '(bez naziva)') : null}
                 onOtkaziZamjenu={() => setZamjenaPozicijaId(null)}
+                zakljucanaKategorija={(aktivnaFaza && (aktivnaFaza.struka_kod || 'gradjevinski') === aktivnaStruka) ? (aktivnaFaza.kategorija || null) : null}
               />
               </div>
 
