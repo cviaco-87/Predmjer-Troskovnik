@@ -240,7 +240,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
     const s = new Set(mojeBazaStavke.map(x => x.kategorija || 'Moje stavke'))
     return [...s].sort((a, b) => ((REDOSLIJED_MAP.get(a) ?? 999) - (REDOSLIJED_MAP.get(b) ?? 999)) || a.localeCompare(b))
   }, [mojeBazaStavke])
-  useEffect(() => { if (tab === 'moja' && mojeGrupe.length && !mojeGrupe.includes(mojaGrupa)) setMojaGrupa(mojeGrupe[0]) }, [tab, mojeGrupe])
+  useEffect(() => { if (mojaGrupa && !mojeGrupe.includes(mojaGrupa)) setMojaGrupa('') }, [mojeGrupe])
 
   // Prilagođene (korisnički dodane) faze nemaju unaprijed poznato mapiranje kategorija baze,
   // pa im NE ograničavamo pretragu — vide cijelu bazu i sami biraju šta je relevantno.
@@ -263,9 +263,10 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
     // "Moja baza" tab: filtriranje po IZABRANOJ grupi (ne po tekstu). Prikazuju se sve stavke te
     // grupe. Ako nijedna grupa nije izabrana (prazna baza), nema rezultata.
     if (tab === 'moja') {
-      if (!mojaGrupa) return []
+      const terms = q.trim().length >= 2 ? q.trim().toLowerCase().split(/\s+/).filter(t => t.length > 1) : []
       return mojeBazaStavke
-        .filter(s => (s.kategorija || 'Moje stavke') === mojaGrupa)
+        .filter(s => !mojaGrupa || (s.kategorija || 'Moje stavke') === mojaGrupa)
+        .filter(s => terms.every(t => s.naziv.toLowerCase().includes(t)))
         .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija || 'Moje stavke', v: s.valuta, _moja: true, _id: s.id }))
     }
     const imaTekst = q.trim().length >= 2
@@ -321,22 +322,18 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
       {/* Search / izbor grupe */}
       <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
-        {tab === 'moja' ? (
-          mojeGrupe.length > 0 ? (
-            <select value={mojaGrupa} onChange={e => setMojaGrupa(e.target.value)}
-              title="Prikaži stavke izabrane grupe iz vaše baze"
-              style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
-              {mojeGrupe.map(g => <option key={g} value={g}>{(SIFRA_KATEGORIJE_MAP.get(g) ? SIFRA_KATEGORIJE_MAP.get(g) + ' · ' : '') + g}</option>)}
-            </select>
-          ) : (
-            <div style={{ flex: 1, fontSize: 12, color: '#888', padding: '8px 2px' }}>Vaša baza je prazna — dodajte stavke kroz „Upravljaj mojom bazom".</div>
-          )
-        ) : (
-          <input type="text" value={q} onChange={e => setQ(e.target.value)}
-            spellCheck={false}
-            placeholder="🔍 Pretražite bazu... (iskop, beton, malter...)"
-            disabled={bazaUcitavanje || brojUStruci === 0}
-            style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (bazaUcitavanje || brojUStruci === 0) ? '#DCE0E3' : '#fff' }} />
+        <input type="text" value={q} onChange={e => setQ(e.target.value)}
+          spellCheck={false}
+          placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
+          disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
+          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
+        {tab === 'moja' && mojeGrupe.length > 0 && (
+          <select value={mojaGrupa} onChange={e => setMojaGrupa(e.target.value)}
+            title="Prikaži stavke izabrane grupe iz vaše baze"
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: '#fff', cursor: 'pointer' }}>
+            <option value="">— Sve moje grupe —</option>
+            {mojeGrupe.map(g => <option key={g} value={g}>{(SIFRA_KATEGORIJE_MAP.get(g) ? SIFRA_KATEGORIJE_MAP.get(g) + ' · ' : '') + g}</option>)}
+          </select>
         )}
         {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
@@ -407,7 +404,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...) ili izaberite kategoriju da vidite sve stavke
           </div>
         ) : rezultati.length === 0 ? (
-          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>{q.trim() ? `Nema rezultata za "${q}"` : 'Nema stavki u ovoj kategoriji'}</div>
+          <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>{tab === 'moja' && mojeGrupe.length === 0 ? 'Vaša baza je prazna — dodajte stavke kroz „Upravljaj mojom bazom".' : q.trim() ? `Nema rezultata za "${q}"` : 'Nema stavki u ovoj kategoriji'}</div>
         ) : (
           <>
             <div onClick={() => setPrikaziRezultate(v => !v)}
@@ -2469,6 +2466,14 @@ ${globalnaRekapitulacijaHtml}
                 <button onClick={() => dodajFazu(novaFaza)} style={B('#556575')}>+ Dodaj</button>
               </div>
             </div>
+            {/* „Upravljaj mojom bazom" — kao poslednja opcija na dnu panela GRUPE RADOVA (globalna
+                lična biblioteka stavki, dostupna u svim projektima; premješteno iz UVEĆANJE/UMANJENJE). */}
+            <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid #E8E5DC' }}>
+              <button onClick={() => setShowMojaBaza(true)}
+                style={{ width: '100%', background: '#F0F2F5', color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ⭐ Upravljaj mojom bazom ({mojeBaza.length})
+              </button>
+            </div>
             </div>
             </div>
           </>}
@@ -2494,12 +2499,6 @@ ${globalnaRekapitulacijaHtml}
               style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E8E5DC' }}>
-            <button onClick={() => setShowMojaBaza(true)}
-              style={{ width: '100%', background: '#F0F2F5', color: '#1B2F43', border: '1px solid #4A637C', borderRadius: 6, padding: '8px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ⭐ Upravljaj mojom bazom ({mojeBaza.length})
-            </button>
-          </div>
           </div>
           </div>
 
