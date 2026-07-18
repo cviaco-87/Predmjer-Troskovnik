@@ -8,7 +8,8 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
   const [forma, setForma] = useState(false)
   const [editId, setEditId] = useState(null)
   const [nova, setNova] = useState({ naziv: '', jedinica: 'kom.', cijena: '', valuta: 'EUR', kategorija: 'Moje stavke' })
-  const [grupaFilter, setGrupaFilter] = useState('') // izabrana grupa (samo postojeće grupe u bazi)
+  const [grupaFilter, setGrupaFilter] = useState('') // izabrana grupa ('' = sve moje grupe)
+  const [tekst, setTekst] = useState('') // tekstualna pretraga po nazivu
 
   useEffect(() => { ucitaj() }, [])
 
@@ -56,9 +57,12 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
       const ia = kategorije.indexOf(a), ib = kategorije.indexOf(b)
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b)
     })
-  useEffect(() => { if (mojeGrupe.length && !mojeGrupe.includes(grupaFilter)) setGrupaFilter(mojeGrupe[0]) }, [stavke])
+  useEffect(() => { if (grupaFilter && !mojeGrupe.includes(grupaFilter)) setGrupaFilter('') }, [stavke])
 
-  const filtrirane = stavke.filter(s => (s.kategorija || 'Moje stavke') === grupaFilter)
+  const filtrirane = stavke.filter(s =>
+    (!grupaFilter || (s.kategorija || 'Moje stavke') === grupaFilter) &&
+    s.naziv.toLowerCase().includes(tekst.trim().toLowerCase())
+  )
 
   const inp = (val, set, ph, type='text') => (
     <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
@@ -123,13 +127,16 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
           </div>
         ) : (
           <div style={{ padding: '12px 20px', borderBottom: '1px solid #E8E5DC', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {mojeGrupe.length > 0 ? (
+            <input type="text" value={tekst} onChange={e => setTekst(e.target.value)}
+              placeholder="🔍 Pretražite vaše stavke..."
+              style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0' }} />
+            {mojeGrupe.length > 0 && (
               <select value={grupaFilter} onChange={e => setGrupaFilter(e.target.value)}
-                style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', cursor: 'pointer' }}>
+                title="Filtriraj po grupi iz vaše baze"
+                style={{ border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 210, background: '#F5F4F0', cursor: 'pointer' }}>
+                <option value="">— Sve moje grupe —</option>
                 {mojeGrupe.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
-            ) : (
-              <div style={{ flex: 1, fontSize: 12.5, color: '#888' }}>Vaša baza je prazna — dodajte prvu stavku.</div>
             )}
             <button onClick={() => setForma(true)}
               style={{ background: '#1B4332', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
