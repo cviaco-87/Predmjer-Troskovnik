@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase.js'
 
-export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije = [] }) {
+export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije = [], sifre = null }) {
   const VALUTE = ['EUR', 'KM', 'RSD', 'USD']
   const [stavke, setStavke] = useState([])
   const [loading, setLoading] = useState(true)
   const [forma, setForma] = useState(false)
   const [editId, setEditId] = useState(null)
   const [nova, setNova] = useState({ naziv: '', jedinica: 'kom.', cijena: '', valuta: 'EUR', kategorija: 'Moje stavke' })
-  const [filter, setFilter] = useState('')
+  const [grupaFilter, setGrupaFilter] = useState('') // izabrana grupa (samo postojeće grupe u bazi)
 
   useEffect(() => { ucitaj() }, [])
 
@@ -49,7 +49,16 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
     setForma(true)
   }
 
-  const filtrirane = stavke.filter(s => s.naziv.toLowerCase().includes(filter.toLowerCase()))
+  // Grupe koje STVARNO postoje u bazi (bez cijelog šifarnika, bez opcije „sve"). Poredane po
+  // redoslijedu iz šifarnika (prop `kategorije`), nepoznate/„Moje stavke" na kraj.
+  const mojeGrupe = [...new Set(stavke.map(s => s.kategorija || 'Moje stavke'))]
+    .sort((a, b) => {
+      const ia = kategorije.indexOf(a), ib = kategorije.indexOf(b)
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b)
+    })
+  useEffect(() => { if (mojeGrupe.length && !mojeGrupe.includes(grupaFilter)) setGrupaFilter(mojeGrupe[0]) }, [stavke])
+
+  const filtrirane = stavke.filter(s => (s.kategorija || 'Moje stavke') === grupaFilter)
 
   const inp = (val, set, ph, type='text') => (
     <input type={type} value={val} onChange={e => set(e.target.value)} placeholder={ph}
@@ -99,7 +108,7 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
             <select value={nova.kategorija} onChange={e => setNova(p => ({...p, kategorija: e.target.value}))} style={selStil}>
               <option value="Moje stavke">— Moje stavke (opšte) —</option>
               {!kategorije.includes(nova.kategorija) && nova.kategorija !== 'Moje stavke' && <option value={nova.kategorija}>{nova.kategorija}</option>}
-              {kategorije.map(k => <option key={k} value={k}>{k}</option>)}
+              {kategorije.map(k => <option key={k} value={k}>{sifre && sifre.get && sifre.get(k) ? sifre.get(k) + ' · ' : ''}{k}</option>)}
             </select>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={sacuvaj}
@@ -113,10 +122,15 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
             </div>
           </div>
         ) : (
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid #E8E5DC', display: 'flex', gap: 8 }}>
-            <input type="text" value={filter} onChange={e => setFilter(e.target.value)}
-              placeholder="🔍 Pretraži svoje stavke..."
-              style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0' }} />
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid #E8E5DC', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {mojeGrupe.length > 0 ? (
+              <select value={grupaFilter} onChange={e => setGrupaFilter(e.target.value)}
+                style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', cursor: 'pointer' }}>
+                {mojeGrupe.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            ) : (
+              <div style={{ flex: 1, fontSize: 12.5, color: '#888' }}>Vaša baza je prazna — dodajte prvu stavku.</div>
+            )}
             <button onClick={() => setForma(true)}
               style={{ background: '#1B4332', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
               + Nova stavka
