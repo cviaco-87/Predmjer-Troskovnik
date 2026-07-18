@@ -233,6 +233,14 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
   const [prikaziRezultate, setPrikaziRezultate] = useState(true) // sakrij/prikaži listu rezultata baze
+  const [mojaGrupa, setMojaGrupa] = useState('') // izabrana grupa u "Moja baza" tabu (samo postojeće grupe)
+  // Grupe koje STVARNO postoje u korisnikovoj Mojoj bazi (iz kategorija njegovih stavki) — bez
+  // cijelog šifarnika i bez opcije „sve". Poredane po numeraciji, nepoznate/„Moje stavke" na kraj.
+  const mojeGrupe = useMemo(() => {
+    const s = new Set(mojeBazaStavke.map(x => x.kategorija || 'Moje stavke'))
+    return [...s].sort((a, b) => ((REDOSLIJED_MAP.get(a) ?? 999) - (REDOSLIJED_MAP.get(b) ?? 999)) || a.localeCompare(b))
+  }, [mojeBazaStavke])
+  useEffect(() => { if (tab === 'moja' && mojeGrupe.length && !mojeGrupe.includes(mojaGrupa)) setMojaGrupa(mojeGrupe[0]) }, [tab, mojeGrupe])
 
   // Prilagođene (korisnički dodane) faze nemaju unaprijed poznato mapiranje kategorija baze,
   // pa im NE ograničavamo pretragu — vide cijelu bazu i sami biraju šta je relevantno.
@@ -252,20 +260,18 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   useEffect(() => { setKat(zakljucanaKategorija || '') }, [zakljucanaKategorija])
 
   const rezultati = useMemo(() => {
+    // "Moja baza" tab: filtriranje po IZABRANOJ grupi (ne po tekstu). Prikazuju se sve stavke te
+    // grupe. Ako nijedna grupa nije izabrana (prazna baza), nema rezultata.
+    if (tab === 'moja') {
+      if (!mojaGrupa) return []
+      return mojeBazaStavke
+        .filter(s => (s.kategorija || 'Moje stavke') === mojaGrupa)
+        .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija || 'Moje stavke', v: s.valuta, _moja: true, _id: s.id }))
+    }
     const imaTekst = q.trim().length >= 2
     const imaKategoriju = !!kat
     if (!imaTekst && !imaKategoriju) return []
     const terms = imaTekst ? q.trim().toLowerCase().split(/\s+/).filter(t => t.length > 1) : []
-    if (tab === 'moja') {
-      if (!imaTekst) return []
-      return mojeBazaStavke
-        .filter(s => {
-          const n = s.naziv.toLowerCase()
-          return terms.every(t => n.includes(t))
-        })
-        .slice(0, 60)
-        .map(s => ({ n: s.naziv, c: s.cijena, m: s.jedinica, k: s.kategorija, v: s.valuta, _moja: true, _id: s.id }))
-    }
     const out = []
     const limit = imaTekst ? 80 : 200
     for (let i = 0; i < baza.length && out.length < limit; i++) {
@@ -277,7 +283,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       if (terms.length === 0 || terms.every(t => n.includes(t) || s.includes(t))) out.push({ ...item, _idx: i })
     }
     return out
-  }, [q, kat, tab, mojeBazaStavke, aktivnaStruka, baza])
+  }, [q, kat, tab, mojaGrupa, mojeBazaStavke, aktivnaStruka, baza])
 
   const grouped = useMemo(() => {
     const g = {}
@@ -313,13 +319,25 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search / izbor grupe */}
       <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
-        <input type="text" value={q} onChange={e => setQ(e.target.value)}
-          spellCheck={false}
-          placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
-          disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
-          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
+        {tab === 'moja' ? (
+          mojeGrupe.length > 0 ? (
+            <select value={mojaGrupa} onChange={e => setMojaGrupa(e.target.value)}
+              title="Prikaži stavke izabrane grupe iz vaše baze"
+              style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: '#fff', cursor: 'pointer' }}>
+              {mojeGrupe.map(g => <option key={g} value={g}>{(SIFRA_KATEGORIJE_MAP.get(g) ? SIFRA_KATEGORIJE_MAP.get(g) + ' · ' : '') + g}</option>)}
+            </select>
+          ) : (
+            <div style={{ flex: 1, fontSize: 12, color: '#888', padding: '8px 2px' }}>Vaša baza je prazna — dodajte stavke kroz „Upravljaj mojom bazom".</div>
+          )
+        ) : (
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            spellCheck={false}
+            placeholder="🔍 Pretražite bazu... (iskop, beton, malter...)"
+            disabled={bazaUcitavanje || brojUStruci === 0}
+            style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (bazaUcitavanje || brojUStruci === 0) ? '#DCE0E3' : '#fff' }} />
+        )}
         {tab === 'glavna' && !bazaUcitavanje && brojUStruci > 0 && (
           <select value={kat} onChange={e => setKat(e.target.value)}
             disabled={!!zakljucanaKategorija}
@@ -384,9 +402,9 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             <div style={{ fontSize: 13, fontWeight: 600, color: '#666', marginBottom: 4 }}>Baza za "{strukaNaziv}" još nije dostupna</div>
             <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>Za sada dodajte pozicije preko <strong>"+ Vlastita stavka"</strong> ili AI asistenta ✨. Baza za ovu fazu će biti dodana naknadno.</div>
           </div>
-        ) : (q.trim().length < 2 && !kat) ? (
+        ) : (tab === 'glavna' && q.trim().length < 2 && !kat) ? (
           <div style={{ padding: '8px 14px', fontSize: 12, color: '#aaa' }}>
-            {tab === 'glavna' ? 'Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...) ili izaberite kategoriju da vidite sve stavke' : 'Unesite pojam za pretragu vaših stavki'}
+            Unesite pojam za pretragu (npr: "iskop", "beton", "malter"...) ili izaberite kategoriju da vidite sve stavke
           </div>
         ) : rezultati.length === 0 ? (
           <div style={{ padding: 18, textAlign: 'center', color: '#888', fontSize: 13 }}>{q.trim() ? `Nema rezultata za "${q}"` : 'Nema stavki u ovoj kategoriji'}</div>
@@ -512,6 +530,13 @@ export default function App() {
   const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' — da li se trenutno preimenuje aktivna grupa radova (jedino mjesto za to je traka na vrhu; sidebar linija je uklonjena kao suvišna)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
   const [zamjenaPozicijaId, setZamjenaPozicijaId] = useState(null) // ID glavne stavke koja čeka da bude zamijenjena novom iz baze (klik na "🔁")
+  // Skraćivanje dugih opisa NA EKRANU (preglednost). Duge pozicije se prikazuju skraćeno (~3 reda)
+  // sa dugmetom „prikaži cijelo / skrati"; fokusiranje radi uređivanja automatski razvija tekst.
+  // Ovo je čisto vizuelno — PDF i Excel izvoz UVIJEK koriste pun opis (grade se iz p.naziv).
+  const [prosireniOpisi, setProsireniOpisi] = useState(() => new Set())
+  const jeDugOpis = p => ((p?.naziv || '').length > 180) || (p?.opis_visina && p.opis_visina > 92)
+  const prosiriOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.add(id); return n })
+  const toggleOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
   // radi kratkotrajne mogućnosti vraćanja ("Opozovi" traka pri dnu ekrana). Samo jedan nivo undo-a
@@ -2833,8 +2858,8 @@ ${globalnaRekapitulacijaHtml}
                                         azurirajPoziciju(p.id, 'opis_visina', potrebno)
                                       }}
                                       title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, color: '#2B2B26' }}
-                                      onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, maxHeight: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 78 : 'none', overflow: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 'hidden' : undefined, color: '#2B2B26' }}
+                                      onFocus={e => { prosiriOpis(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
                                           e.preventDefault()
@@ -2856,6 +2881,14 @@ ${globalnaRekapitulacijaHtml}
                                         }
                                       }}
                                     />
+                                    {jeDugOpis(p) && (
+                                      <div style={{ textAlign: 'right', marginTop: 1 }}>
+                                        <button onClick={e => { e.stopPropagation(); toggleOpis(p.id) }}
+                                          style={{ background: 'none', border: 'none', color: '#4A637C', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '1px 4px' }}>
+                                          {prosireniOpisi.has(p.id) ? '▲ skrati' : '▼ prikaži cijelo'}
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
@@ -2947,9 +2980,15 @@ ${globalnaRekapitulacijaHtml}
                                             }}
                                             rows={1}
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
-                                            style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined }}
-                                            onFocus={e => { e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
+                                            style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
+                                            onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
+                                          {jeDugOpis(d) && (
+                                            <button onClick={e => { e.stopPropagation(); toggleOpis(d.id) }} title={prosireniOpisi.has(d.id) ? 'Skrati' : 'Prikaži cijelo'}
+                                              style={{ background: 'none', border: 'none', color: '#4A637C', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '1px 3px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                              {prosireniOpisi.has(d.id) ? '▲' : '▼'}
+                                            </button>
+                                          )}
                                          </div>
                                        </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
@@ -3027,6 +3066,7 @@ ${globalnaRekapitulacijaHtml}
         <MojaBaza
           jedinice={JEDINICE_OPCIJE}
           kategorije={KATEGORIJE}
+          sifre={SIFRA_KATEGORIJE_MAP}
           onClose={() => { setShowMojaBaza(false); ucitajMojuBazu() }}
           onDodaj={item => { dodajIzMojeBaze({ n: item.naziv, c: item.cijena, m: item.jedinica, k: item.kategorija, v: item.valuta }); setShowMojaBaza(false) }}
         />
