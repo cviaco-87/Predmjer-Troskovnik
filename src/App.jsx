@@ -2436,8 +2436,8 @@ ${globalnaRekapitulacijaHtml}
                     style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <option value="" disabled>{fazeUFazi.length ? '— Odaberite ili dodajte grupu —' : '➕ Dodaj grupu radova…'}</option>
                     {fazeUFazi.length > 0 && (
-                      <optgroup label="Vaše grupe radova" style={{ background: '#B7C8DA' }}>
-                        {fazeUFazi.map(f => <option key={f.id} value={f.id} style={{ background: '#B7C8DA', color: '#1B2F43' }}>{prefiks(f)}{f.naziv}</option>)}
+                      <optgroup label="Vaše grupe radova" style={{ background: '#F6E0DA' }}>
+                        {fazeUFazi.map(f => <option key={f.id} value={f.id} style={{ background: '#F6E0DA', color: '#6B392F' }}>{prefiks(f)}{f.naziv}</option>)}
                       </optgroup>
                     )}
                     {dostupne.length > 0 && (
