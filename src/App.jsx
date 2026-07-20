@@ -2436,13 +2436,13 @@ ${globalnaRekapitulacijaHtml}
                     style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <option value="" disabled>{fazeUFazi.length ? '— Odaberite ili dodajte grupu —' : '➕ Dodaj grupu radova…'}</option>
                     {fazeUFazi.length > 0 && (
-                      <optgroup label="Vaše grupe radova" style={{ background: '#D4E8FB' }}>
-                        {fazeUFazi.map(f => <option key={f.id} value={f.id} style={{ background: '#D4E8FB', color: '#12324F' }}>{prefiks(f)}{f.naziv}</option>)}
+                      <optgroup label="Vaše grupe radova" style={{ background: '#B7C8DA' }}>
+                        {fazeUFazi.map(f => <option key={f.id} value={f.id} style={{ background: '#B7C8DA', color: '#1B2F43' }}>{prefiks(f)}{f.naziv}</option>)}
                       </optgroup>
                     )}
                     {dostupne.length > 0 && (
-                      <optgroup label="➕ Dodaj grupu iz šifarnika" style={{ background: '#AEBECD' }}>
-                        {dostupne.map(k => <option key={'add::' + k} value={'add::' + k} style={{ background: '#AEBECD', color: '#1B2F43' }}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>)}
+                      <optgroup label="➕ Dodaj grupu iz šifarnika" style={{ background: '#E6F2FD' }}>
+                        {dostupne.map(k => <option key={'add::' + k} value={'add::' + k} style={{ background: '#E6F2FD', color: '#12324F' }}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>)}
                       </optgroup>
                     )}
                   </select>
