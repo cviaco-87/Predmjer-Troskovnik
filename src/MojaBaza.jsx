@@ -72,7 +72,7 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 12, width: 640, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+      <div style={{ background: '#fff', borderRadius: 12, width: 920, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
 
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #E8E5DC', display: 'flex', alignItems: 'center', gap: 10 }}>
