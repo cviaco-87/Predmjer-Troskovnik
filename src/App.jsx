@@ -534,6 +534,7 @@ export default function App() {
   const jeDugOpis = p => ((p?.naziv || '').length > 180) || (p?.opis_visina && p.opis_visina > 92)
   const prosiriOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.add(id); return n })
   const skupiOpis = id => setProsireniOpisi(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n })
+  const toggleOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
   // radi kratkotrajne mogućnosti vraćanja ("Opozovi" traka pri dnu ekrana). Samo jedan nivo undo-a
@@ -2881,6 +2882,16 @@ ${globalnaRekapitulacijaHtml}
                                         }
                                       }}
                                     />
+                                    {jeDugOpis(p) && (
+                                      <div style={{ textAlign: 'right', marginTop: 1 }}>
+                                        <button onClick={e => { e.stopPropagation(); toggleOpis(p.id) }}
+                                          style={{ background: 'none', border: 'none', color: '#AEB4BA', fontSize: 9.5, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', padding: '0 3px', letterSpacing: '.02em' }}
+                                          onMouseEnter={e => e.currentTarget.style.color = '#6B7580'}
+                                          onMouseLeave={e => e.currentTarget.style.color = '#AEB4BA'}>
+                                          {prosireniOpisi.has(p.id) ? '▴ skrati' : '▾ prikaži cijelo'}
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
@@ -2976,6 +2987,14 @@ ${globalnaRekapitulacijaHtml}
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
                                             onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
+                                          {jeDugOpis(d) && (
+                                            <button onClick={e => { e.stopPropagation(); toggleOpis(d.id) }} title={prosireniOpisi.has(d.id) ? 'Skrati' : 'Prikaži cijelo'}
+                                              style={{ background: 'none', border: 'none', color: '#AEB4BA', fontSize: 9.5, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', padding: '0 3px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                              onMouseEnter={e => e.currentTarget.style.color = '#6B7580'}
+                                              onMouseLeave={e => e.currentTarget.style.color = '#AEB4BA'}>
+                                              {prosireniOpisi.has(d.id) ? '▴' : '▾'}
+                                            </button>
+                                          )}
                                          </div>
                                        </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
