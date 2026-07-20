@@ -13,7 +13,7 @@ const REDOSLIJED_KATEGORIJA = [
   // ── PRIPREMNI RADOVI I RUŠENJE (prethode grubim radovima — priprema gradilišta,
   // uklanjanje postojećih konstrukcija/instalacija prije nove gradnje ili sanacije) ──
   { sifra: '01', naziv: 'Pripremno-završni radovi',  grupa: 'pripremni' },
-  { sifra: '20', naziv: 'Demontaže i rušenja',       grupa: 'pripremni' },
+  { sifra: '01a', naziv: 'Demontaže i rušenja',       grupa: 'pripremni' },
   // ── GRUBI GRAĐEVINSKI RADOVI (nosiva konstrukcija i omotač objekta) ──
   { sifra: '02', naziv: 'Zemljani radovi',           grupa: 'grubi' },
   { sifra: '03', naziv: 'Betonski i AB radovi',      grupa: 'grubi' },
@@ -2435,13 +2435,13 @@ ${globalnaRekapitulacijaHtml}
                     style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <option value="" disabled>{fazeUFazi.length ? '— Odaberite ili dodajte grupu —' : '➕ Dodaj grupu radova…'}</option>
                     {fazeUFazi.length > 0 && (
-                      <optgroup label="Vaše grupe radova">
-                        {fazeUFazi.map(f => <option key={f.id} value={f.id}>{prefiks(f)}{f.naziv}</option>)}
+                      <optgroup label="Vaše grupe radova" style={{ background: '#D4E8FB' }}>
+                        {fazeUFazi.map(f => <option key={f.id} value={f.id} style={{ background: '#D4E8FB', color: '#12324F' }}>{prefiks(f)}{f.naziv}</option>)}
                       </optgroup>
                     )}
                     {dostupne.length > 0 && (
-                      <optgroup label="➕ Dodaj grupu iz šifarnika">
-                        {dostupne.map(k => <option key={'add::' + k} value={'add::' + k}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>)}
+                      <optgroup label="➕ Dodaj grupu iz šifarnika" style={{ background: '#AEBECD' }}>
+                        {dostupne.map(k => <option key={'add::' + k} value={'add::' + k} style={{ background: '#AEBECD', color: '#1B2F43' }}>{(SIFRA_KATEGORIJE_MAP.get(k) || '')} · {k}</option>)}
                       </optgroup>
                     )}
                   </select>
