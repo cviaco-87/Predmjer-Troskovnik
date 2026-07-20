@@ -527,13 +527,13 @@ export default function App() {
   const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' — da li se trenutno preimenuje aktivna grupa radova (jedino mjesto za to je traka na vrhu; sidebar linija je uklonjena kao suvišna)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
   const [zamjenaPozicijaId, setZamjenaPozicijaId] = useState(null) // ID glavne stavke koja čeka da bude zamijenjena novom iz baze (klik na "🔁")
-  // Skraćivanje dugih opisa NA EKRANU (preglednost). Duge pozicije se prikazuju skraćeno (~3 reda)
-  // sa dugmetom „prikaži cijelo / skrati"; fokusiranje radi uređivanja automatski razvija tekst.
+  // Skraćivanje dugih opisa NA EKRANU (preglednost). Duge pozicije se prikazuju skraćeno (~3 reda);
+  // klik u polje (fokus) ih razvije radi čitanja/uređivanja, a klik van polja (blur) ih sam skupi.
   // Ovo je čisto vizuelno — PDF i Excel izvoz UVIJEK koriste pun opis (grade se iz p.naziv).
   const [prosireniOpisi, setProsireniOpisi] = useState(() => new Set())
   const jeDugOpis = p => ((p?.naziv || '').length > 180) || (p?.opis_visina && p.opis_visina > 92)
   const prosiriOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.add(id); return n })
-  const toggleOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const skupiOpis = id => setProsireniOpisi(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n })
 
   // Undo brisanja pozicije — pamti posljednju obrisanu stavku (i njene podstavke ako ih je imala)
   // radi kratkotrajne mogućnosti vraćanja ("Opozovi" traka pri dnu ekrana). Samo jedan nivo undo-a
@@ -2847,6 +2847,7 @@ ${globalnaRekapitulacijaHtml}
                                         }
                                         e.target.style.border = '1px solid transparent'
                                         e.target.style.background = 'transparent'
+                                        skupiOpis(p.id) // opcija B: opis se sam skupi kad se klikne van polja
                                       }}
                                       rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
                                       onClick={e => e.stopPropagation()}
@@ -2880,14 +2881,6 @@ ${globalnaRekapitulacijaHtml}
                                         }
                                       }}
                                     />
-                                    {jeDugOpis(p) && (
-                                      <div style={{ textAlign: 'right', marginTop: 1 }}>
-                                        <button onClick={e => { e.stopPropagation(); toggleOpis(p.id) }}
-                                          style={{ background: 'none', border: 'none', color: '#4A637C', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '1px 4px' }}>
-                                          {prosireniOpisi.has(p.id) ? '▲ skrati' : '▼ prikaži cijelo'}
-                                        </button>
-                                      </div>
-                                    )}
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
@@ -2976,18 +2969,13 @@ ${globalnaRekapitulacijaHtml}
                                               }
                                               e.target.style.border = '1px solid transparent'
                                               e.target.style.background = 'transparent'
+                                              skupiOpis(d.id) // opcija B: sam se skupi kad se klikne van polja
                                             }}
                                             rows={1}
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
                                             onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
-                                          {jeDugOpis(d) && (
-                                            <button onClick={e => { e.stopPropagation(); toggleOpis(d.id) }} title={prosireniOpisi.has(d.id) ? 'Skrati' : 'Prikaži cijelo'}
-                                              style={{ background: 'none', border: 'none', color: '#4A637C', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '1px 3px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                              {prosireniOpisi.has(d.id) ? '▲' : '▼'}
-                                            </button>
-                                          )}
                                          </div>
                                        </td>
                                       <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
