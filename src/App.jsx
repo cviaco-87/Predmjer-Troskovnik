@@ -1966,6 +1966,8 @@ ${globalnaRekapitulacijaHtml}
         uvecanje_pct: aktivniProjekat.uvecanje_pct,
         umanjenje_pct: aktivniProjekat.umanjenje_pct,
         valuta: aktivniProjekat.valuta || 'EUR',
+        // Zapamti i koja je struka bila zadnja aktivna, da se klon otvori na istoj (vjernija kopija).
+        zadnja_struka_kod: aktivniProjekat.zadnja_struka_kod || null,
         // KLJUČNO: kopirati stvarne strukе originalnog projekta (nazivi, eventualno
         // preimenovani/obrisani/custom dodati, uvecanjePct/umanjenjePct po struci).
         // Bez ovoga bi klon tiho pao na generički DEFAULT_STRUKE i izgubio sve te izmjene,
