@@ -59,8 +59,12 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
     })
   useEffect(() => { if (grupaFilter && !mojeGrupe.includes(grupaFilter)) setGrupaFilter('') }, [stavke])
 
+  // Dok je forma otvorena, lista dolje prati kategoriju izabranu U FORMI (prikazuje postojeće
+  // stavke te grupe radi reference/izbjegavanja duplikata); ako grupa nema stavki — prazno, bez
+  // stavki iz drugih grupa. Dok je forma zatvorena, lista prati gornji filter „Sve moje grupe".
+  const grupaZaListu = forma ? (nova.kategorija || 'Moje stavke') : grupaFilter
   const filtrirane = stavke.filter(s =>
-    (!grupaFilter || (s.kategorija || 'Moje stavke') === grupaFilter) &&
+    (!grupaZaListu || (s.kategorija || 'Moje stavke') === grupaZaListu) &&
     s.naziv.toLowerCase().includes(tekst.trim().toLowerCase())
   )
 
@@ -150,11 +154,17 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Učitavanje...</div>
           ) : filtrirane.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Vaša baza je prazna</div>
-              <div style={{ fontSize: 13 }}>Dodajte stavke koje često koristite u projektima</div>
-            </div>
+            stavke.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Vaša baza je prazna</div>
+                <div style={{ fontSize: 13 }}>Dodajte stavke koje često koristite u projektima</div>
+              </div>
+            ) : (
+              <div style={{ padding: 28, textAlign: 'center', color: '#999', fontSize: 13 }}>
+                Nema stavki u ovoj grupi radova.
+              </div>
+            )
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
