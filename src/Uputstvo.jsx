@@ -88,7 +88,7 @@ export default function Uputstvo({ onClose }) {
         <Korak broj="1" naslov="Kreirajte projekat.">U lijevom panelu upišite naziv u polje „Novi projekat…" i kliknite <B>+ Dodaj</B>.</Korak>
         <Korak broj="2" naslov="Popunite podatke.">U panelu „Podaci o projektu" unesite investitora, lokaciju i datum — pojavljuju se u zaglavlju dokumenta.</Korak>
         <Korak broj="3" naslov="Izaberite fazu.">Kliknite na fazu (struku) u kojoj radite — npr. Građevinsko-zanatski radovi.</Korak>
-        <Korak broj="4" naslov="Dodajte grupu radova.">U panelu „Grupe radova" kreirajte grupu (npr. „Betonski radovi").</Korak>
+        <Korak broj="4" naslov="Dodajte grupu radova.">U panelu „Grupe radova" iz padajućeg menija <B>„➕ Dodaj grupu radova"</B> izaberite grupu iz šifarnika (npr. „04 · Zidarski radovi") ili dodajte prilagođenu.</Korak>
         <Korak broj="5" naslov="Unesite stavke.">Pretražite bazu i kliknite na poziciju, ili koristite <B>+ Vlastita stavka</B> / <B>AI asistenta (✨)</B>. Zatim unesite količine.</Korak>
         <Korak broj="6" naslov="Izvezite predmjer.">U traci na vrhu kliknite <B>📊 Excel</B> ili <B>🖨 Print/PDF</B>.</Korak>
         <Info naslov="✓ To je to" boja={ZLATNA}>Ovih šest koraka pokriva osnovni tok. Sve ostalo — podstavke, opšti tehnički uslovi, AI procjena cijena, uvećanja — su dodatne mogućnosti koje koristite po potrebi.</Info>
@@ -133,9 +133,12 @@ export default function Uputstvo({ onClose }) {
         <H>5. Faze i grupe radova</H>
         <H3>Faze (struke)</H3>
         <P>Kliktanjem na fazu birate u kojoj radite. Dvoklik na naziv omogućava preimenovanje. Dugme <B>+ Nova faza (vlastita)</B> dodaje prilagođenu fazu.</P>
-        <Info naslov="ℹ️ Vlastita faza i baza">U predefinisanim fazama pretraga prikazuje samo stavke relevantne za tu struku. U <B>vlastitoj fazi</B> imate pristup <B>cijeloj bazi</B> (svih 1.200+ stavki).</Info>
+        <Info naslov="ℹ️ Vlastita faza i baza">U predefinisanim fazama pretraga prikazuje samo stavke relevantne za tu struku. U <B>vlastitoj fazi</B> imate pristup <B>cijeloj bazi</B> (preko 1.000 stavki).</Info>
         <H3>Grupe radova</H3>
-        <P>Unutar aktivne faze upišite naziv i kliknite <B>+ Dodaj</B>. Grupa radova je nosilac stavki i u izvozu postaje naslovljeni blok. Dvoklik na naziv grupe (u traci iznad tabele) omogućava preimenovanje.</P>
+        <P>Unutar aktivne faze koristite padajući meni <B>„➕ Dodaj grupu radova"</B>. Ima dvije obojene sekcije: <B>Vaše grupe radova</B> (već dodate — zelena pozadina, za prebacivanje između njih) i <B>➕ Dodaj grupu iz šifarnika</B> (plava pozadina — standardne grupe sa numeracijom koje još niste dodali). Izborom grupe iz šifarnika ona se odmah doda i aktivira — bez ručnog kucanja.</P>
+        <P>Grupe se u listi <B>same slažu po numeraciji</B> (01, 02, 03…), bez obzira kojim ih redom dodate — pa ako naknadno ubacite zaboravljenu grupu, ona sjedne na svoje mjesto. Kad je aktivna predefinisana grupa, centralni filter baze je <B>zaključan</B> na tu kategoriju (vidite samo njene stavke), a ostale su zasivljene.</P>
+        <Info naslov="ℹ️ Prilagođena grupa">Ako vam treba grupa van šifarnika, upišite naziv u polje <B>„ili prilagođena grupa (van šifarnika)"</B> i kliknite <B>+ Dodaj</B>. Prilagođene grupe idu na kraj liste i <B>nisu zaključane</B> — u njima vidite cijelu bazu. Ista predefinisana grupa dodaje se samo jednom; za dvije iste koristite prilagođenu.</Info>
+        <P>Na dnu panela je dugme <B>⭐ Upravljaj mojom bazom</B> (vidi 6.3). Dvoklik na naziv aktivne grupe (u traci iznad tabele) omogućava preimenovanje.</P>
       </>
     ),
     stavke: (
@@ -143,18 +146,23 @@ export default function Uputstvo({ onClose }) {
         <H>6. Unos stavki (pozicija)</H>
         <P>Postoje <B>četiri načina</B> da dodate stavku. Možete ih kombinovati.</P>
         <H3>6.1 Iz baze pozicija</H3>
-        <P>Iznad tabele je pretraga. Upišite pojam („beton", „malter", „iskop") ili izaberite kategoriju, pa kliknite na rezultat. Baza ima preko 1.200 detaljno opisanih pozicija.</P>
+        <P>Iznad tabele je pretraga. Upišite pojam („beton", „malter", „iskop") ili izaberite kategoriju, pa kliknite na rezultat. Baza ima preko 1.000 detaljno opisanih pozicija. Panel rezultata možete sklopiti klikom na traku „X rezultata" da oslobodite prostor.</P>
         <H3>6.2 Vlastita stavka</H3>
         <P>Dugme <B>+ Vlastita stavka</B> dodaje praznu stavku koju popunjavate ručno.</P>
-        <H3>6.3 Moja baza</H3>
-        <P>Stavke koje često koristite sačuvajte klikom na <B>⭐</B> — dostupne su u tabu „Moja baza" za buduće projekte.</P>
+        <H3>6.3 Moja baza (lična biblioteka)</H3>
+        <P>Moja baza je vaša lična biblioteka stavki koje često koristite — <B>dostupna u svim projektima</B>. Stavku iz predmjera sačuvate klikom na <B>⭐</B>. Njome upravljate dugmetom <B>⭐ Upravljaj mojom bazom</B> na dnu panela „Grupe radova".</P>
+        <Ul>
+          <Li><B>Dodavanje:</B> pri unosu birate <B>jedinicu</B>, <B>valutu</B> (EUR/KM/RSD/USD) i <B>kategoriju (grupu radova)</B> iz padajućih menija. Dok dodajete, lista dolje prikazuje postojeće stavke baš te grupe (za referencu).</Li>
+          <Li><B>Korišćenje:</B> u tabu <B>„⭐ Moja baza"</B> iznad tabele izaberete grupu iz padajućeg menija (samo grupe koje stvarno imate) i kliknete na stavku da je dodate.</Li>
+          <Li><B>Preračun valute:</B> ako je stavka unesena npr. u KM, a projekat je u EUR — pri ubacivanju se cijena automatski preračuna po tekućem kursu.</Li>
+        </Ul>
         <H3>6.4 AI asistent</H3>
         <P>Dugme <B>✨</B> generiše kompletne stavke na osnovu vašeg opisa (vidi poglavlje 8).</P>
         <H3>6.5 Podstavke</H3>
         <P>Dugme <B>+ pod</B> dodaje podstavku — za razbijanje pozicije po cjelinama (Prizemlje, Sprat 1…). Cijena se unosi na podstavke, a zbir se prikazuje na glavnoj stavci.</P>
         <H3>6.6 Uređivanje</H3>
         <Ul>
-          <Li><B>Opis:</B> kliknite i kucajte; ćelija se širi. Ctrl+B podebljava tekst.</Li>
+          <Li><B>Opis:</B> kliknite i kucajte; ćelija se širi. Ctrl+B podebljava tekst. Dugi opisi se prikazuju <B>skraćeno</B> — klik u polje ih razvije, klik van polja ih sam skupi, a tu je i diskretno <B>„▾ prikaži cijelo / ▴ skrati"</B>. (Skraćivanje je samo na ekranu; u Excel/PDF izvozu ide pun opis.)</Li>
           <Li><B>Jedinica:</B> bira se iz menija; upisom „Obračun po m³" i sl. prilagodi se sama.</Li>
           <Li><B>Redoslijed:</B> prevucite za ručicu ⠿.</Li>
           <Li><B>🔁 Zamjena:</B> zamjenjuje stavku novom iz baze, zadržava mjesto.</Li>
@@ -168,7 +176,7 @@ export default function Uputstvo({ onClose }) {
         <H>7. Opšti tehnički uslovi grupe radova</H>
         <P>Iznad tabele je sklopivi panel <B>„📋 Opšti tehnički uslovi grupe radova"</B>. Ovdje unosite uvodni tehnički tekst (obračun, kvalitet, uslovi izvođenja, normativi) koji se u Excel i PDF izvozu prikazuje prije stavki grupe.</P>
         <Ul>
-          <Li><B>📥 Ubaci šablon za ovu grupu:</B> gotov, pripremljen tekst uslova (za 15 glavnih grupa: betonski, zidarski, izolaterski, fasaderski, molerski i druge).</Li>
+          <Li><B>📥 Ubaci šablon za ovu grupu:</B> gotov, detaljan tekst uslova pripremljen po građevinskim normama (za glavne grupe: zemljani, betonski, zidarski, izolaterski, pokrivački, fasaderski, limarski, gipsarski, podopolagački, molerski, kamenorezački, stolarija, bravarski i druge). Tekst po potrebi doradite.</Li>
           <Li><B>✨ AI predlog uslova:</B> jednim klikom AI asistent automatski predloži uslove za tu grupu radova; vi ih pregledate i primijenite (kao kod cijena).</Li>
           <Li><B>🗑 Obriši:</B> uklanja uslove. Tekst se automatski širi dok kucate; dvoklik namješta visinu cijelom tekstu.</Li>
           <Li>Tekst slobodno uređujete. Polje je opciono — ako je prazno, u izvozu se ništa ne prikazuje.</Li>
@@ -201,8 +209,9 @@ export default function Uputstvo({ onClose }) {
     cijene: (
       <>
         <H>9. Cijene, valute i korekcije</H>
-        <H3>Valuta</H3>
-        <P>U traci iznad tabele birate valutu (EUR, KM, RSD, USD). Promjena valute <B>preračunava</B> sve cijene po tekućem kursu. KM je fiksno vezana za euro.</P>
+        <H3>Valuta i kurs</H3>
+        <P>U traci iznad tabele birate valutu (EUR, KM, RSD, USD). Promjena valute <B>preračunava</B> sve cijene po tekućem kursu. <B>KM</B> je zakonski fiksno vezana za euro (1 € = 1,95583 KM). Kurs za <B>RSD i USD</B> aplikacija automatski povlači sa zvanične kursne liste i osvježava se dnevno — pređite mišem preko birača valute da vidite datum posljednjeg osvježenja.</P>
+        <P>Cijene iz <B>Moje baze</B> mogu biti unesene u bilo kojoj od četiri valute; pri ubacivanju u projekat automatski se preračunaju u valutu projekta po tekućem kursu.</P>
         <H3>Uvećanje i umanjenje</H3>
         <P>U panelu <B>„⚖️ Uvećanje / Umanjenje"</B> podešavate procente <B>po fazi</B> (ne globalno) — jer izvođači mogu imati različitu maržu ili popust. Uvećanje pokriva npr. PDV ili opšte troškove, umanjenje npr. popust. Prikazuju se u rekapitulaciji.</P>
       </>
@@ -236,8 +245,8 @@ export default function Uputstvo({ onClose }) {
           ['📁 Projekti', 'Izbor, kreiranje, kloniranje (⧉), brisanje (🗑), uvoz.'],
           ['📋 Podaci o projektu', 'Naziv, investitor, lokacija, datum.'],
           ['🏗️ Faza', 'Izbor struke; vlastita faza; preimenovanje (dvoklik).'],
-          ['📦 Grupe radova', 'Izbor i dodavanje grupa radova.'],
-          ['⚖️ Uvećanje / Umanjenje', 'Korekcije po fazi; pristup Mojoj bazi.'],
+          ['📦 Grupe radova', 'Izbor/dodavanje grupa (šifarnik + prilagođene); ⭐ Upravljaj mojom bazom.'],
+          ['⚖️ Uvećanje / Umanjenje', 'Korekcije procenata po fazi.'],
           ['📊 Rekapitulacija', 'Zbir aktivne grupe radova sa korekcijama.'],
         ]} />
         <H3>Red stavke</H3>
