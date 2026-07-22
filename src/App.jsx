@@ -520,6 +520,16 @@ export default function App() {
   // odbija novi poziv dok prethodni još traje.
   const dodavanjeUTokuRef = React.useRef(false)
   const [firma, setFirma] = useState(null) // { naziv, logo } - postavke firme (logo/naziv) vezane za nalog
+  // Odnos širine i visine učitane slike zaglavlja. Po njemu se u izvozu odlučuje kako se slika
+  // crta: uski/kvadratni LOGO ostaje mali u gornjem lijevom uglu, dok se široki MEMORANDUM
+  // (cijelo zaglavlje dopisa) razvlači preko pune širine strane — inače bi bio stisnut i nečitljiv.
+  const [logoOdnos, setLogoOdnos] = useState(null)
+  useEffect(() => {
+    if (!firma?.logo) { setLogoOdnos(null); return }
+    const img = new Image()
+    img.onload = () => { if (img.naturalHeight > 0) setLogoOdnos(img.naturalWidth / img.naturalHeight) }
+    img.src = firma.logo
+  }, [firma?.logo])
   const [showFirmaModal, setShowFirmaModal] = useState(false)
   const [firmaLoading, setFirmaLoading] = useState(false)
   const [aktivnaStruka, setAktivnaStruka] = useState('gradjevinski')
@@ -1884,7 +1894,9 @@ export default function App() {
 </style></head>
 <body>
 <div class="header">
-  ${firma?.logo ? `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>` : ''}
+  ${firma?.logo ? (logoOdnos && logoOdnos >= 2.5
+    ? `<div style="margin-bottom:8px;"><img src="${firma.logo}" style="width:100%;height:auto;display:block;" /></div>`
+    : `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>`) : ''}
   <h1 style="text-align:center;">PREDMJER I PREDRAČUN</h1>
   ${filtrirajStruku ? `<div style="text-align:center;font-size:10pt;color:#4A637C;margin-top:-4px;margin-bottom:6px;">— ${escHtml(struke.find(s=>s.kod===filtrirajStruku)?.naziv || '')} —</div>` : ''}
   <div class="info">
