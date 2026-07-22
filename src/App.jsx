@@ -192,13 +192,22 @@ const autoGrowTextarea = (el) => {
   return potrebno
 }
 
-// Smanji/optimizuj upload-ovanu sliku loga prije čuvanja u bazu (max širina 360px)
-const resizeSlika = (file, maxW = 360) => new Promise((resolve, reject) => {
+// Priprema slike zaglavlja (logo ili memorandum) prije čuvanja u bazu.
+// VAŽNO: veličina se bira prema OBLIKU slike, jer se logo i memorandum različito štampaju.
+//  • Širok MEMORANDUM (odnos ≥ 2,5) razvlači se preko pune širine strane (~795 px u PDF-u), pa mu
+//    treba visoka rezolucija da tekst (adresa, kontakti, žiro račun) ostane čitljiv i pri štampi.
+//    Čuva se do 1800 px širine kao JPEG (bijela podloga) — oštro, a fajl ostaje razuman (~170 KB).
+//    Ranije se i memorandum smanjivao na 360 px, zbog čega je u izvozu bio mutan i nečitljiv.
+//  • Kompaktan LOGO crta se mali (do 150 px), pa je 600 px više nego dovoljno. Ostaje PNG da bi
+//    se sačuvala prozirna pozadina.
+const resizeSlika = (file) => new Promise((resolve, reject) => {
   if (!file.type.startsWith('image/')) { reject(new Error('Fajl mora biti slika.')); return }
   const reader = new FileReader()
   reader.onload = e => {
     const img = new Image()
     img.onload = () => {
+      const jeMemorandum = img.height > 0 && (img.width / img.height) >= 2.5
+      const maxW = jeMemorandum ? 1800 : 600
       const scale = Math.min(1, maxW / img.width)
       const w = Math.max(1, Math.round(img.width * scale))
       const h = Math.max(1, Math.round(img.height * scale))
@@ -206,9 +215,15 @@ const resizeSlika = (file, maxW = 360) => new Promise((resolve, reject) => {
       canvas.width = w
       canvas.height = h
       const ctx = canvas.getContext('2d')
-      ctx.clearRect(0, 0, w, h)
+      if (jeMemorandum) {
+        // JPEG nema prozirnost — podlogu prvo obojiti u bijelo da prozirni dijelovi ne postanu crni.
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, w, h)
+      } else {
+        ctx.clearRect(0, 0, w, h)
+      }
       ctx.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/png'))
+      resolve(jeMemorandum ? canvas.toDataURL('image/jpeg', 0.88) : canvas.toDataURL('image/png'))
     }
     img.onerror = () => reject(new Error('Greška pri učitavanju slike.'))
     img.src = e.target.result
@@ -1566,7 +1581,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku, firma: firma ? { naziv: firma.naziv || '', logo: firma.logo || null } : null, logoOdnos })
       })
 
       if (!response.ok) {
