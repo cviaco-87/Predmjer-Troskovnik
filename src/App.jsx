@@ -1854,6 +1854,9 @@ export default function App() {
   .page-break { page-break-before:always; margin-top:16px; }
   @page {
     margin: 14mm 12mm 18mm 20mm;
+    @top-left { content: ""; }
+    @top-center { content: ""; }
+    @top-right { content: ""; }
     @bottom-right {
       content: "Strana " counter(page) " od " counter(pages);
       font-size: 8pt;
