@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json({ error: auth.error })
 
   try {
-    const { projekat, faze, svePozicije, valutaZnak='€', struke=[], filtrirajStruku=null } = req.body
+    const { projekat, faze, svePozicije, valutaZnak='€', struke=[], filtrirajStruku=null, firma=null, logoOdnos=null } = req.body
 
     const calcSimple = p => (parseFloat(p.kolicina)||0)*(parseFloat(p.cijena)||0)
     const calcRow = (p, poz) => {
@@ -207,6 +207,42 @@ export default async function handler(req, res) {
     const FMT_QTY = `#,##0.00;-#,##0.00;"—"`
 
     let row
+
+    // ── ZAGLAVLJE: LOGO ILI MEMORANDUM (opciono) ──
+    // Ista logika kao u PDF izvozu: po odnosu širine i visine slike odlučuje se kako se crta.
+    // Širok MEMORANDUM (odnos ≥ 2,5) razvlači se preko pune širine tabele (A–G), a uski/kvadratni
+    // LOGO ostaje mali u gornjem lijevom uglu. Slika se sidri u ZASEBAN prazan red odgovarajuće
+    // visine (editAs:'oneCell') — tako ne pluta preko podataka ni kad korisnik kasnije uređuje list.
+    if (firma && firma.logo && typeof firma.logo === 'string') {
+      const m = firma.logo.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
+      const ext = m ? (m[1].toLowerCase() === 'jpg' ? 'jpeg' : m[1].toLowerCase()) : null
+      if (m && ['png', 'jpeg', 'gif'].includes(ext)) {
+        try {
+          const odnos = Number(logoOdnos) > 0 ? Number(logoOdnos) : 1
+          const jeMemorandum = odnos >= 2.5
+          // Ukupna širina kolona A–G u pikselima (≈ 7 px po jedinici širine + 5 px po koloni).
+          const SIRINA_TABELE = 795
+          const imgW = jeMemorandum ? SIRINA_TABELE : Math.min(150, Math.round(52 * odnos))
+          const imgH = jeMemorandum ? Math.round(SIRINA_TABELE / odnos) : 52
+          const imageId = wb.addImage({ base64: m[2], extension: ext })
+          const spacer = ws.addRow([])
+          spacer.height = Math.round(imgH * 0.75) + 4  // px -> tačke, uz mali razmak ispod
+          ws.addImage(imageId, {
+            tl: { col: 0, row: spacer.number - 1 },
+            ext: { width: imgW, height: imgH },
+            editAs: 'oneCell'
+          })
+        } catch (e) {
+          console.error('Excel: neuspješno ubacivanje logotipa (izvoz se nastavlja bez njega):', e.message)
+        }
+      }
+    }
+
+    // Naziv firme u podnožju odštampanog lista (isto kao u PDF izvozu). "&&" je Excel-ov
+    // način da se prikaže znak "&" u zaglavlju/podnožju.
+    if (firma && firma.naziv) {
+      ws.headerFooter = { oddFooter: `&L&8${String(firma.naziv).replace(/&/g, '&&')}&R&8Strana &P od &N` }
+    }
 
     // ── RED 1: NASLOV ──
     row = ws.addRow(['','PREDMJER I PREDRAČUN','','','','',''])
