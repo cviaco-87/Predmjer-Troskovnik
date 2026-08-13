@@ -476,6 +476,7 @@ export default function App() {
 
   // UI stanja
   const [noviProjekat, setNoviProjekat] = useState('')
+  const [showNoviProjekt, setShowNoviProjekt] = useState(false) // modal za kreiranje projekta (jasan tok za novog korisnika)
   const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -770,6 +771,7 @@ export default function App() {
     if (error) { alert('Greška pri dodavanju projekta: ' + error.message); return }
     if (data) {
       setNoviProjekat('')
+      setShowNoviProjekt(false)
       await ucitajProjekte()
       setAktivniProjekat(data)
     }
@@ -2597,7 +2599,7 @@ ${globalnaRekapitulacijaHtml}
                 )}
 
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button onClick={() => { noviProjekatInputRef.current?.focus(); noviProjekatInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+                  <button onClick={() => { setNoviProjekat(''); setShowNoviProjekt(true) }}
                     style={{ background: '#1B2F43', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                     + Novi projekat
                   </button>
@@ -3102,6 +3104,35 @@ ${globalnaRekapitulacijaHtml}
       </div>
 
       {/* Moja baza modal */}
+      {/* ── MODAL: NOVI PROJEKAT (jasan tok kreiranja, umjesto skoka fokusa na malo polje) ── */}
+      {showNoviProjekt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onMouseDown={e => { if (e.target === e.currentTarget) { setShowNoviProjekt(false); setNoviProjekat('') } }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: 420, maxWidth: '100%', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '18px 22px 4px' }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#1B2F43' }}>📁 Novi projekat</div>
+              <div style={{ fontSize: 12.5, color: '#888', marginTop: 3 }}>Upišite naziv projekta da počnete unos predmjera.</div>
+            </div>
+            <div style={{ padding: '14px 22px 22px' }}>
+              <input type="text" autoFocus value={noviProjekat} onChange={e => setNoviProjekat(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') dodajProjekat(); if (e.key === 'Escape') { setShowNoviProjekt(false); setNoviProjekat('') } }}
+                placeholder="Naziv projekta (npr. Kuća 1, Poslovni objekat...)"
+                style={{ width: '100%', border: '1px solid #C7CDD3', borderRadius: 8, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', background: '#F8FAFB', boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+                <button onClick={() => { setShowNoviProjekt(false); setNoviProjekat('') }}
+                  style={{ background: '#fff', color: '#556575', border: '1px solid #C7CDD3', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Otkaži
+                </button>
+                <button onClick={dodajProjekat} disabled={!noviProjekat.trim()}
+                  style={{ background: noviProjekat.trim() ? '#1B2F43' : '#AAB4BD', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: noviProjekat.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                  Kreiraj
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showMojaBaza && (
         <MojaBaza
           jedinice={JEDINICE_OPCIJE}
