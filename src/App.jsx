@@ -240,6 +240,10 @@ const calcRow = (p, svePoz) => {
   return calcRowSimple(p)
 }
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
+
+// Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
+// ima zarez, pa korisnik ne mora prebacivati na tačku). "5,5" i "5.5" -> 5.5; prazno/nevalidno -> 0.
+const parsiBroj = v => { const n = parseFloat(String(v ?? '').trim().replace(',', '.')); return isNaN(n) ? 0 : n }
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
@@ -2522,15 +2526,15 @@ ${globalnaRekapitulacijaHtml}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#666' }}>Uvećanje (%)</span>
-            <input type="number" key={`uvec-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0} min="0" step="0.5"
-              onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUvecanjeStruke(aktivnaStruka, v) }}
+            <input type="text" inputMode="decimal" key={`uvec-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.uvecanjePct || 0}
+              onBlur={e => { const v = parsiBroj(e.target.value); postaviUvecanjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #D8D5CC', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa', marginBottom: 10 }}>npr. PDV, opšti troškovi</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
             <span style={{ flex: 1, fontSize: 12, color: '#C0392B' }}>Umanjenje (%)</span>
-            <input type="number" key={`uman-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0} min="0" max="100" step="0.5"
-              onBlur={e => { const v = parseFloat(e.target.value) || 0; postaviUmanjenjeStruke(aktivnaStruka, v) }}
+            <input type="text" inputMode="decimal" key={`uman-${aktivniProjekat?.id}-${aktivnaStruka}`} defaultValue={struke.find(s => s.kod === aktivnaStruka)?.umanjenjePct || 0}
+              onBlur={e => { const v = parsiBroj(e.target.value); postaviUmanjenjeStruke(aktivnaStruka, v) }}
               style={{ width: 55, border: '1px solid #f5c6c2', borderRadius: 6, padding: '4px 6px', fontSize: 12, fontFamily: 'inherit', textAlign: 'right', color: '#C0392B' }} />
           </div>
           <div style={{ fontSize: 10, color: '#aaa' }}>npr. popust, sopstvena režija</div>
@@ -2944,13 +2948,13 @@ ${globalnaRekapitulacijaHtml}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="number" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parsiBroj(e.target.value))}
                                       style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="number" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parseFloat(e.target.value) || 0)}
-                                      placeholder="0" min="0" step="any"
+                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parsiBroj(e.target.value))}
+                                      placeholder="0"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
@@ -3047,12 +3051,12 @@ ${globalnaRekapitulacijaHtml}
                                         </select>
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`cij-${d.id}-${revizija}`} type="number" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parseFloat(e.target.value) || 0)}
+                                        <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parsiBroj(e.target.value))}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`kol-${d.id}-${revizija}`} type="number" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parseFloat(e.target.value) || 0)}
-                                          placeholder="0" min="0" step="any"
+                                        <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parsiBroj(e.target.value))}
+                                          placeholder="0"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
