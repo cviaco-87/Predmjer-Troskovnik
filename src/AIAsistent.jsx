@@ -184,7 +184,10 @@ function formatOdgovor(text) {
 const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
 
 export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session }) {
-  const [poruke, setPoruke] = useState([{
+  // Trajno pamćenje razgovora (po korisniku) — chat preživi zatvaranje panela I osvježavanje
+  // stranice. Čuva se lokalno u pregledniku, ograničeno na zadnjih ~50 poruka da ne bubri.
+  const CHAT_KEY = `predmjer_ai_chat_${session?.user?.id || 'anon'}`
+  const pozdravnaPoruka = () => ({
     uloga: 'asistent',
     tekst: `Zdravo! Ja sam vaš AI asistent za predmjer i predračun. 🏗️
 
@@ -203,7 +206,11 @@ Kako mogu pomoći? Npr:
 *"Treba mi stavka za gips karton pregradni zid"*`,
     stavka: null,
     cijene: null
-  }])
+  })
+  const [poruke, setPoruke] = useState(() => {
+    try { const s = localStorage.getItem(CHAT_KEY); if (s) { const p = JSON.parse(s); if (Array.isArray(p) && p.length) return p } } catch {}
+    return [pozdravnaPoruka()]
+  })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [modalCijene, setModalCijene] = useState(null)
@@ -224,7 +231,22 @@ Kako mogu pomoći? Npr:
   const [potrosnjaMjesec, setPotrosnjaMjesec] = useState({ tokena: 0, cijenaUsd: 0, ucitano: false })
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
-  const [historija, setHistorija] = useState([])
+  const [historija, setHistorija] = useState(() => {
+    try { const s = localStorage.getItem(CHAT_KEY + '_h'); if (s) { const h = JSON.parse(s); if (Array.isArray(h)) return h } } catch {}
+    return []
+  })
+
+  // Čuvanje razgovora i konteksta u localStorage nakon svake promjene (ograničeno radi veličine).
+  useEffect(() => { try { localStorage.setItem(CHAT_KEY, JSON.stringify(poruke.slice(-50))) } catch {} }, [poruke])
+  useEffect(() => { try { localStorage.setItem(CHAT_KEY + '_h', JSON.stringify(historija.slice(-30))) } catch {} }, [historija])
+
+  // "Očisti razgovor" — vrati na pozdravnu poruku i obriši sačuvani razgovor.
+  const ocistiRazgovor = () => {
+    if (!confirm('Obrisati cijeli dosadašnji razgovor sa AI asistentom?')) return
+    setPoruke([pozdravnaPoruka()])
+    setHistorija([])
+    try { localStorage.removeItem(CHAT_KEY); localStorage.removeItem(CHAT_KEY + '_h') } catch {}
+  }
 
   // ── PROCJENA CIJENA U PAKETIMA (batch) ──
   // Napredak grupne procjene cijena (jedne faze ili cijelog projekta), prikazuje se u traci
@@ -879,6 +901,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           <div style={{ fontWeight: 700, fontSize: 14 }}>AI Asistent</div>
           <div style={{ fontSize: 11, opacity: 0.8 }}>{aktivnaFaza ? `Grupa radova: ${aktivnaFaza.naziv}` : 'Predmjer / Troškovnik'}</div>
         </div>
+        <button onClick={ocistiRazgovor} title="Obriši dosadašnji razgovor" style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>🗑 Očisti</button>
         <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 13 }}>✕ Zatvori</button>
       </div>
 
