@@ -244,6 +244,23 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
 // ima zarez, pa korisnik ne mora prebacivati na tačku). "5,5" i "5.5" -> 5.5; prazno/nevalidno -> 0.
 const parsiBroj = v => { const n = parseFloat(String(v ?? '').trim().replace(',', '.')); return isNaN(n) ? 0 : n }
+
+// Auto-šifra za PRILAGOĐENE stavke (AI-generisane ili ručno dodate „vlastite"), koje nemaju
+// katalošku šifru. Format: [broj kategorije grupe].90.[redni broj] — npr. "04.90.001".
+// Podgrupa "90" jasno označava da je pozicija prilagođena (ne iz normiranog kataloga), a redni
+// broj prati redoslijed dodavanja u toj grupi. Šifra ostaje UREĐIVA — korisnik je u polju šifre
+// može promijeniti ručno. Ako je grupa prilagođena (bez vezane kategorije), vraća null (prazno).
+const autoSifraPrilagodjena = (faza, trenutnePozicije) => {
+  const broj = faza?.kategorija ? SIFRA_KATEGORIJE_MAP.get(faza.kategorija) : null
+  if (!broj) return null
+  const prefiks = `${broj}.90.`
+  const postojeci = (trenutnePozicije || [])
+    .filter(p => !p.parent_id && typeof p.sifra === 'string' && p.sifra.startsWith(prefiks))
+    .map(p => parseInt(p.sifra.slice(prefiks.length), 10))
+    .filter(n => !isNaN(n))
+  const sljedeci = (postojeci.length ? Math.max(...postojeci) : 0) + 1
+  return prefiks + String(sljedeci).padStart(3, '0')
+}
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
@@ -1107,7 +1124,7 @@ export default function App() {
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       const { data, error } = await supabase.from('pozicije').insert({
         faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
-        cijena: 0, kategorija: zadnjaKat, redoslijed: red
+        cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
       if (error) { alert('Greška pri dodavanju vlastite stavke: ' + error.message); return }
       if (data) setPozicije(prev => [...prev, data])
@@ -1118,6 +1135,7 @@ export default function App() {
 
   // ── DRAG & DROP REDOSLIJED ──
   const dragPoz = React.useRef(null)
+  const [pomjerenaId, setPomjerenaId] = useState(null) // ID stavke koja je upravo prevučena (zeleni trag)
   const dragOverPoz = React.useRef(null)
   // Prati da li je korisnik zaista kliknuo na ⠿ ručku prije nego što dozvolimo prevlačenje
   // cijelog reda. Bez ovoga, HTML5 "draggable" na cijelom <tr> hvata SVAKI klik-i-povuci u
@@ -1138,11 +1156,13 @@ export default function App() {
     dragPoz.current = poz
     e.dataTransfer.effectAllowed = 'move'
     e.currentTarget.style.opacity = '0.5'
+    e.currentTarget.style.cursor = 'grabbing'
   }
 
   const onDragEnd = (e) => {
     dragRuckaAktivna.current = false
     e.currentTarget.style.opacity = '1'
+    e.currentTarget.style.cursor = 'grab'
   }
 
   const onDragOver = (e, poz) => {
@@ -1174,6 +1194,12 @@ export default function App() {
       const u = updates.find(u => u.id === p.id)
       return u ? { ...p, redoslijed: u.redoslijed } : p
     }))
+
+    // Zeleni trag: kratko označi upravo premještenu stavku, da se vidi gdje je spuštena.
+    // Nestaje na klik (vidi onClick reda) ili sam poslije ~2 s.
+    const pomjerenaStavkaId = premjesteni.id
+    setPomjerenaId(pomjerenaStavkaId)
+    setTimeout(() => setPomjerenaId(prev => prev === pomjerenaStavkaId ? null : prev), 2000)
 
     for (const u of updates) {
       const { error } = await supabase.from('pozicije').update({ redoslijed: u.redoslijed }).eq('id', u.id)
@@ -1978,7 +2004,8 @@ ${globalnaRekapitulacijaHtml}
       jedinica: jedinicaZaUpis,
       cijena: parseFloat(stavka.cijena) || 0,
       kategorija: aktivnaKategorija,
-      redoslijed: red
+      redoslijed: red,
+      sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
     }).select().single()
     if (error) { alert('Greška pri dodavanju stavke iz AI asistenta: ' + error.message); return }
     if (data) setPozicije(prev => [...prev, data])
@@ -2273,6 +2300,8 @@ ${globalnaRekapitulacijaHtml}
         ::-webkit-scrollbar-thumb { background: #F2F2F0; border-radius: 8px; border: 2px solid #C7C7C4; }
         ::-webkit-scrollbar-thumb:hover { background: #FFFFFF; }
         .drag-rucka, .red-akcije { opacity: 0; transition: opacity .12s ease; }
+        .drag-rucka { cursor: grab; }
+        .drag-rucka:active { cursor: grabbing; }
         tr:hover .drag-rucka, tr:hover .red-akcije { opacity: 1; }
         .sifra-input::placeholder { color: #C9CDD2; font-weight: 400; }
       `}</style>
@@ -2821,6 +2850,8 @@ ${globalnaRekapitulacijaHtml}
                               : { glavna: '#F3F6F9', pod: '#EFF3F6', zbir: '#E9EEF2' }
                             const hoverBg = '#FFFBEA'
                             const jeArmiranoZaZamjenu = zamjenaPozicijaId === p.id
+                            const jePomjerena = pomjerenaId === p.id
+                            const osnovnaBoja = jePomjerena ? '#D6F0DE' : (jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna)
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -2830,9 +2861,10 @@ ${globalnaRekapitulacijaHtml}
                                   onDragEnd={onDragEnd}
                                   onDragOver={e => onDragOver(e, p)}
                                   onDrop={e => onDrop(e, p)}
-                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px' }}
-                                  onMouseEnter={e => { if (!jeArmiranoZaZamjenu) e.currentTarget.style.background = hoverBg }}
-                                  onMouseLeave={e => { e.currentTarget.style.background = jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna }}>
+                                  onClick={() => { if (jePomjerena) setPomjerenaId(null) }}
+                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: osnovnaBoja, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px', transition: 'background-color .5s ease' }}
+                                  onMouseEnter={e => { if (!jeArmiranoZaZamjenu && !jePomjerena) e.currentTarget.style.background = hoverBg }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = osnovnaBoja }}>
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
