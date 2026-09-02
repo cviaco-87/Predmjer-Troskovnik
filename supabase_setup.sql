@@ -103,6 +103,8 @@ CREATE TABLE IF NOT EXISTS moja_baza (
 );
 ALTER TABLE moja_baza ALTER COLUMN user_id SET DEFAULT auth.uid();
 ALTER TABLE moja_baza ADD COLUMN IF NOT EXISTS valuta TEXT DEFAULT 'EUR';   -- valuta cijene stavke (preračun pri ubacivanju u projekat)
+ALTER TABLE moja_baza ADD COLUMN IF NOT EXISTS redoslijed INTEGER DEFAULT 0; -- redni broj stavke unutar njene grupe radova
+ALTER TABLE moja_baza ADD COLUMN IF NOT EXISTS sifra TEXT;                   -- šifra po logici centralne baze ([grupa].90.xxx), uređiva
 
 
 -- =============================================================
