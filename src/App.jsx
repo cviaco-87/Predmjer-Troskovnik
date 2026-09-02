@@ -2836,9 +2836,12 @@ ${globalnaRekapitulacijaHtml}
               {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
               {/* Panel je prirodne visine (bez vlastitog scroll-a) — skroluje ga zajednički
                   kontejner, zajedno sa tabelom, kao jedna cjelina. */}
-              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', overflow: 'hidden', flexShrink: 0, border: '1px solid #D8D5CC' }}>
+              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', flexShrink: 0, border: '1px solid #D8D5CC' }}>
+                {/* Traka sa naslovom je "sticky" — ostaje zalijepljena na vrh dok se skroluje kroz
+                    stavke, da se ne izgubi iz vida (inače korisnik lako pomisli da je nestala).
+                    Sadržaj ispod se NE sklapa sam — korisnik ga sklapa klikom kad mu zatreba prostor. */}
                 <div onClick={() => setShowUslovi(v => !v)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none' }}>
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none', position: 'sticky', top: 0, zIndex: 6, borderRadius: showUslovi ? '10px 10px 0 0' : 10, borderBottom: showUslovi ? '1px solid #E8E5DC' : 'none' }}>
                   <span style={{ fontSize: 13 }}>{showUslovi ? '▼' : '▶'}</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2F43', flex: 1 }}>
                     📋 Opšti tehnički uslovi grupe radova
@@ -2925,7 +2928,7 @@ ${globalnaRekapitulacijaHtml}
                     <thead>
                       <tr style={{ background: '#556575', color: '#fff' }}>
                         {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#556575', zIndex: 3 }}>{h}</th>
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 35, background: '#556575', zIndex: 3 }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
