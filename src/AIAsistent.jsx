@@ -856,7 +856,10 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
   }
 
   const dodajUPredmjer = (stavka) => {
-    if (!aktivnaFaza) { alert('Molimo odaberite grupu radova prije dodavanja stavke.'); return }
+    if (!aktivnaFaza) {
+      setPoruke(prev => [...prev, { uloga: 'asistent', tekst: '⚠️ Prvo odaberite grupu radova, pa mogu dodati stavku u predmjer.', stavka: null, cijene: null }])
+      return
+    }
     onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija, valuta: stavka.valuta || valuta })
   }
 
@@ -969,11 +972,18 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
 
   return (
     <div style={{ position: 'fixed', bottom: 80, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
-      {/* Ručka za promjenu veličine — povlačenjem gornjeg lijevog ugla panel se širi/viši.
-          Panel je usidren dolje desno, pa povlačenje ulijevo/nagore povećava prozor. */}
+      {/* Ručka za promjenu veličine — vidljiva oznaka u gornjem lijevom uglu (dijagonalne crte),
+          da korisniku bude jasno gdje da uhvati i šta se dešava. Panel je usidren dolje desno,
+          pa povlačenje ulijevo/nagore povećava prozor. */}
       <div onMouseDown={pocniPromjenuVelicine}
-        title="Povucite da promijenite veličinu"
-        style={{ position: 'absolute', top: 0, left: 0, width: 18, height: 18, cursor: 'nwse-resize', zIndex: 5 }} />
+        title="Povucite da promijenite veličinu prozora"
+        style={{ position: 'absolute', top: 0, left: 0, width: 26, height: 26, cursor: 'nwse-resize', zIndex: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 16, background: 'rgba(255,255,255,0.14)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.14)' }}>
+        <svg width="14" height="14" viewBox="0 0 14 14" style={{ display: 'block' }}>
+          <path d="M1.5 6.5 L6.5 1.5 M1.5 10.5 L10.5 1.5" stroke="rgba(255,255,255,0.95)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+        </svg>
+      </div>
 
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
