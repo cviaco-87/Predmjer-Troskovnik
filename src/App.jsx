@@ -1244,7 +1244,16 @@ export default function App() {
     const roditelji = pozicije.filter(p => !p.parent_id).sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
     if (roditelji.length === 0) { obavijesti('U ovoj grupi radova nema pozicija.', 'info'); return }
 
-    const jePrilagodjena = p => !p.sifra || /\.90\.\d+/.test(p.sifra) || /\d+a$/.test(p.sifra)
+    // Pozicija se smatra KATALOŠKOM samo ako njena šifra STVARNO postoji u bazi pozicija.
+    // Sve ostalo — prazna šifra, AI-generisana, ili bilo šta ručno ukucano — je prilagođeno i
+    // dobija slovo „a". (Ranije se gledao samo oblik šifre, pa je ručno upisana šifra pogrešno
+    // prolazila kao kataloška i preuređivanje je nad njom izgledalo kao da ništa nije uradilo.)
+    const katalockeSifre = new Set((baza || []).map(b => (b.s || '').trim()).filter(Boolean))
+    const jePrilagodjena = p => {
+      const s = (p.sifra || '').trim()
+      if (!s) return true
+      return !katalockeSifre.has(s)
+    }
     const nove = roditelji.map((p, i) => {
       const rb = String(i + 1).padStart(3, '0')
       return { id: p.id, stara: p.sifra || '', nova: `${brojGrupe}.01.${rb}${jePrilagodjena(p) ? 'a' : ''}` }
@@ -1254,8 +1263,8 @@ export default function App() {
 
     if (!confirm(
       `Preurediti šifre u grupi „${aktivnaFaza.naziv}"?\n\n` +
-      `• Sve pozicije dobijaju šifru po redoslijedu: ${brojGrupe}.01.001, ${brojGrupe}.01.002…\n` +
-      `• Prilagođene (AI-generisane i vlastite) pozicije dobijaju slovo „a" na kraju.\n\n` +
+      `• Pozicije preuzete iz baze zadržavaju kataloški oblik: ${brojGrupe}.01.001, ${brojGrupe}.01.002…\n` +
+      `• Prilagođene pozicije (AI-generisane, vlastite i ručno upisane šifre) dobijaju slovo „a" na kraju.\n\n` +
       `Biće izmijenjeno ${izmjene.length} od ${nove.length} pozicija. Ova radnja se ne može opozvati.`
     )) return
 
