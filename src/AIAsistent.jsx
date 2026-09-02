@@ -266,6 +266,7 @@ Kako mogu pomoći? Npr:
   const [minimiziran, setMinimiziran] = useState(false) // panel skupljen u traku (klik sa strane / Escape)
   const panelRef = useRef(null)
   const hoverTimerRef = useRef(null) // odgoda za otvaranje trake na zadržavanje kursora
+  const [odgovorSpreman, setOdgovorSpreman] = useState(false) // stigao odgovor dok je panel bio u traci
   useEffect(() => () => clearTimeout(hoverTimerRef.current), [])
   // Kad se asistent ponovo otvori (komponenta se montira), uvijek kreće razvučen — nikad u traci.
   useEffect(() => { setMinimiziran(false) }, [])
@@ -331,11 +332,13 @@ Kako mogu pomoći? Npr:
   const [batchNapredak, setBatchNapredak] = useState({ aktivna: false, tekst: '', tekuci: 0, ukupno: 0 })
 
   // Minimiziranje: klik bilo gdje van panela (ili Escape) skuplja asistenta u traku, umjesto da
-  // ga treba zatvarati. Razgovor ostaje — jedan klik na traku ga vraća. NAMJERNO se NE minimizira
-  // dok AI radi ili dok je otvoren modal sa prijedlozima, da se rezultat ne izgubi usred posla.
-  // (Mora stajati POSLIJE deklaracije batchNapredak — inače se koristi prije nego postoji.)
+  // ga treba zatvarati. Razgovor ostaje — jedan klik na traku ga vraća.
   useEffect(() => {
-    const zauzet = loading || primjenaLoading || batchNapredak.aktivna || modalCijene || modalIzmjene || modalUslovi
+    // Dok AI generiše odgovor SMIJE se minimizirati — zahtjev ide preko mreže i nastavlja se
+    // u pozadini, pa korisnik može raditi dalje. Zabrana ostaje samo tamo gdje bi nestanak
+    // prozora stvarno naškodio: kad je otvoren modal sa prijedlozima (čeka odluku) i dok
+    // traje primjena izmjena.
+    const zauzet = primjenaLoading || modalCijene || modalIzmjene || modalUslovi
     if (minimiziran || zauzet) return
     const klikVan = (e) => {
       if (panelRef.current && !panelRef.current.contains(e.target)) setMinimiziran(true)
@@ -348,6 +351,25 @@ Kako mogu pomoći? Npr:
       document.removeEventListener('keydown', naEscape)
     }
   }, [minimiziran, loading, primjenaLoading, batchNapredak.aktivna, modalCijene, modalIzmjene, modalUslovi])
+
+  // Kad AI završi dok je panel u traci, označi da je odgovor spreman (traka pozeleni).
+  // Oznaka se briše čim korisnik vrati panel.
+  const bioZauzet = useRef(false)
+  useEffect(() => {
+    const radi = loading || batchNapredak.aktivna
+    if (radi) bioZauzet.current = true
+    else if (bioZauzet.current) {
+      bioZauzet.current = false
+      if (minimiziran) setOdgovorSpreman(true)
+    }
+  }, [loading, batchNapredak.aktivna, minimiziran])
+  useEffect(() => { if (!minimiziran) setOdgovorSpreman(false) }, [minimiziran])
+
+  // Ako rezultat traži odluku (modal sa prijedlozima cijena/izmjena/uslova), panel se sam vrati —
+  // inače bi modal ostao nevidljiv iza trake i korisnik bi ga propustio.
+  useEffect(() => {
+    if ((modalCijene || modalIzmjene || modalUslovi) && minimiziran) setMinimiziran(false)
+  }, [modalCijene, modalIzmjene, modalUslovi])
   // Dijalog potvrde troška prije velike procjene: { stavki, procjenaTokena, procjenaUsd, pokreni }
   // "pokreni" je funkcija koja se poziva ako korisnik potvrdi. null = dijalog zatvoren.
   const [potvrdaTroska, setPotvrdaTroska] = useState(null)
@@ -1000,6 +1022,11 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
   if (minimiziran) {
     // Traka se otvara klikom ODMAH, ili bez klika nakon kratkog zadržavanja kursora (~0,5 s) —
     // tako slučajan prelaz mišem preko trake ne otvara panel, a namjerno zadržavanje otvara.
+    // Dok AI radi u pozadini, traka to pokazuje; kad odgovor stigne, javi da je spreman.
+    const radi = loading || batchNapredak.aktivna
+    const status = radi
+      ? (batchNapredak.aktivna && batchNapredak.ukupno ? `obrađujem ${batchNapredak.tekuci}/${batchNapredak.ukupno}…` : 'generišem odgovor…')
+      : (odgovorSpreman ? 'odgovor je spreman' : (aktivnaFaza ? aktivnaFaza.naziv : 'Predmjer / Troškovnik'))
     return (
       <div onClick={() => { clearTimeout(hoverTimerRef.current); setMinimiziran(false) }}
         onMouseEnter={e => {
@@ -1012,12 +1039,12 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           e.currentTarget.style.transform = 'translateY(0)'
           e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.22)'
         }}
-        title="Klikni (ili zadrži kursor) da vratiš AI asistenta"
-        style={{ position: 'fixed', bottom: 80, right: 20, background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC', transition: 'transform .15s ease, box-shadow .15s ease' }}>
-        <span style={{ fontSize: 15 }}>✨</span>
+        title={radi ? 'AI radi u pozadini — možete nastaviti rad' : 'Klikni (ili zadrži kursor) da vratiš AI asistenta'}
+        style={{ position: 'fixed', bottom: 80, right: 20, background: odgovorSpreman && !radi ? 'linear-gradient(135deg, #1B4332, #2D6A4F)' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC', transition: 'transform .15s ease, box-shadow .15s ease, background .3s ease' }}>
+        <span style={{ fontSize: 15 }}>{radi ? '⏳' : (odgovorSpreman ? '✅' : '✨')}</span>
         <div style={{ lineHeight: 1.25 }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>AI Asistent</div>
-          <div style={{ fontSize: 10.5, opacity: 0.8 }}>{aktivnaFaza ? aktivnaFaza.naziv : 'Predmjer / Troškovnik'}</div>
+          <div style={{ fontSize: 10.5, opacity: 0.85 }}>{status}</div>
         </div>
         <span style={{ fontSize: 12, opacity: 0.75, marginLeft: 4 }}>▴</span>
       </div>
