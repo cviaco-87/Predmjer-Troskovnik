@@ -267,6 +267,8 @@ Kako mogu pomoći? Npr:
   const panelRef = useRef(null)
   const hoverTimerRef = useRef(null) // odgoda za otvaranje trake na zadržavanje kursora
   const [odgovorSpreman, setOdgovorSpreman] = useState(false) // stigao odgovor dok je panel bio u traci
+  // Izbor valute prije grupne procjene cijena: { naslov, nastavi(valuta) } — null = zatvoreno.
+  const [izborValute, setIzborValute] = useState(null)
   useEffect(() => () => clearTimeout(hoverTimerRef.current), [])
   // Kad se asistent ponovo otvori (komponenta se montira), uvijek kreće razvučen — nikad u traci.
   useEffect(() => { setMinimiziran(false) }, [])
@@ -617,7 +619,14 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
       setPoruke(prev => [...prev, { uloga: 'asistent', tekst: 'Ova grupa radova je prazna — nema stavki za procjenu cijena.', stavka: null, cijene: null }])
       return
     }
-    const valutaZnak = 'EUR' // procjena uvijek u EUR (interna valuta baze); korisnik kasnije konvertuje
+    // Prvo pitaj u kojoj valuti korisnik želi procjenu (podrazumijeva se valuta projekta).
+    setIzborValute({
+      naslov: `Procjena cijena — ${aktivnaFaza?.naziv || 'ova grupa radova'}`,
+      nastavi: (valutaZnak) => { setIzborValute(null); nastaviProcjenuFaze(valutaZnak, saWebom) }
+    })
+  }
+
+  const nastaviProcjenuFaze = (valutaZnak, saWebom) => {
     const roditelji = pozicije.filter(p => !p.parent_id)
     const brojProcjenjivih = pozicije.filter(p => !p.parent_id && pozicije.filter(d => d.parent_id === p.id).length === 0).length
       + pozicije.filter(p => p.parent_id).length
@@ -651,20 +660,24 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
       return
     }
 
-    const valutaZnak = 'EUR'
     const brojProcjenjivih = svePozicije.filter(p => !p.parent_id && svePozicije.filter(d => d.parent_id === p.id).length === 0).length
       + svePozicije.filter(p => p.parent_id).length
-    const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
     const mapa = Object.fromEntries(svePozicije.map(p => [p.id, p]))
 
-    const pokreni = () => pokreniBatchProcjenu(svePozicije, mapa, valutaZnak, saWebom, true)
-
-    // Cijeli projekat je skoro uvijek velik — gotovo uvijek prikaži procjenu troška
-    if (brojProcjenjivih > 50 || usd > 0.20) {
-      setPotvrdaTroska({ stavki: brojProcjenjivih, procjenaTokena: tokena, procjenaUsd: usd, faza: `cijeli projekat (${sveFaze.length} faza)`, pokreni })
-    } else {
-      pokreni()
-    }
+    // Prvo pitaj u kojoj valuti korisnik želi procjenu (podrazumijeva se valuta projekta).
+    setIzborValute({
+      naslov: `Procjena cijena — cijeli projekat (${sveFaze.length} faza)`,
+      nastavi: (valutaZnak) => {
+        setIzborValute(null)
+        const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
+        const pokreni = () => pokreniBatchProcjenu(svePozicije, mapa, valutaZnak, saWebom, true)
+        if (brojProcjenjivih > 50 || usd > 0.20) {
+          setPotvrdaTroska({ stavki: brojProcjenjivih, procjenaTokena: tokena, procjenaUsd: usd, faza: `cijeli projekat (${sveFaze.length} faza)`, pokreni })
+        } else {
+          pokreni()
+        }
+      }
+    })
   }
 
   // Automatski AI zahtjev za opšte tehničke uslove — pokreće se kad korisnik u glavnom ekranu
@@ -1137,6 +1150,29 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       )}
 
       {/* ── DIJALOG POTVRDE TROŠKA (samo za velike procjene) ── */}
+      {/* ── IZBOR VALUTE PRIJE PROCJENE CIJENA ── */}
+      {izborValute && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '18px 20px', width: '100%', maxWidth: 340, boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1B2F43', marginBottom: 4 }}>💱 U kojoj valuti?</div>
+            <div style={{ fontSize: 11.5, color: '#888', marginBottom: 14, lineHeight: 1.45 }}>{izborValute.naslov}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {VALUTE.map(v => (
+                <button key={v.kod} onClick={() => izborValute.nastavi(v.kod)}
+                  style={{ background: v.kod === valuta ? '#1B2F43' : '#F0F2F5', color: v.kod === valuta ? '#fff' : '#1B2F43', border: v.kod === valuta ? 'none' : '1px solid #C7CDD3', borderRadius: 8, padding: '10px 8px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>
+                  {v.znak} {v.kod}
+                  {v.kod === valuta && <div style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>valuta projekta</div>}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setIzborValute(null)}
+              style={{ width: '100%', marginTop: 12, background: 'none', color: '#888', border: '1px solid #D8D5CC', borderRadius: 8, padding: '8px 0', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Otkaži
+            </button>
+          </div>
+        </div>
+      )}
+
       {potvrdaTroska && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 340, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
