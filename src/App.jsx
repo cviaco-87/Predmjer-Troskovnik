@@ -3384,7 +3384,7 @@ ${globalnaRekapitulacijaHtml}
         onClick={() => setShowAI(prev => !prev)}
         title="AI Asistent za predmjer"
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 299,
+          position: 'fixed', bottom: 84, right: 24, zIndex: 299,
           width: 56, height: 56, borderRadius: '50%',
           background: showAI ? '#142536' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)',
           color: '#fff', border: 'none', cursor: 'pointer',
@@ -3401,7 +3401,7 @@ ${globalnaRekapitulacijaHtml}
       {/* Tooltip */}
       {!showAI && (
         <div style={{
-          position: 'fixed', bottom: 86, right: 18, zIndex: 299,
+          position: 'fixed', bottom: 146, right: 18, zIndex: 299,
           background: '#1B2F43', color: '#fff', borderRadius: 8,
           padding: '5px 10px', fontSize: 11, fontWeight: 600,
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
