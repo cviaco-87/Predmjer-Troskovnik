@@ -98,6 +98,7 @@ Kada korisnik traži da pregledaš, analiziraš, poboljšaš, ili predložiš iz
 
 PRAVILA ZA PREGLED/POBOLJŠANJE:
 - Vrati SAMO stavke koje stvarno trebaju izmjenu ili poboljšanje - ne moraš vraćati stavke koje su već potpune i dobre
+- VAŽNO (ograničenje dužine): u JEDNOM odgovoru vrati NAJVIŠE 8 stavki, čak i ako ih treba više. Odgovor mora biti kompletan i završen markerom ---KRAJ-IZMJENA---. Ako ima još stavki za poboljšanje, poslije markera kratko napiši koliko ih je ostalo i ponudi korisniku da nastavite u sljedećem koraku.
 - "noviOpis" mora biti KOMPLETAN i KONAČAN novi tekst cijele stavke (naziv + puni opis spojeno), NE samo razlika ili dodatak
 - Ova izmjena se upisuje DIREKTNO u postojeću stavku (zamjenjuje stari tekst), NE kreira se nova stavka
 - Uzmi u obzir hijerarhiju: ako je podstavka označena kao dio roditelja, poboljšaj samo njen kratki opis (npr. "prizemlje"), ne cijelu tehničku specifikaciju
@@ -174,9 +175,26 @@ function parseCijene(text) {
 
 function parseIzmjene(text) {
   const match = text.match(/---IZMJENE---([\s\S]*?)---KRAJ-IZMJENA---/)
-  if (!match) return null
-  try { return JSON.parse(match[1].trim()) }
-  catch(e) { return null }
+  if (match) {
+    try { return JSON.parse(match[1].trim()) } catch(e) { /* nastavi na spašavanje ispod */ }
+  }
+  // SPAŠAVANJE ODSJEČENOG ODGOVORA: novi opisi su dugački, pa kod više stavki odgovor zna biti
+  // presječen prije završnog markera (---KRAJ-IZMJENA---) ili usred JSON-a. Umjesto da tada sve
+  // propadne i korisnik dobije sirovi tekst u chatu, izvlačimo sve KOMPLETNE stavke koje su
+  // stigle. Bolje primijeniti 6 od 10 izmjena nego nijednu.
+  const pocetak = text.indexOf('---IZMJENE---')
+  if (pocetak === -1) return null
+  const tijelo = text.slice(pocetak + '---IZMJENE---'.length)
+  const stavke = []
+  const re = /\{\s*"id"\s*:\s*"([^"]+)"\s*,\s*"noviOpis"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g
+  let m
+  while ((m = re.exec(tijelo)) !== null) {
+    try {
+      const noviOpis = JSON.parse('"' + m[2] + '"')
+      if (m[1] && noviOpis) stavke.push({ id: m[1], noviOpis })
+    } catch(e) { /* preskoči neispravnu stavku */ }
+  }
+  return stavke.length ? { stavke, nepotpuno: !match } : null
 }
 
 // Uslovi se prenose kao ČIST TEKST (ne JSON) između markera — jer je to slobodan višeredni
@@ -194,6 +212,9 @@ function formatOdgovor(text) {
     .replace(/---CIJENE---[\s\S]*?---KRAJ-CIJENA---/, '')
     .replace(/---IZMJENE---[\s\S]*?---KRAJ-IZMJENA---/, '')
     .replace(/---USLOVI---[\s\S]*?---KRAJ-USLOVA---/, '')
+    // Ako je odgovor odsječen prije završnog markera, ukloni i taj nedovršeni blok — inače bi se
+    // sirovi JSON ispisao korisniku u chatu (stavke se svejedno spašavaju u parseIzmjene).
+    .replace(/---(?:STAVKA|CIJENE|IZMJENE|USLOVI)---[\s\S]*$/, '')
     .trim()
 }
 
@@ -255,6 +276,31 @@ Kako mogu pomoći? Npr:
   const [potrosnjaMjesec, setPotrosnjaMjesec] = useState({ tokena: 0, cijenaUsd: 0, ucitano: false })
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+
+  // Veličina panela — korisnik je mijenja povlačenjem gornjeg lijevog ugla; pamti se u pregledniku.
+  const [dimenzije, setDimenzije] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('predmjer_ai_dim')); if (s?.w && s?.h) return s } catch {}
+    return { w: 440, h: 600 }
+  })
+  const pocniPromjenuVelicine = (e) => {
+    e.preventDefault()
+    const startX = e.clientX, startY = e.clientY
+    const startW = dimenzije.w, startH = dimenzije.h
+    const maxW = Math.min(window.innerWidth - 60, 1000)
+    const maxH = window.innerHeight - 120
+    const pomjeraj = (ev) => {
+      const w = Math.max(360, Math.min(maxW, startW + (startX - ev.clientX)))
+      const h = Math.max(400, Math.min(maxH, startH + (startY - ev.clientY)))
+      setDimenzije({ w, h })
+    }
+    const kraj = () => {
+      document.removeEventListener('mousemove', pomjeraj)
+      document.removeEventListener('mouseup', kraj)
+      setDimenzije(d => { try { localStorage.setItem('predmjer_ai_dim', JSON.stringify(d)) } catch {} ; return d })
+    }
+    document.addEventListener('mousemove', pomjeraj)
+    document.addEventListener('mouseup', kraj)
+  }
   const [historija, setHistorija] = useState(() => {
     try { const s = localStorage.getItem(CHAT_KEY + '_h'); if (s) { const h = JSON.parse(s); if (Array.isArray(h)) return h } } catch {}
     return []
@@ -726,7 +772,13 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
       const cijeneData = parseCijene(odgovorTekst)
       const izmjeneData = parseIzmjene(odgovorTekst)
       const usloviData = parseUslove(odgovorTekst)
-      const prikazTekst = formatOdgovor(odgovorTekst)
+      let prikazTekst = formatOdgovor(odgovorTekst)
+      // Ako je odgovor bio odsječen, spasili smo stavke koje su stigle — recimo to korisniku,
+      // da zna zašto možda nisu obuhvaćene baš sve pozicije i da može ponoviti za ostatak.
+      if (izmjeneData?.nepotpuno) {
+        prikazTekst = (prikazTekst ? prikazTekst + '\n\n' : '') +
+          `⚠️ Odgovor je bio predugačak pa je prekinut — pripremio sam **${izmjeneData.stavke.length}** izmjena koje su stigle. Nakon što ih primijenite, možete tražiti pregled za preostale stavke.`
+      }
 
       // Ako je AI vratio predlog opštih tehničkih uslova, pripremi modal za pregled/primjenu.
       // fazaZaUsloveRef pamti za koju je grupu radova zahtjev poslat (postavljeno u zatraziAIUslove
@@ -916,7 +968,12 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
   ]
 
   return (
-    <div style={{ position: 'fixed', bottom: 80, right: 20, width: 440, height: 600, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', bottom: 80, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+      {/* Ručka za promjenu veličine — povlačenjem gornjeg lijevog ugla panel se širi/viši.
+          Panel je usidren dolje desno, pa povlačenje ulijevo/nagore povećava prozor. */}
+      <div onMouseDown={pocniPromjenuVelicine}
+        title="Povucite da promijenite veličinu"
+        style={{ position: 'absolute', top: 0, left: 0, width: 18, height: 18, cursor: 'nwse-resize', zIndex: 5 }} />
 
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
