@@ -1283,7 +1283,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
                     <div style={{ fontSize: 11.5, color: '#444', lineHeight: 1.5, marginBottom: 8 }}>{p.stavka.opis.length > 200 ? p.stavka.opis.slice(0, 200) + '...' : p.stavka.opis}</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
                       <span style={{ background: '#E8ECF0', color: '#1B2F43', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.jmj}</span>
-                      <span style={{ background: '#E8ECF0', color: '#1B2F43', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' €' : 'cijena po dogovoru'}</span>
+                      <span style={{ background: '#E8ECF0', color: '#1B2F43', padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{p.stavka.cijena > 0 ? p.stavka.cijena.toFixed(2) + ' ' + (p.stavka.valuta || valuta) : 'cijena po dogovoru'}</span>
                       <span style={{ background: '#F0F0EE', color: '#666', padding: '2px 8px', borderRadius: 20, fontSize: 10 }}>{p.stavka.kategorija}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
