@@ -2834,23 +2834,22 @@ ${globalnaRekapitulacijaHtml}
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
               {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
-              {/* Panel je prirodne visine (bez vlastitog scroll-a) — skroluje ga zajednički
-                  kontejner, zajedno sa tabelom, kao jedna cjelina. */}
-              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.08)', flexShrink: 0, border: '1px solid #D8D5CC' }}>
-                {/* Traka sa naslovom je "sticky" — ostaje zalijepljena na vrh dok se skroluje kroz
-                    stavke, da se ne izgubi iz vida (inače korisnik lako pomisli da je nestala).
-                    Sadržaj ispod se NE sklapa sam — korisnik ga sklapa klikom kad mu zatreba prostor. */}
-                <div onClick={() => setShowUslovi(v => !v)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none', position: 'sticky', top: 0, zIndex: 6, borderRadius: showUslovi ? '10px 10px 0 0' : 10, borderBottom: showUslovi ? '1px solid #E8E5DC' : 'none' }}>
-                  <span style={{ fontSize: 13 }}>{showUslovi ? '▼' : '▶'}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2F43', flex: 1 }}>
-                    📋 Opšti tehnički uslovi grupe radova
-                    {aktivnaFaza?.opsti_uslovi && <span style={{ fontSize: 10.5, fontWeight: 400, color: '#4A637C', marginLeft: 8 }}>✓ popunjeno</span>}
-                  </span>
-                  <span style={{ fontSize: 10.5, color: '#999' }}>{showUslovi ? 'sakrij' : 'prikaži'}</span>
-                </div>
+              {/* Traka sa naslovom je NAMJERNO izvan okvira panela i direktno u skrol-kontejneru:
+                  "sticky" element ostaje zalijepljen samo dok je njegov RODITELJ u vidnom polju,
+                  pa bi unutar okvira odskrolao zajedno sa uslovima i nestao. Ovako ostaje na vrhu
+                  bez obzira koliko se skroluje kroz stavke. */}
+              <div onClick={() => setShowUslovi(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', margin: '0 12px', background: aktivnaFaza?.opsti_uslovi ? '#EEF2F5' : '#F5F4F0', cursor: 'pointer', userSelect: 'none', position: 'sticky', top: 0, zIndex: 6, borderRadius: showUslovi ? '10px 10px 0 0' : 10, border: '1px solid #D8D5CC', borderBottom: showUslovi ? 'none' : '1px solid #D8D5CC', boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}>
+                <span style={{ fontSize: 13 }}>{showUslovi ? '▼' : '▶'}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2F43', flex: 1 }}>
+                  📋 Opšti tehnički uslovi grupe radova
+                  {aktivnaFaza?.opsti_uslovi && <span style={{ fontSize: 10.5, fontWeight: 400, color: '#4A637C', marginLeft: 8 }}>✓ popunjeno</span>}
+                </span>
+                <span style={{ fontSize: 10.5, color: '#999' }}>{showUslovi ? 'sakrij' : 'prikaži'}</span>
+              </div>
+              <div style={{ margin: '0 12px 10px 12px', borderRadius: '0 0 10px 10px', overflow: 'hidden', flexShrink: 0, border: showUslovi ? '1px solid #D8D5CC' : 'none', borderTop: 'none', boxShadow: showUslovi ? '0 1px 3px rgba(0,0,0,.08)' : 'none' }}>
                 {showUslovi && (
-                  <div style={{ padding: '10px 12px', background: '#fff', borderTop: '1px solid #E8E5DC' }}>
+                  <div style={{ padding: '10px 12px', background: '#fff' }}>
                     <div style={{ fontSize: 11, color: '#888', lineHeight: 1.5, marginBottom: 8 }}>
                       Uvodni tekst koji se prikazuje prije stavki ove grupe radova u Excel i PDF izvještaju
                       (tehnički uslovi, način obračuna, kvalitet, normativi). Opcion — možete ga ostaviti prazan.
@@ -2928,7 +2927,7 @@ ${globalnaRekapitulacijaHtml}
                     <thead>
                       <tr style={{ background: '#556575', color: '#fff' }}>
                         {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 35, background: '#556575', zIndex: 3 }}>{h}</th>
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 34, background: '#556575', zIndex: 3, boxShadow: '0 -12px 0 12px #C7C7C4' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
