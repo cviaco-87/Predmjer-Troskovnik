@@ -1342,12 +1342,15 @@ export default function App() {
   }
 
   const sacuvajUMojuBazu = async (poz) => {
+    // KLJUČNO: cijena u predmjeru je izražena u VALUTI PROJEKTA, pa se ta valuta mora i upisati.
+    // Bez toga bi se stavka u bazi tretirala kao EUR (default kolone) i pri ponovnom ubacivanju
+    // u projekat bila bi pogrešno preračunata (npr. 100 KM upisano kao 100 EUR → ~196 KM).
     const { error } = await supabase.from('moja_baza').insert({
-      naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena, kategorija: poz.kategorija
+      naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena, kategorija: poz.kategorija, valuta: valuta
     })
     if (error) { alert('Greška pri čuvanju u moju bazu: ' + error.message); return }
     ucitajMojuBazu()
-    alert('Stavka sačuvana u vašu bazu!')
+    alert(`Stavka sačuvana u vašu bazu (cijena u ${valuta}).`)
   }
 
   // ── ZAMJENA POSTOJEĆE STAVKE NOVOM IZ BAZE (U MJESTU) ──
@@ -1998,11 +2001,20 @@ ${globalnaRekapitulacijaHtml}
     const rod = pozicije.filter(p => !p.parent_id)
     const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
 
+    // AI vraća i valutu u kojoj je cijenu izrazio. Ako se razlikuje od valute projekta (npr.
+    // korisnik je tražio KM dok je projekat u EUR), cijena se preračunava po tekućem kursu —
+    // da u predmjer nikad ne uđe iznos u pogrešnoj valuti.
+    const cijenaAI = parseFloat(stavka.cijena) || 0
+    const valutaAI = (stavka.valuta || valuta || 'EUR').toUpperCase()
+    const cijenaZaUpis = (valutaAI === valuta || !KURSEVI[valutaAI])
+      ? cijenaAI
+      : Math.round(konvertujCijenu(cijenaAI, valutaAI, valuta) * 100) / 100
+
     const { data, error } = await supabase.from('pozicije').insert({
       faza_id: aktivnaFaza.id,
       naziv: cleanNaziv,
       jedinica: jedinicaZaUpis,
-      cijena: parseFloat(stavka.cijena) || 0,
+      cijena: cijenaZaUpis,
       kategorija: aktivnaKategorija,
       redoslijed: red,
       sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
@@ -3004,10 +3016,20 @@ ${globalnaRekapitulacijaHtml}
                                           style={{ background: zamjenaPozicijaId === p.id ? '#F4B740' : 'none', border: zamjenaPozicijaId === p.id ? '1px solid #C9954E' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: zamjenaPozicijaId === p.id ? 1 : 0.6 }}
                                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                                           onMouseLeave={e => { if (zamjenaPozicijaId !== p.id) e.currentTarget.style.opacity = '0.6' }}>🔁</button>
-                                        <button onClick={() => sacuvajUMojuBazu(p)} title="Sačuvaj u moju bazu"
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: 0.6 }}
-                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                          onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}>⭐</button>
+                                        {(() => {
+                                          // Da li je ova stavka već u „Mojoj bazi"? Poredi se po nazivu (bez razlike
+                                          // u velikim/malim slovima i suvišnim razmacima) — isti naziv = ista stavka.
+                                          const kljuc = (p.naziv || '').trim().toLowerCase().replace(/\s+/g, ' ')
+                                          const vecUBazi = !!kljuc && mojeBaza.some(s => (s.naziv || '').trim().toLowerCase().replace(/\s+/g, ' ') === kljuc)
+                                          return (
+                                            <button onClick={() => { if (!vecUBazi) sacuvajUMojuBazu(p) }}
+                                              disabled={vecUBazi}
+                                              title={vecUBazi ? 'Ova stavka je već u vašoj bazi' : 'Sačuvaj u moju bazu'}
+                                              style={{ background: 'none', border: 'none', cursor: vecUBazi ? 'default' : 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: vecUBazi ? 1 : 0.6, filter: vecUBazi ? 'none' : 'grayscale(0.15)' }}
+                                              onMouseEnter={e => { if (!vecUBazi) e.currentTarget.style.opacity = '1' }}
+                                              onMouseLeave={e => { if (!vecUBazi) e.currentTarget.style.opacity = '0.6' }}>{vecUBazi ? '🌟' : '⭐'}</button>
+                                          )
+                                        })()}
                                         <button onClick={() => obrisiPoziciju(p.id)}
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 18, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
@@ -3313,6 +3335,7 @@ ${globalnaRekapitulacijaHtml}
           aktivnaFaza={aktivnaFaza}
           pozicije={pozicije}
           onDodajStavku={dodajStavkuIzAI}
+          valuta={valuta}
           onProcijeniCijene={procijeniCijene}
           onProcijeniCijeneViseFaza={procijeniCijeneViseFaza}
           onDohvatiSvePozicije={dohvatiSvePozicijeProjekta}
