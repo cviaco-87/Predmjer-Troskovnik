@@ -46,8 +46,15 @@ NAZIV: [kratki naziv stavke]
 OPIS: [kompletan opis, 3-8 rečenica]
 JMJ: [m2/m3/m1/kom./pau./kg]
 CIJENA: [broj]
+VALUTA: [EUR/KM/RSD/USD — valuta u kojoj je gornja cijena izražena]
 KATEGORIJA: [kategorija]
 ---KRAJ---
+
+VALUTA CIJENE KOD GENERISANJA STAVKE:
+- Cijenu UVIJEK izrazi u AKTIVNOJ VALUTI PROJEKTA (navedena ti je u kontekstu poruke) i tu valutu upiši u polje VALUTA.
+- Ako korisnik u poruci izričito traži drugu valutu ("u KM", "u markama", "u dinarima", "u dolarima"), koristi TU valutu i upiši je u polje VALUTA.
+- Kada korisnik jednom u razgovoru zatraži određenu valutu, DRŽI SE JE i u svim narednim stavkama tog razgovora, dok ne kaže drugačije.
+- Cijena mora biti realan tržišni iznos U TOJ VALUTI (npr. 100 EUR ≈ 195 KM — ne vraćaj isti broj za obje valute).
 
 Zatim dodaj kratko objašnjenje zašto si uključio određene elemente.
 
@@ -73,7 +80,8 @@ PRAVILA ZA PROCJENU CIJENA:
 - Ako korisnik kaže "u KM" ili "u markama" postavi valuta:"KM"
 - Ako korisnik kaže "u dinarima" ili "u RSD" postavi valuta:"RSD"
 - Ako korisnik kaže "u dolarima" ili "u USD" postavi valuta:"USD"
-- Inače koristi valuta:"EUR"
+- Inače koristi AKTIVNU VALUTU PROJEKTA (navedena ti je u kontekstu poruke), a ne automatski EUR
+- Ako je korisnik ranije u razgovoru tražio određenu valutu, zadrži je i u narednim procjenama dok ne kaže drugačije
 - Koristi web search ako je dostupan da provjeriš aktuelne tržišne cijene
 - U odgovoru MORAŠ vratiti procjenu za SVAKU stavku koja ima "ID:" naznačen, uključujući sve podstavke
 
@@ -98,8 +106,7 @@ PRAVILA ZA PREGLED/POBOLJŠANJE:
 - Piši isključivo na srpskom jeziku, ijekavica
 - Ne mijenjaj cijene u ovom formatu, samo tekst opisa
 
-KADA KORISNIK PRILOŽI POSTOJEĆE STAVKE BEZ POTPUNO JASNOG FORMATA ZAHTJEVA:
-Ako uz poruku dobiješ listu postojećih stavki iz predmjera, ali korisnikova formulacija nije eksplicitno "procijeni/ažuriraj cijene" niti "pregledaj/poboljšaj opise", sam odluči na osnovu konteksta rečenice:
+KADA KORISNIK PRILOŽI POSTOJEĆE STAVKE BEZ POTPUNO JASNOG FORMATA ZAHTJEVA:Ako uz poruku dobiješ listu postojećih stavki iz predmjera, ali korisnikova formulacija nije eksplicitno "procijeni/ažuriraj cijene" niti "pregledaj/poboljšaj opise", sam odluči na osnovu konteksta rečenice:
 - Ako korisnik spominje cijene, iznose, troškove, tržišne vrijednosti → koristi ---CIJENE--- format
 - Ako korisnik spominje opise, tekst, formulacije, kvalitet, propuste, standarde → koristi ---IZMJENE--- format
 - Ako je i dalje nejasno, radije pitaj kratko jedno pojašnjavajuće pitanje nego da nagađaš i vratiš pogrešan format
@@ -132,6 +139,15 @@ KATEGORIJE koje postoje:
 - Mašinske instalacije
 - Vanjsko uređenje
 
+TON I NAČIN KOMUNIKACIJE:
+Ponašaj se kao iskusan kolega projektant u razgovoru, ne kao mašina koja samo isporučuje stavke.
+- Odgovaraj prirodno i razgovorno; kratko prokomentariši šta si uradio i zašto (npr. zašto si uzeo baš tu klasu betona ili tu cijenu).
+- Ako je zahtjev nejasan ili nedostaje ključan podatak (debljina, klasa, površina), pitaj jedno kratko pitanje umjesto da nagađaš.
+- Slobodno upozori na propust ili predloži bolje rješenje kad ga uočiš, i kad te korisnik nije izričito pitao — kratko i konkretno.
+- Kad primijetiš da bi neka grupna radnja pomogla (npr. korisnik se žali da su cijene zastarjele ili opisi šturi), sam ponudi: "mogu odjednom ažurirati cijene svih stavki u ovoj grupi" ili "mogu pregledati i dopuniti sve opise" — pa sačekaj potvrdu.
+- Prati kontekst razgovora: valuta, grupa radova i zahtjevi koje je korisnik ranije naveo važe i dalje, ne traži da ih ponavlja.
+- Ne ponavljaj duge uvode i ne nabrajaj svoje mogućnosti u svakom odgovoru; piši kao u normalnom razgovoru.
+
 Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 
 function parseStavka(text) {
@@ -142,10 +158,11 @@ function parseStavka(text) {
   const opis = blok.match(/OPIS:\s*([\s\S]+?)(?=JMJ:|$)/)?.[1]?.trim()
   const jmj = blok.match(/JMJ:\s*(.+)/)?.[1]?.trim()
   const cijenaStr = blok.match(/CIJENA:\s*(.+)/)?.[1]?.trim()
+  const valutaStr = blok.match(/VALUTA:\s*([A-Za-z]{3})/)?.[1]?.trim().toUpperCase()
   const kategorija = blok.match(/KATEGORIJA:\s*(.+)/)?.[1]?.trim()
   const cijena = parseFloat(cijenaStr?.replace(',', '.')) || 0
   if (!naziv || !opis) return null
-  return { naziv, opis, jmj: jmj || 'kom.', cijena, kategorija: kategorija || 'Ostalo' }
+  return { naziv, opis, jmj: jmj || 'kom.', cijena, valuta: valutaStr || null, kategorija: kategorija || 'Ostalo' }
 }
 
 function parseCijene(text) {
@@ -183,7 +200,14 @@ function formatOdgovor(text) {
 // Formatira broj tokena čitljivo (npr. 12500 -> "12.500", 1250000 -> "1.250.000")
 const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session, valuta = 'EUR' }) {
+  // Sistemski prompt + trenutni kontekst rada. VAŽNO: aktivna valuta projekta se šalje modelu,
+  // inače bi cijene uvijek vraćao u EUR (podrazumijevano) i ignorisao to što korisnik radi u KM.
+  const promptSaKontekstom = `${SYSTEM_PROMPT}
+
+TRENUTNI KONTEKST RADA:
+- AKTIVNA VALUTA PROJEKTA: ${valuta}  ← sve cijene koje predlažeš izrazi U OVOJ VALUTI, osim ako korisnik izričito zatraži drugu.
+${aktivnaFaza ? `- Aktivna grupa radova: ${aktivnaFaza.naziv}` : '- Nijedna grupa radova trenutno nije aktivna.'}`
   // Trajno pamćenje razgovora (po korisniku) — chat preživi zatvaranje panela I osvježavanje
   // stranice. Čuva se lokalno u pregledniku, ograničeno na zadnjih ~50 poruka da ne bubri.
   const CHAT_KEY = `predmjer_ai_chat_${session?.user?.id || 'anon'}`
@@ -390,7 +414,7 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token || ''}` },
       body: JSON.stringify({
-        system: SYSTEM_PROMPT,
+        system: promptSaKontekstom,
         messages: [{ role: 'user', content: userContent }],
         webSearch: saWebom,
         tip: 'masovno'
@@ -559,7 +583,7 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token || ''}` },
-        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: false, tip: 'uslovi' })
+        body: JSON.stringify({ system: promptSaKontekstom, messages: novaHistorija, webSearch: false, tip: 'uslovi' })
       })
       let data
       try { data = await response.json() }
@@ -677,7 +701,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ system: SYSTEM_PROMPT, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju, tip: tipRadnje })
+        body: JSON.stringify({ system: promptSaKontekstom, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju, tip: tipRadnje })
       })
 
       let data
@@ -781,7 +805,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
 
   const dodajUPredmjer = (stavka) => {
     if (!aktivnaFaza) { alert('Molimo odaberite grupu radova prije dodavanja stavke.'); return }
-    onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija })
+    onDodajStavku({ naziv: stavka.naziv + '. ' + stavka.opis, cijena: stavka.cijena, jedinica: stavka.jmj, kategorija: stavka.kategorija, valuta: stavka.valuta || valuta })
   }
 
   const primijeniCijene = async () => {
