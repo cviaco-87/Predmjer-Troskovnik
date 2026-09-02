@@ -250,16 +250,17 @@ const parsiBroj = v => { const n = parseFloat(String(v ?? '').trim().replace(','
 // Podgrupa "90" jasno označava da je pozicija prilagođena (ne iz normiranog kataloga), a redni
 // broj prati redoslijed dodavanja u toj grupi. Šifra ostaje UREĐIVA — korisnik je u polju šifre
 // može promijeniti ručno. Ako je grupa prilagođena (bez vezane kategorije), vraća null (prazno).
+// Auto-šifra za PRILAGOĐENE stavke (AI-generisane ili ručno dodate „vlastite"), koje nemaju
+// katalošku šifru. Format: [broj kategorije grupe].01.[redni broj]a — npr. "04.01.005a".
+// ISTA logika kao dugme „Preuredi šifre": redni broj prati POLOŽAJ stavke u grupi, a slovo „a"
+// označava da pozicija nije iz normiranog kataloga (pa nema sudara sa stvarnim kataloškim
+// šiframa tipa 04.01.005). Ako je grupa prilagođena (bez vezane kategorije), vraća null.
 const autoSifraPrilagodjena = (faza, trenutnePozicije) => {
   const broj = faza?.kategorija ? SIFRA_KATEGORIJE_MAP.get(faza.kategorija) : null
   if (!broj) return null
-  const prefiks = `${broj}.90.`
-  const postojeci = (trenutnePozicije || [])
-    .filter(p => !p.parent_id && typeof p.sifra === 'string' && p.sifra.startsWith(prefiks))
-    .map(p => parseInt(p.sifra.slice(prefiks.length), 10))
-    .filter(n => !isNaN(n))
-  const sljedeci = (postojeci.length ? Math.max(...postojeci) : 0) + 1
-  return prefiks + String(sljedeci).padStart(3, '0')
+  // Nova stavka ide na kraj grupe, pa je njen redni broj = broj postojećih glavnih pozicija + 1.
+  const brojGlavnih = (trenutnePozicije || []).filter(p => !p.parent_id).length
+  return `${broj}.01.${String(brojGlavnih + 1).padStart(3, '0')}a`
 }
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
