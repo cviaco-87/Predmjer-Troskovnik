@@ -755,8 +755,18 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zahtjevZaUslove?.token])
 
-  const posalji = async () => {
-    const tekst = input.trim()
+  // Brza radnja: pregled i dopuna opisa svih stavki AKTIVNE grupe radova.
+  // Koristi isti put kao ručno upisana poruka (postavi tekst i pošalji), pa se odgovor obrađuje
+  // provjerenom ---IZMJENE--- logikom i završava u modalu sa prijedlozima za primjenu.
+  const poboljsajOviseFaze = () => {
+    if (loading || !aktivnaFaza || !pozicije || pozicije.length === 0) return
+    const zahtjev = `Pregledaj sve stavke u ovoj grupi radova („${aktivnaFaza.naziv}") i dopuni ih do nivoa potpunog, profesionalnog opisa pozicije predmjera — u skladu sa pravilima struke i važećim normama. Za svaku stavku koja je štura ili nepotpuna dopuni: opis rada i tehnologiju izvođenja, materijal i klasu/kvalitet, pripremu podloge, mjere zaštite, i način obračuna. Ne mijenjaj smisao pozicije niti jedinicu mjere.`
+    posalji(zahtjev)
+  }
+
+  // "tekstIzvana" omogućava da brze radnje (dugmad) pošalju zahtjev bez upisa u polje.
+  const posalji = async (tekstIzvana) => {
+    const tekst = (typeof tekstIzvana === 'string' ? tekstIzvana : input).trim()
     if (!tekst || loading) return
 
     setPoruke(prev => [...prev, { uloga: 'korisnik', tekst, stavka: null, cijene: null }])
@@ -1131,6 +1141,19 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
         </div>
       )}
 
+      {/* ── BRZA RADNJA: DOPUNI I POBOLJŠAJ OPISE STAVKI AKTIVNE GRUPE ── */}
+      {imaProjekat && (
+        <div style={{ padding: '0 12px 10px', flexShrink: 0 }}>
+          <button
+            onClick={poboljsajOviseFaze}
+            disabled={loading || !aktivnaFaza || !pozicije || pozicije.length === 0}
+            title={!aktivnaFaza ? 'Odaberite grupu radova' : (!pozicije || pozicije.length === 0 ? 'Ova grupa radova je prazna' : 'AI pregleda sve stavke ove grupe i predlaže detaljnije, potpunije opise po pravilima struke')}
+            style={{ width: '100%', background: (loading || !aktivnaFaza || !pozicije || pozicije.length === 0) ? '#C7CDD3' : '#1B4332', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 6px', fontSize: 11.5, fontWeight: 600, cursor: (loading || !aktivnaFaza || !pozicije || pozicije.length === 0) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', lineHeight: 1.2 }}>
+            ✍️ Dopuni i poboljšaj opise ove grupe
+          </button>
+        </div>
+      )}
+
       {/* ── TRAKA NAPRETKA BATCH PROCJENE ── */}
       {batchNapredak.aktivna && (
         <div style={{ padding: '10px 12px', background: '#FFF8E8', borderBottom: '1px solid #E8D9B0', flexShrink: 0 }}>
@@ -1420,7 +1443,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
             style={{ flex: 1, border: '1px solid #D8D5CC', borderRadius: 10, padding: '8px 12px', fontSize: 12.5, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, background: '#F5F4F0', outline: 'none' }}
             onFocus={e => e.target.style.borderColor = '#1B2F43'}
             onBlur={e => e.target.style.borderColor = '#D8D5CC'} />
-          <button onClick={posalji} disabled={loading || !input.trim()}
+          <button onClick={() => posalji()} disabled={loading || !input.trim()}
             style={{ background: loading || !input.trim() ? '#ccc' : '#1B2F43', color: '#fff', border: 'none', borderRadius: 10, width: 40, height: 40, fontSize: 18, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {loading ? '⏳' : '➤'}
           </button>
