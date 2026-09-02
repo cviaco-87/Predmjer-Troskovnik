@@ -264,7 +264,7 @@ const autoSifraPrilagodjena = (faza, trenutnePozicije) => {
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija, valuta = 'EUR', valutaZnak = '€', konvertuj }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -463,7 +463,14 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                     )}
                     <span style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>{item.n}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      {item.c > 0 ? fmt(item.c) + ' €' : '—'}
+                      {(() => {
+                        if (!(item.c > 0)) return '—'
+                        // Cijene u bazi su u EUR; prikaži ih u valuti projekta da se poklope
+                        // sa iznosima u predmjeru (npr. kad korisnik radi u KM).
+                        const c = item._moja ? item.c : (konvertuj ? konvertuj(item.c, 'EUR', valuta) : item.c)
+                        const znak = item._moja ? (item.v || 'EUR') : valutaZnak
+                        return fmt(c) + ' ' + znak
+                      })()}
                     </span>
                     <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>/{fmtJmj(item.m)}</span>
                   </div>
@@ -2787,6 +2794,9 @@ ${globalnaRekapitulacijaHtml}
               {/* Baza pretraga */}
               <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.1)', overflow: 'hidden', flexShrink: 0 }}>
               <BazaPanel
+                valuta={valuta}
+                valutaZnak={valutaZnak}
+                konvertuj={konvertujCijenu}
                 onAdd={dodajPoziciju}
                 onAddFromMojaBaza={dodajIzMojeBaze}
                 mojeBazaStavke={mojeBaza}
