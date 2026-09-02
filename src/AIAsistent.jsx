@@ -286,23 +286,6 @@ Kako mogu pomoći? Npr:
     try { const s = JSON.parse(localStorage.getItem('predmjer_ai_dim')); if (s?.w && s?.h) return s } catch {}
     return { w: 440, h: 600 }
   })
-  // Minimiziranje: klik bilo gdje van panela (ili Escape) skuplja asistenta u traku, umjesto da
-  // ga treba zatvarati. Razgovor ostaje — jedan klik na traku ga vraća. NAMJERNO se NE minimizira
-  // dok AI radi ili dok je otvoren modal sa prijedlozima, da se rezultat ne izgubi usred posla.
-  useEffect(() => {
-    const zauzet = loading || primjenaLoading || batchNapredak.aktivna || modalCijene || modalIzmjene || modalUslovi
-    if (minimiziran || zauzet) return
-    const klikVan = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) setMinimiziran(true)
-    }
-    const naEscape = (e) => { if (e.key === 'Escape') setMinimiziran(true) }
-    document.addEventListener('mousedown', klikVan)
-    document.addEventListener('keydown', naEscape)
-    return () => {
-      document.removeEventListener('mousedown', klikVan)
-      document.removeEventListener('keydown', naEscape)
-    }
-  }, [minimiziran, loading, primjenaLoading, batchNapredak.aktivna, modalCijene, modalIzmjene, modalUslovi])
 
   const pocniPromjenuVelicine = (e) => {
     e.preventDefault()
@@ -344,6 +327,25 @@ Kako mogu pomoći? Npr:
   // Napredak grupne procjene cijena (jedne faze ili cijelog projekta), prikazuje se u traci
   // dok traje: { aktivna: bool, tekst, tekuci, ukupno } gdje tekuci/ukupno mjere pakete.
   const [batchNapredak, setBatchNapredak] = useState({ aktivna: false, tekst: '', tekuci: 0, ukupno: 0 })
+
+  // Minimiziranje: klik bilo gdje van panela (ili Escape) skuplja asistenta u traku, umjesto da
+  // ga treba zatvarati. Razgovor ostaje — jedan klik na traku ga vraća. NAMJERNO se NE minimizira
+  // dok AI radi ili dok je otvoren modal sa prijedlozima, da se rezultat ne izgubi usred posla.
+  // (Mora stajati POSLIJE deklaracije batchNapredak — inače se koristi prije nego postoji.)
+  useEffect(() => {
+    const zauzet = loading || primjenaLoading || batchNapredak.aktivna || modalCijene || modalIzmjene || modalUslovi
+    if (minimiziran || zauzet) return
+    const klikVan = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setMinimiziran(true)
+    }
+    const naEscape = (e) => { if (e.key === 'Escape') setMinimiziran(true) }
+    document.addEventListener('mousedown', klikVan)
+    document.addEventListener('keydown', naEscape)
+    return () => {
+      document.removeEventListener('mousedown', klikVan)
+      document.removeEventListener('keydown', naEscape)
+    }
+  }, [minimiziran, loading, primjenaLoading, batchNapredak.aktivna, modalCijene, modalIzmjene, modalUslovi])
   // Dijalog potvrde troška prije velike procjene: { stavki, procjenaTokena, procjenaUsd, pokreni }
   // "pokreni" je funkcija koja se poziva ako korisnik potvrdi. null = dijalog zatvoren.
   const [potvrdaTroska, setPotvrdaTroska] = useState(null)
