@@ -263,6 +263,10 @@ Kako mogu pomoći? Npr:
   // Modal za predložene opšte tehničke uslove: { fazaId, nazivGrupe, tekst, imaPostojece }
   const [modalUslovi, setModalUslovi] = useState(null)
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
+  const [minimiziran, setMinimiziran] = useState(false) // panel skupljen u traku (klik sa strane / Escape)
+  const panelRef = useRef(null)
+  // Kad se asistent ponovo otvori (komponenta se montira), uvijek kreće razvučen — nikad u traci.
+  useEffect(() => { setMinimiziran(false) }, [])
   // Pamti za koju fazu je posljednji AI zahtjev za uslove poslat (da parser zna gdje da upiše
   // rezultat kad AI vrati ---USLOVI--- blok). Ref jer se čita unutar async posalji, a ne treba
   // da izaziva re-render.
@@ -282,6 +286,24 @@ Kako mogu pomoći? Npr:
     try { const s = JSON.parse(localStorage.getItem('predmjer_ai_dim')); if (s?.w && s?.h) return s } catch {}
     return { w: 440, h: 600 }
   })
+  // Minimiziranje: klik bilo gdje van panela (ili Escape) skuplja asistenta u traku, umjesto da
+  // ga treba zatvarati. Razgovor ostaje — jedan klik na traku ga vraća. NAMJERNO se NE minimizira
+  // dok AI radi ili dok je otvoren modal sa prijedlozima, da se rezultat ne izgubi usred posla.
+  useEffect(() => {
+    const zauzet = loading || primjenaLoading || batchNapredak.aktivna || modalCijene || modalIzmjene || modalUslovi
+    if (minimiziran || zauzet) return
+    const klikVan = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setMinimiziran(true)
+    }
+    const naEscape = (e) => { if (e.key === 'Escape') setMinimiziran(true) }
+    document.addEventListener('mousedown', klikVan)
+    document.addEventListener('keydown', naEscape)
+    return () => {
+      document.removeEventListener('mousedown', klikVan)
+      document.removeEventListener('keydown', naEscape)
+    }
+  }, [minimiziran, loading, primjenaLoading, batchNapredak.aktivna, modalCijene, modalIzmjene, modalUslovi])
+
   const pocniPromjenuVelicine = (e) => {
     e.preventDefault()
     const startX = e.clientX, startY = e.clientY
@@ -970,18 +992,33 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
     '🛁 Hidroizolacija kupatila membranom',
   ]
 
+  // Skupljen u traku — vidi se da asistent "stoji tu", klik ga vraća sa cijelim razgovorom.
+  if (minimiziran) {
+    return (
+      <div onClick={() => setMinimiziran(false)}
+        title="Klikni da vratiš AI asistenta"
+        style={{ position: 'fixed', bottom: 80, right: 20, background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC' }}>
+        <span style={{ fontSize: 15 }}>✨</span>
+        <div style={{ lineHeight: 1.25 }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>AI Asistent</div>
+          <div style={{ fontSize: 10.5, opacity: 0.8 }}>{aktivnaFaza ? aktivnaFaza.naziv : 'Predmjer / Troškovnik'}</div>
+        </div>
+        <span style={{ fontSize: 12, opacity: 0.75, marginLeft: 4 }}>▴</span>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ position: 'fixed', bottom: 80, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
-      {/* Ručka za promjenu veličine — vidljiva oznaka u gornjem lijevom uglu (dijagonalne crte),
-          da korisniku bude jasno gdje da uhvati i šta se dešava. Panel je usidren dolje desno,
-          pa povlačenje ulijevo/nagore povećava prozor. */}
+    <div ref={panelRef} style={{ position: 'fixed', bottom: 80, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+      {/* Ručka za promjenu veličine — samo dvije kose crtice, bez podloge (da ne prekrivaju
+          ikonu asistenta). Posvijetle na prelaz miša, kao znak da su klikabilne. */}
       <div onMouseDown={pocniPromjenuVelicine}
         title="Povucite da promijenite veličinu prozora"
-        style={{ position: 'absolute', top: 0, left: 0, width: 26, height: 26, cursor: 'nwse-resize', zIndex: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 16, background: 'rgba(255,255,255,0.14)' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.32)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.14)' }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" style={{ display: 'block' }}>
-          <path d="M1.5 6.5 L6.5 1.5 M1.5 10.5 L10.5 1.5" stroke="rgba(255,255,255,0.95)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+        style={{ position: 'absolute', top: 0, left: 0, width: 24, height: 24, cursor: 'nwse-resize', zIndex: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        onMouseEnter={e => { const p = e.currentTarget.querySelector('path'); if (p) p.setAttribute('stroke', 'rgba(255,255,255,1)') }}
+        onMouseLeave={e => { const p = e.currentTarget.querySelector('path'); if (p) p.setAttribute('stroke', 'rgba(255,255,255,0.65)') }}>
+        <svg width="13" height="13" viewBox="0 0 14 14" style={{ display: 'block' }}>
+          <path d="M1.5 6.5 L6.5 1.5 M1.5 10.5 L10.5 1.5" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
         </svg>
       </div>
 
