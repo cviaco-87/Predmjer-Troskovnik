@@ -1279,6 +1279,7 @@ export default function App() {
       if (error) { greske++; console.error('Greška pri upisu šifre:', error) }
     }
     if (greske > 0) { obavijesti(`Preuređivanje završeno, ali ${greske} šifri nije sačuvano. Osvježite stranicu i pokušajte ponovo.`, 'greska'); ucitajPozicije(aktivnaFaza.id) }
+    else obavijesti(`Šifre preuređene — izmijenjeno ${izmjene.length} pozicija.`, 'uspjeh')
   }
 
   const azurirajPoziciju = async (id, polje, vrijednost, _zaOpoziv = false) => {
@@ -2970,7 +2971,7 @@ ${globalnaRekapitulacijaHtml}
                                       type="text"
                                       spellCheck={false}
                                       className="sifra-input"
-                                      key={`sif-${p.id}-${revizija}`}
+                                      key={`sif-${p.id}-${revizija}-${p.sifra || ''}`}
                                       defaultValue={p.sifra || ''}
                                       placeholder="šifra"
                                       onBlur={e => azurirajPoziciju(p.id, 'sifra', e.target.value.trim())}
