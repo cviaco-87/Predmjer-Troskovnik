@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabase.js'
 
 export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije = [], sifre = null }) {
-  // Šifra po logici centralne baze: [broj grupe].90.[redni broj] — npr. "03.90.001".
-  // Podgrupa "90" označava prilagođenu (korisnikovu) poziciju, a redni broj prati redoslijed
-  // unutar grupe, pa se šifre same preračunavaju kad se stavke premještaju.
+  // Šifra po logici centralne baze: [broj grupe].01.[redni broj]a — npr. "03.01.001a".
+  // Slovo "a" označava prilagođenu (korisnikovu) poziciju, a redni broj prati redoslijed
+  // unutar grupe, pa se šifre same preračunavaju kad se stavke premještaju. Isti obrazac
+  // koristi i predmjer (auto-šifra pri dodavanju i dugme „Preuredi šifre").
   const sifraZa = (kategorija, indeks) => {
     const broj = sifre && sifre.get ? sifre.get(kategorija || '') : null
     if (!broj) return null
-    return `${broj}.90.${String(indeks + 1).padStart(3, '0')}`
+    return `${broj}.01.${String(indeks + 1).padStart(3, '0')}a`
   }
   const VALUTE = ['EUR', 'KM', 'RSD', 'USD']
   const [stavke, setStavke] = useState([])
@@ -63,9 +64,10 @@ export default function MojaBaza({ onClose, onDodaj, jedinice = [], kategorije =
     const preuredjene = [...uGrupi]
     ;[preuredjene[i], preuredjene[j]] = [preuredjene[j], preuredjene[i]]
     // Optimistično osvježi prikaz, pa upiši novi redoslijed i preračunatu šifru u bazu.
-    // Ručno upisana šifra (koja ne prati [grupa].90.xxx obrazac) se NE dira.
+    // Ručno upisana šifra (koja ne prati automatski obrazac) se NE dira. Prepoznaju se i stari
+    // ([grupa].90.NNN) i novi ([grupa].01.NNNa) obrazac, da se ranije dodijeljene šifre usklade.
     const noviRed = new Map(preuredjene.map((s, idx) => [s.id, idx]))
-    const autoObrazac = /^\S+\.90\.\d{3}$/
+    const autoObrazac = /^\S+\.(90\.\d{3}|01\.\d{3}a)$/
     setStavke(prev => prev.map(s => {
       if (!noviRed.has(s.id)) return s
       const idx = noviRed.get(s.id)
