@@ -498,6 +498,17 @@ export default function App() {
   // UI stanja
   const [noviProjekat, setNoviProjekat] = useState('')
   const [showNoviProjekt, setShowNoviProjekt] = useState(false) // modal za kreiranje projekta (jasan tok za novog korisnika)
+
+  // ── OBAVJEŠTENJA (toast) ──
+  // Zamjena za ugrađeni obavijesti(, 'info') preglednika, koji prikazuje adresu sajta ("...vercel.app says")
+  // i blokira rad dok se ne klikne OK. Ova obavještenja se pojave u uglu, u stilu aplikacije,
+  // i sama nestanu. Greške ostaju duže i crvene su, uspjeh kraće i zelen.
+  const [obavjestenja, setObavjestenja] = useState([])
+  const obavijesti = useCallback((tekst, vrsta = 'info') => {
+    const id = Date.now() + Math.random()
+    setObavjestenja(prev => [...prev, { id, tekst, vrsta }])
+    setTimeout(() => setObavjestenja(prev => prev.filter(o => o.id !== id)), vrsta === 'greska' ? 7000 : 3500)
+  }, [])
   const [novaFaza, setNovaFaza] = useState('')
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -698,7 +709,7 @@ export default function App() {
 
   const ucitajProjekte = async () => {
     const { data, error } = await supabase.from('projekti').select('*').order('azuriran_at', { ascending: false })
-    if (error) { console.error('Greška pri učitavanju projekata:', error); alert('Greška pri učitavanju liste projekata: ' + error.message) }
+    if (error) { console.error('Greška pri učitavanju projekata:', error); obavijesti('Greška pri učitavanju liste projekata: ' + error.message, 'greska') }
     setProjekti(data || [])
     // NAMJERNO: ne bira se automatski prvi projekat. Svaki ulazak u aplikaciju (i svako
     // osvježavanje stranice) treba da prikaže početni ekran za izbor/kreiranje projekta —
@@ -724,7 +735,7 @@ export default function App() {
 
   const ucitajPozicije = async (fazaId) => {
     const { data, error } = await supabase.from('pozicije').select('*').eq('faza_id', fazaId).order('redoslijed')
-    if (error) { console.error('Greška pri učitavanju pozicija:', error); alert('Greška pri učitavanju stavki: ' + error.message) }
+    if (error) { console.error('Greška pri učitavanju pozicija:', error); obavijesti('Greška pri učitavanju stavki: ' + error.message, 'greska') }
     setPozicije(data || [])
   }
 
@@ -742,7 +753,7 @@ export default function App() {
         kategorija: roditeljPoz.kategorija || 'Ostalo',
         redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
       }).select().single()
-      if (error) { alert('Greška pri dodavanju podstavke: ' + error.message); return }
+      if (error) { obavijesti('Greška pri dodavanju podstavke: ' + error.message, 'greska'); return }
       if (data) setPozicije(prev => [...prev, data])
     } finally {
       dodavanjeUTokuRef.current = false
@@ -775,7 +786,7 @@ export default function App() {
       if (error) throw error
       setFirma(data)
     } catch (e) {
-      alert('Greška pri čuvanju postavki firme: ' + e.message)
+      obavijesti('Greška pri čuvanju postavki firme: ' + e.message, 'greska')
     }
     setFirmaLoading(false)
   }
@@ -789,7 +800,7 @@ export default function App() {
   const dodajProjekat = async () => {
     if (!noviProjekat.trim()) return
     const { data, error } = await supabase.from('projekti').insert({ naziv: noviProjekat.trim() }).select().single()
-    if (error) { alert('Greška pri dodavanju projekta: ' + error.message); return }
+    if (error) { obavijesti('Greška pri dodavanju projekta: ' + error.message, 'greska'); return }
     if (data) {
       setNoviProjekat('')
       setShowNoviProjekt(false)
@@ -803,7 +814,7 @@ export default function App() {
     setAktivniProjekat(prev => ({ ...prev, [polje]: vrijednost }))
     setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, [polje]: vrijednost } : p))
     const { error } = await supabase.from('projekti').update({ [polje]: vrijednost }).eq('id', aktivniProjekat.id)
-    if (error) alert(`Greška pri čuvanju polja "${polje}": ` + error.message + ' — pokušajte ponovo, izmjena možda nije sačuvana.')
+    if (error) obavijesti(`Greška pri čuvanju polja "${polje}": ` + error.message + ' — pokušajte ponovo, izmjena možda nije sačuvana.', 'greska')
   }
 
   const obrisiProjekat = async (id) => {
@@ -827,7 +838,7 @@ export default function App() {
       setProjekti(prev => prev.filter(p => p.id !== id))
       if (aktivniProjekat?.id === id) { setAktivniProjekat(null); setFaze([]); setPozicije([]) }
     } catch (e) {
-      alert('Greška pri brisanju projekta: ' + e.message)
+      obavijesti('Greška pri brisanju projekta: ' + e.message, 'greska')
     }
   }
 
@@ -841,13 +852,13 @@ export default function App() {
     // Bez duplikata predefinisanih grupa u istoj struci — ista se može dodati samo jednom
     // (za dvije iste koristi se prilagođena grupa). Custom grupe (bez kategorije) se ne provjeravaju.
     if (kategorija && faze.some(f => f.kategorija === kategorija && (f.struka_kod || 'gradjevinski') === aktivnaStruka)) {
-      alert('Grupa „' + nazivTrim + '" je već dodata. Za dvije iste grupe koristite prilagođenu grupu (+ Dodaj).')
+      obavijesti('Grupa „' + nazivTrim + '" je već dodata. Za dvije iste grupe koristite prilagođenu grupu (+ Dodaj).', 'info')
       return
     }
     const { data, error } = await supabase.from('faze').insert({
       projekat_id: aktivniProjekat.id, naziv: nazivTrim, redoslijed: faze.length, struka_kod: aktivnaStruka, kategorija: kategorija || null
     }).select().single()
-    if (error) { alert('Greška pri dodavanju grupe radova: ' + error.message); return }
+    if (error) { obavijesti('Greška pri dodavanju grupe radova: ' + error.message, 'greska'); return }
     if (data) { setNovaFaza(''); setFaze(prev => sortirajFaze([...prev, data])); setAktivnaFaza(data) }
   }
 
@@ -863,14 +874,14 @@ export default function App() {
       setFaze(prev => prev.filter(f => f.id !== id))
       if (aktivnaFaza?.id === id) { setAktivnaFaza(null); setPozicije([]) }
     } catch (e) {
-      alert('Greška pri brisanju grupe radova: ' + e.message)
+      obavijesti('Greška pri brisanju grupe radova: ' + e.message, 'greska')
     }
   }
 
   const preimenujFazu = async (id, noviNaziv) => {
     if (!noviNaziv.trim()) return
     const { error } = await supabase.from('faze').update({ naziv: noviNaziv.trim() }).eq('id', id)
-    if (error) { alert('Greška pri preimenovanju grupe radova: ' + error.message); return }
+    if (error) { obavijesti('Greška pri preimenovanju grupe radova: ' + error.message, 'greska'); return }
     setFaze(prev => prev.map(f => f.id === id ? { ...f, naziv: noviNaziv.trim() } : f))
     setAktivnaFaza(prev => prev && prev.id === id ? { ...prev, naziv: noviNaziv.trim() } : prev)
   }
@@ -896,7 +907,7 @@ export default function App() {
       // Najvjerovatniji uzrok: kolona još ne postoji u bazi (migracija nije pokrenuta).
       // Ne rušimo aplikaciju — javljamo jasno i tiho ostavljamo tekst u lokalnom stanju.
       console.error('Greška pri čuvanju opštih uslova:', error)
-      alert('Opšti tehnički uslovi nisu sačuvani. Ako je ovo prvi put — provjerite da je u bazi pokrenuta migracija koja dodaje kolonu "opsti_uslovi" na tabelu faze.')
+      obavijesti('Opšti tehnički uslovi nisu sačuvani. Ako je ovo prvi put — provjerite da je u bazi pokrenuta migracija koja dodaje kolonu "opsti_uslovi" na tabelu faze.', 'uspjeh')
       return
     }
     setFaze(prev => prev.map(f => f.id === fazaId ? { ...f, opsti_uslovi: vrijednost } : f))
@@ -1003,7 +1014,7 @@ export default function App() {
     setAktivniProjekat(prev => ({ ...prev, struke: noveStruke }))
     setProjekti(prev => prev.map(p => p.id === aktivniProjekat.id ? { ...p, struke: noveStruke } : p))
     const { error } = await supabase.from('projekti').update({ struke: noveStruke }).eq('id', aktivniProjekat.id)
-    if (error) alert('Greška pri čuvanju struka: ' + error.message + ' — izmjena možda nije sačuvana.')
+    if (error) obavijesti('Greška pri čuvanju struka: ' + error.message + ' — izmjena možda nije sačuvana.', 'greska')
   }
 
   const preimenujStruku = async (kod, noviNaziv) => {
@@ -1077,7 +1088,7 @@ export default function App() {
         faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
         cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
       }).select().single()
-      if (error) { alert('Greška pri dodavanju stavke: ' + error.message); return }
+      if (error) { obavijesti('Greška pri dodavanju stavke: ' + error.message, 'greska'); return }
       if (data) setPozicije(prev => [...prev, data])
     } finally {
       dodavanjeUTokuRef.current = false
@@ -1106,7 +1117,7 @@ export default function App() {
         faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
         cijena: cijenaUProjektu, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
-      if (error) { alert('Greška pri dodavanju stavke iz moje baze: ' + error.message); return }
+      if (error) { obavijesti('Greška pri dodavanju stavke iz moje baze: ' + error.message, 'greska'); return }
       if (data) setPozicije(prev => [...prev, data])
     } finally {
       dodavanjeUTokuRef.current = false
@@ -1126,7 +1137,7 @@ export default function App() {
         faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
         cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
-      if (error) { alert('Greška pri dodavanju vlastite stavke: ' + error.message); return }
+      if (error) { obavijesti('Greška pri dodavanju vlastite stavke: ' + error.message, 'greska'); return }
       if (data) setPozicije(prev => [...prev, data])
     } finally {
       dodavanjeUTokuRef.current = false
@@ -1220,10 +1231,10 @@ export default function App() {
   const preurediSifre = async () => {
     if (!aktivnaFaza) return
     const brojGrupe = aktivnaFaza.kategorija ? SIFRA_KATEGORIJE_MAP.get(aktivnaFaza.kategorija) : null
-    if (!brojGrupe) { alert('Ova grupa radova nije vezana za šifarnik (prilagođena je), pa šifre nije moguće automatski preurediti.'); return }
+    if (!brojGrupe) { obavijesti('Ova grupa radova nije vezana za šifarnik (prilagođena je), pa šifre nije moguće automatski preurediti.', 'greska'); return }
 
     const roditelji = pozicije.filter(p => !p.parent_id).sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
-    if (roditelji.length === 0) { alert('U ovoj grupi radova nema pozicija.'); return }
+    if (roditelji.length === 0) { obavijesti('U ovoj grupi radova nema pozicija.', 'info'); return }
 
     const jePrilagodjena = p => !p.sifra || /\.90\.\d+/.test(p.sifra) || /\d+a$/.test(p.sifra)
     const nove = roditelji.map((p, i) => {
@@ -1231,7 +1242,7 @@ export default function App() {
       return { id: p.id, stara: p.sifra || '', nova: `${brojGrupe}.01.${rb}${jePrilagodjena(p) ? 'a' : ''}` }
     })
     const izmjene = nove.filter(n => n.stara !== n.nova)
-    if (izmjene.length === 0) { alert('Šifre su već usklađene sa redoslijedom pozicija.'); return }
+    if (izmjene.length === 0) { obavijesti('Šifre su već usklađene sa redoslijedom pozicija.', 'info'); return }
 
     if (!confirm(
       `Preurediti šifre u grupi „${aktivnaFaza.naziv}"?\n\n` +
@@ -1249,7 +1260,7 @@ export default function App() {
       const { error } = await supabase.from('pozicije').update({ sifra: n.nova }).eq('id', n.id)
       if (error) { greske++; console.error('Greška pri upisu šifre:', error) }
     }
-    if (greske > 0) { alert(`Preuređivanje završeno, ali ${greske} šifri nije sačuvano. Osvježite stranicu i pokušajte ponovo.`); ucitajPozicije(aktivnaFaza.id) }
+    if (greske > 0) { obavijesti(`Preuređivanje završeno, ali ${greske} šifri nije sačuvano. Osvježite stranicu i pokušajte ponovo.`, 'greska'); ucitajPozicije(aktivnaFaza.id) }
   }
 
   const azurirajPoziciju = async (id, polje, vrijednost, _zaOpoziv = false) => {
@@ -1298,7 +1309,7 @@ export default function App() {
     } catch (e) {
       // Ne diramo prikaz ako brisanje u bazi nije uspjelo — bez ovoga bi korisnik vidio da je
       // stavka "nestala" iz tabele iako i dalje postoji u bazi (neusklađeno stanje).
-      alert('Greška pri brisanju stavke: ' + e.message + ' — stavka NIJE obrisana, pokušajte ponovo.')
+      obavijesti('Greška pri brisanju stavke: ' + e.message + ' — stavka NIJE obrisana, pokušajte ponovo.', 'greska')
       return
     }
 
@@ -1368,7 +1379,7 @@ export default function App() {
         else { neuspjelaDjeca++; console.error('Greška pri vraćanju podstavke:', eDijete) }
       }
       if (neuspjelaDjeca > 0) {
-        alert(`Glavna stavka je vraćena, ali ${neuspjelaDjeca} od ${djeca.length} podstavki nije uspjelo da se vrati — provjerite ručno.`)
+        obavijesti(`Glavna stavka je vraćena, ali ${neuspjelaDjeca} od ${djeca.length} podstavki nije uspjelo da se vrati — provjerite ručno.`, 'greska')
       }
 
       // Ponovo učitaj kompletnu listu iz baze (umjesto pukog lokalnog dodavanja na kraj niza) —
@@ -1379,7 +1390,7 @@ export default function App() {
         await ucitajPozicije(aktivnaFaza.id)
       }
     } catch (e) {
-      alert('Greška pri vraćanju obrisane stavke: ' + e.message)
+      obavijesti('Greška pri vraćanju obrisane stavke: ' + e.message, 'greska')
     }
   }
 
@@ -1390,9 +1401,9 @@ export default function App() {
     const { error } = await supabase.from('moja_baza').insert({
       naziv: poz.naziv, jedinica: poz.jedinica, cijena: poz.cijena, kategorija: poz.kategorija, valuta: valuta
     })
-    if (error) { alert('Greška pri čuvanju u moju bazu: ' + error.message); return }
+    if (error) { obavijesti('Greška pri čuvanju u moju bazu: ' + error.message, 'greska'); return }
     ucitajMojuBazu()
-    alert(`Stavka sačuvana u vašu bazu (cijena u ${valuta}).`)
+    obavijesti(`Stavka sačuvana u vašu bazu (cijena u ${valuta}).`, 'uspjeh')
   }
 
   // ── ZAMJENA POSTOJEĆE STAVKE NOVOM IZ BAZE (U MJESTU) ──
@@ -1426,7 +1437,7 @@ export default function App() {
       setRevizija(r => r + 1) // forsira sva nekontrolisana polja te pozicije (naziv/cijena/šifra/količina/jedinica) da prikažu nove vrijednosti
       setZamjenaPozicijaId(null)
     } catch (e) {
-      alert('Greška pri zamjeni stavke: ' + e.message)
+      obavijesti('Greška pri zamjeni stavke: ' + e.message, 'greska')
     }
   }
 
@@ -1484,13 +1495,13 @@ export default function App() {
       const { error: projErr } = await supabase.from('projekti').update({ valuta: novaValuta }).eq('id', aktivniProjekat.id)
       if (projErr) {
         console.error('Valuta konvertovana, ali nije zapamćena na projektu:', projErr)
-        alert('Cijene su uspješno konvertovane. Napomena: izbor valute se ovaj put nije trajno zapamtio (tehnički detalj) — javite ovo Claude-u.')
+        obavijesti('Cijene su uspješno konvertovane. Napomena: izbor valute se ovaj put nije trajno zapamtio (tehnički detalj) — javite ovo Claude-u.', 'greska')
       } else {
         setAktivniProjekat(prev => prev ? { ...prev, valuta: novaValuta } : prev)
       }
     } catch (e) {
       // Valuta OSTAJE nepromijenjena ovdje — nema više setValuta poziva poslije ovog catch bloka.
-      alert('Greška pri konverziji cijena — valuta NIJE promijenjena da se izbjegne pogrešno stanje: ' + e.message)
+      obavijesti('Greška pri konverziji cijena — valuta NIJE promijenjena da se izbjegne pogrešno stanje: ' + e.message, 'greska')
     }
     setLoading(false)
   }
@@ -1524,7 +1535,7 @@ export default function App() {
       const { error } = await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
       if (error) { neuspjelo++; console.error('Greška pri upisu cijene za', s.id, error) }
     }
-    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`)
+    if (neuspjelo > 0) obavijesti(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`, 'greska')
 
     // Ponovo učitaj iz baze radi sigurnosti (potvrda konzistentnosti)
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
@@ -1571,7 +1582,7 @@ export default function App() {
       const { error } = await supabase.from('pozicije').update({ cijena: s.cijena }).eq('id', s.id)
       if (error) { neuspjelo++; console.error('Greška pri upisu cijene za', s.id, error) }
     }
-    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`)
+    if (neuspjelo > 0) obavijesti(`${neuspjelo} od ${stavkeNoveCijene.length} cijena nije uspjelo da se sačuva — provjerite tabelu.`, 'greska')
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
     setRevizija(r => r + 1)
   }
@@ -1592,7 +1603,7 @@ export default function App() {
       const { error } = await supabase.from('pozicije').update({ naziv: s.noviOpis }).eq('id', s.id)
       if (error) { neuspjelo++; console.error('Greška pri upisu izmjene za', s.id, error) }
     }
-    if (neuspjelo > 0) alert(`${neuspjelo} od ${stavkeIzmjene.length} izmjena nije uspjelo da se sačuva — provjerite tabelu.`)
+    if (neuspjelo > 0) obavijesti(`${neuspjelo} od ${stavkeIzmjene.length} izmjena nije uspjelo da se sačuva — provjerite tabelu.`, 'greska')
 
     // Ponovo učitaj iz baze radi sigurnosti
     if (aktivnaFaza) await ucitajPozicije(aktivnaFaza.id)
@@ -1637,7 +1648,7 @@ export default function App() {
 
   // ── EXCEL EXPORT ──
   const exportExcel = async (filtrirajStruku = null) => {
-    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za export.'); return }
+    if (!aktivniProjekat || faze.length === 0) { obavijesti('Nema podataka za export.', 'info'); return }
 
     try {
       const svePozicije = {}
@@ -1675,13 +1686,13 @@ export default function App() {
       a.click()
       URL.revokeObjectURL(url)
     } catch(e) {
-      alert('Greška pri exportu: ' + e.message)
+      obavijesti('Greška pri exportu: ' + e.message, 'greska')
     }
   }
 
   // ── PDF PRINT ──
   const exportPDF = async (filtrirajStruku = null) => {
-    if (!aktivniProjekat || faze.length === 0) { alert('Nema podataka za štampu.'); return }
+    if (!aktivniProjekat || faze.length === 0) { obavijesti('Nema podataka za štampu.', 'info'); return }
 
     const svePozicije = {}
     // Paralelno (ne sekvencijalno) učitavanje pozicija za sve faze — brže za projekte sa više
@@ -1691,7 +1702,7 @@ export default function App() {
     )
     for (let i = 0; i < faze.length; i++) {
       const { data, error } = rezultatiFetchPdf[i]
-      if (error) { alert('Greška pri učitavanju podataka za štampu: ' + error.message); return }
+      if (error) { obavijesti('Greška pri učitavanju podataka za štampu: ' + error.message, 'greska'); return }
       svePozicije[faze[i].id] = data || []
     }
 
@@ -2005,7 +2016,7 @@ ${globalnaRekapitulacijaHtml}
     // Otvori print prozor
     const printWin = window.open('', '_blank', 'width=1000,height=750,scrollbars=yes')
     if (!printWin) {
-      alert('Molimo dozvolite popup prozore za ovaj sajt da bi štampa radila.')
+      obavijesti('Molimo dozvolite popup prozore za ovaj sajt da bi štampa radila.', 'info')
       return
     }
     printWin.document.open()
@@ -2061,7 +2072,7 @@ ${globalnaRekapitulacijaHtml}
       redoslijed: red,
       sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
     }).select().single()
-    if (error) { alert('Greška pri dodavanju stavke iz AI asistenta: ' + error.message); return }
+    if (error) { obavijesti('Greška pri dodavanju stavke iz AI asistenta: ' + error.message, 'greska'); return }
     if (data) setPozicije(prev => [...prev, data])
   }
 
@@ -2170,10 +2181,10 @@ ${globalnaRekapitulacijaHtml}
       // aktivniProjekat?.id, koji učitava faze i bira prvu grupu radova nove (klonirane)
       // strukе — ista logika kao pri običnom ulasku u aplikaciju, bez potrebe za duplim kodom.
       if (neuspjelihStavki > 0) {
-        alert(`Projekat je kloniran, ali ${neuspjelihStavki} stavki nije uspjelo da se kopira — provjerite klon i po potrebi ih ručno dodajte.`)
+        obavijesti(`Projekat je kloniran, ali ${neuspjelihStavki} stavki nije uspjelo da se kopira — provjerite klon i po potrebi ih ručno dodajte.`, 'greska')
       }
     } catch(e) {
-      alert('Greška pri kloniranju: ' + e.message)
+      obavijesti('Greška pri kloniranju: ' + e.message, 'greska')
     }
     setKloniranjeLoading(false)
   }
@@ -2183,7 +2194,7 @@ ${globalnaRekapitulacijaHtml}
   // za veze roditelj/podstavka (_lokalniId/_roditeljLokalniId), NE stvarne ID-jeve iz baze,
   // kako fajl ne bi zavisio od/otkrivao interne DB identifikatore.
   const exportProjekat = async () => {
-    if (!aktivniProjekat) { alert('Odaberite projekat za izvoz.'); return }
+    if (!aktivniProjekat) { obavijesti('Odaberite projekat za izvoz.', 'info'); return }
     try {
       const svePozicije = {}
       // Paralelno (ne sekvencijalno) učitavanje pozicija za sve faze — brže za projekte sa
@@ -2233,7 +2244,7 @@ ${globalnaRekapitulacijaHtml}
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert('Greška pri izvozu projekta: ' + e.message)
+      obavijesti('Greška pri izvozu projekta: ' + e.message, 'greska')
     }
   }
 
@@ -2316,10 +2327,10 @@ ${globalnaRekapitulacijaHtml}
       await ucitajProjekte()
       setAktivniProjekat(noviProj)
       if (neuspjelihStavki > 0) {
-        alert(`Projekat je uvezen, ali ${neuspjelihStavki} stavki nije uspjelo da se prenese — provjerite uvezeni projekat.`)
+        obavijesti(`Projekat je uvezen, ali ${neuspjelihStavki} stavki nije uspjelo da se prenese — provjerite uvezeni projekat.`, 'greska')
       }
     } catch (e) {
-      alert('Greška pri uvozu projekta: ' + e.message)
+      obavijesti('Greška pri uvozu projekta: ' + e.message, 'greska')
     }
     setUvozLoading(false)
   }
@@ -3210,6 +3221,27 @@ ${globalnaRekapitulacijaHtml}
 
       {/* Moja baza modal */}
       {/* ── MODAL: NOVI PROJEKAT (jasan tok kreiranja, umjesto skoka fokusa na malo polje) ── */}
+      {/* ── OBAVJEŠTENJA (toast) — zamjena za alert() preglednika ── */}
+      {obavjestenja.length > 0 && (
+        <div style={{ position: 'fixed', top: 74, right: 20, zIndex: 900, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 380 }}>
+          {obavjestenja.map(o => {
+            const stil = o.vrsta === 'greska'
+              ? { bg: '#FBE4E1', border: '#E8A5A0', boja: '#8E2C21', ikona: '⚠️' }
+              : o.vrsta === 'uspjeh'
+                ? { bg: '#E3F1E7', border: '#A9CDB5', boja: '#1B4332', ikona: '✓' }
+                : { bg: '#E8ECF0', border: '#B7C4D0', boja: '#1B2F43', ikona: 'ℹ️' }
+            return (
+              <div key={o.id} onClick={() => setObavjestenja(prev => prev.filter(x => x.id !== o.id))}
+                title="Klikni da zatvoriš"
+                style={{ background: stil.bg, border: `1px solid ${stil.border}`, color: stil.boja, borderRadius: 10, padding: '11px 14px', fontSize: 12.5, lineHeight: 1.45, boxShadow: '0 4px 16px rgba(0,0,0,0.13)', cursor: 'pointer', display: 'flex', gap: 9, alignItems: 'flex-start', whiteSpace: 'pre-wrap' }}>
+                <span style={{ flexShrink: 0, fontSize: 13 }}>{stil.ikona}</span>
+                <span style={{ flex: 1 }}>{o.tekst}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {showNoviProjekt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onMouseDown={e => { if (e.target === e.currentTarget) { setShowNoviProjekt(false); setNoviProjekat('') } }}>
@@ -3281,7 +3313,7 @@ ${globalnaRekapitulacijaHtml}
                             const dataUrl = await resizeSlika(file)
                             await sacuvajFirmu(dataUrl, undefined)
                           } catch (err) {
-                            alert(err.message || 'Greška pri obradi slike.')
+                            obavijesti(err.message || 'Greška pri obradi slike.', 'greska')
                           }
                           e.target.value = ''
                         }} />
