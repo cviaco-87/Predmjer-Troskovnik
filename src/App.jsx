@@ -1210,6 +1210,48 @@ export default function App() {
     dragOverPoz.current = null
   }
 
+  // ── PREUREĐIVANJE ŠIFRI PO REDOSLIJEDU (dugme u traci grupe radova) ──
+  // Šifre se prenumerišu tako da PRATE stvarni redoslijed pozicija u predmjeru:
+  //   [broj grupe].01.[redni broj]  — pozicije preuzete iz kataloga (baze)
+  //   [broj grupe].01.[redni broj]a — PRILAGOĐENE pozicije (AI-generisane ili vlastite);
+  //                                   slovo "a" označava da nije iz normiranog kataloga,
+  //                                   pa se izbjegava sudar sa stvarnim kataloškim šiframa.
+  // Prilagođenom se smatra pozicija bez šifre ili sa šifrom u obrascu [grupa].90.xxx / ...a.
+  const preurediSifre = async () => {
+    if (!aktivnaFaza) return
+    const brojGrupe = aktivnaFaza.kategorija ? SIFRA_KATEGORIJE_MAP.get(aktivnaFaza.kategorija) : null
+    if (!brojGrupe) { alert('Ova grupa radova nije vezana za šifarnik (prilagođena je), pa šifre nije moguće automatski preurediti.'); return }
+
+    const roditelji = pozicije.filter(p => !p.parent_id).sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
+    if (roditelji.length === 0) { alert('U ovoj grupi radova nema pozicija.'); return }
+
+    const jePrilagodjena = p => !p.sifra || /\.90\.\d+/.test(p.sifra) || /\d+a$/.test(p.sifra)
+    const nove = roditelji.map((p, i) => {
+      const rb = String(i + 1).padStart(3, '0')
+      return { id: p.id, stara: p.sifra || '', nova: `${brojGrupe}.01.${rb}${jePrilagodjena(p) ? 'a' : ''}` }
+    })
+    const izmjene = nove.filter(n => n.stara !== n.nova)
+    if (izmjene.length === 0) { alert('Šifre su već usklađene sa redoslijedom pozicija.'); return }
+
+    if (!confirm(
+      `Preurediti šifre u grupi „${aktivnaFaza.naziv}"?\n\n` +
+      `• Sve pozicije dobijaju šifru po redoslijedu: ${brojGrupe}.01.001, ${brojGrupe}.01.002…\n` +
+      `• Prilagođene (AI-generisane i vlastite) pozicije dobijaju slovo „a" na kraju.\n\n` +
+      `Biće izmijenjeno ${izmjene.length} od ${nove.length} pozicija. Ova radnja se ne može opozvati.`
+    )) return
+
+    setPozicije(prev => prev.map(p => {
+      const n = nove.find(x => x.id === p.id)
+      return n ? { ...p, sifra: n.nova } : p
+    }))
+    let greske = 0
+    for (const n of izmjene) {
+      const { error } = await supabase.from('pozicije').update({ sifra: n.nova }).eq('id', n.id)
+      if (error) { greske++; console.error('Greška pri upisu šifre:', error) }
+    }
+    if (greske > 0) { alert(`Preuređivanje završeno, ali ${greske} šifri nije sačuvano. Osvježite stranicu i pokušajte ponovo.`); ucitajPozicije(aktivnaFaza.id) }
+  }
+
   const azurirajPoziciju = async (id, polje, vrijednost, _zaOpoziv = false) => {
     const trenutna = pozicije.find(p => p.id === id)
     const staraVrijednost = trenutna ? trenutna[polje] : undefined
@@ -2677,6 +2719,11 @@ ${globalnaRekapitulacijaHtml}
                   title={istorijaIzmjena.length > 0 ? `Opozovi zadnju izmjenu (${istorijaIzmjena.length} na čekanju)` : 'Nema izmjena za opoziv'}
                   style={{ ...B('transparent', istorijaIzmjena.length === 0 ? 'rgba(255,255,255,.4)' : '#fff', '1px solid rgba(255,255,255,.5)'), cursor: istorijaIzmjena.length === 0 ? 'not-allowed' : 'pointer' }}>
                   ↩ Opozovi{istorijaIzmjena.length > 0 ? ` (${istorijaIzmjena.length})` : ''}
+                </button>
+                <button onClick={preurediSifre}
+                  title={'Preuredi šifre pozicija tako da prate redoslijed u predmjeru (prilagođene stavke dobijaju slovo „a“)'}
+                  style={B('transparent', '#fff', '1px solid rgba(255,255,255,.5)')}>
+                  🔢 Preuredi šifre
                 </button>
                 <div style={{ flex: 1 }}></div>
                 {/* Valutni meni */}
