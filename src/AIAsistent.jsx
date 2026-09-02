@@ -288,7 +288,7 @@ Kako mogu pomoći? Npr:
   const [dimenzije, setDimenzije] = useState(() => {
     // Ograniči na trenutni ekran — ranije sačuvana veličina može biti prevelika za manji monitor
     // (panel je usidren na bottom:150, pa mu treba prostora do vrha).
-    const maxH = (typeof window !== 'undefined' ? window.innerHeight : 900) - 190
+    const maxH = (typeof window !== 'undefined' ? window.innerHeight : 900) - 60
     const maxW = (typeof window !== 'undefined' ? window.innerWidth : 1400) - 60
     try {
       const s = JSON.parse(localStorage.getItem('predmjer_ai_dim'))
@@ -302,7 +302,7 @@ Kako mogu pomoći? Npr:
     const startX = e.clientX, startY = e.clientY
     const startW = dimenzije.w, startH = dimenzije.h
     const maxW = Math.min(window.innerWidth - 60, 1000)
-    const maxH = window.innerHeight - 190  // panel je usidren na bottom:150 — ostavi prostora do vrha
+    const maxH = window.innerHeight - 60   // panel je usidren na bottom:20 — ostavi mali razmak do vrha
     const pomjeraj = (ev) => {
       const w = Math.max(360, Math.min(maxW, startW + (startX - ev.clientX)))
       const h = Math.max(400, Math.min(maxH, startH + (startY - ev.clientY)))
@@ -1059,7 +1059,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
   }
 
   return (
-    <div ref={panelRef} style={{ position: 'fixed', bottom: 150, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+    <div ref={panelRef} style={{ position: 'fixed', bottom: 20, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
       {/* Ručka za promjenu veličine — samo dvije kose crtice, bez podloge (da ne prekrivaju
           ikonu asistenta). Posvijetle na prelaz miša, kao znak da su klikabilne. */}
       <div onMouseDown={pocniPromjenuVelicine}
