@@ -1175,13 +1175,13 @@ export default function App() {
     dragPoz.current = poz
     e.dataTransfer.effectAllowed = 'move'
     e.currentTarget.style.opacity = '0.5'
-    e.currentTarget.style.cursor = 'grabbing'
+    document.body.classList.add('vuce-stavku')  // kursor "zatvorena šaka" dok traje prevlačenje
   }
 
   const onDragEnd = (e) => {
     dragRuckaAktivna.current = false
     e.currentTarget.style.opacity = '1'
-    e.currentTarget.style.cursor = 'grab'
+    document.body.classList.remove('vuce-stavku')
   }
 
   const onDragOver = (e, poz) => {
@@ -1192,6 +1192,7 @@ export default function App() {
 
   const onDrop = async (e, targetPoz) => {
     e.preventDefault()
+    document.body.classList.remove('vuce-stavku')  // vrati normalan kursor odmah po ispuštanju
     if (!dragPoz.current || dragPoz.current.id === targetPoz.id) return
     if (dragPoz.current.parent_id || targetPoz.parent_id) return
 
@@ -2384,6 +2385,9 @@ ${globalnaRekapitulacijaHtml}
         .drag-rucka, .red-akcije { opacity: 0; transition: opacity .12s ease; }
         .drag-rucka { cursor: grab; }
         .drag-rucka:active { cursor: grabbing; }
+        /* Dok traje prevlačenje stavke, kursor je "zatvorena šaka" na CIJELOJ stranici — inače bi
+           ga preuzeo cursor:grab sa reda ispod, pa se ne bi vidjelo da je prevlačenje aktivno. */
+        body.vuce-stavku, body.vuce-stavku * { cursor: grabbing !important; }
         tr:hover .drag-rucka, tr:hover .red-akcije { opacity: 1; }
         .sifra-input::placeholder { color: #C9CDD2; font-weight: 400; }
       `}</style>
@@ -2958,7 +2962,7 @@ ${globalnaRekapitulacijaHtml}
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
-                                      <span className="drag-rucka" onMouseDown={() => { dragRuckaAktivna.current = true }} style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed">⠿</span>
+                                      <span className="drag-rucka" onMouseDown={() => { dragRuckaAktivna.current = true }} style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                     </div>
                                   </td>
                                   <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
@@ -3389,28 +3393,32 @@ ${globalnaRekapitulacijaHtml}
       )}
 
       {/* ── AI ASISTENT PLUTAJUĆE DUGME ── */}
+      {/* Prikazuje se SAMO kad je asistent zatvoren — dok je otvoren, zatvara se preko „✕ Zatvori"
+          u samom panelu, pa bi dugme ovdje samo trošilo prostor i guralo panel nagore. */}
+      {!showAI && (
       <button
-        onClick={() => setShowAI(prev => !prev)}
+        onClick={() => setShowAI(true)}
         title="AI Asistent za predmjer"
         style={{
-          position: 'fixed', bottom: 84, right: 24, zIndex: 299,
+          position: 'fixed', bottom: 20, right: 24, zIndex: 299,
           width: 56, height: 56, borderRadius: '50%',
-          background: showAI ? '#142536' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)',
+          background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)',
           color: '#fff', border: 'none', cursor: 'pointer',
           fontSize: 24, boxShadow: '0 4px 20px rgba(27,67,50,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s', transform: showAI ? 'rotate(45deg)' : 'none'
+          transition: 'all 0.2s'
         }}
-        onMouseEnter={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg) scale(1.1)' : 'scale(1.1)'}
-        onMouseLeave={e => e.currentTarget.style.transform = showAI ? 'rotate(45deg)' : 'none'}
+        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'none'}
       >
-        {showAI ? '✕' : '✨'}
+        ✨
       </button>
+      )}
 
       {/* Tooltip */}
       {!showAI && (
         <div style={{
-          position: 'fixed', bottom: 146, right: 18, zIndex: 299,
+          position: 'fixed', bottom: 82, right: 18, zIndex: 299,
           background: '#1B2F43', color: '#fff', borderRadius: 8,
           padding: '5px 10px', fontSize: 11, fontWeight: 600,
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
