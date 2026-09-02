@@ -286,8 +286,15 @@ Kako mogu pomoći? Npr:
 
   // Veličina panela — korisnik je mijenja povlačenjem gornjeg lijevog ugla; pamti se u pregledniku.
   const [dimenzije, setDimenzije] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem('predmjer_ai_dim')); if (s?.w && s?.h) return s } catch {}
-    return { w: 440, h: 600 }
+    // Ograniči na trenutni ekran — ranije sačuvana veličina može biti prevelika za manji monitor
+    // (panel je usidren na bottom:150, pa mu treba prostora do vrha).
+    const maxH = (typeof window !== 'undefined' ? window.innerHeight : 900) - 190
+    const maxW = (typeof window !== 'undefined' ? window.innerWidth : 1400) - 60
+    try {
+      const s = JSON.parse(localStorage.getItem('predmjer_ai_dim'))
+      if (s?.w && s?.h) return { w: Math.min(s.w, maxW), h: Math.min(s.h, maxH) }
+    } catch {}
+    return { w: 440, h: Math.min(600, maxH) }
   })
 
   const pocniPromjenuVelicine = (e) => {
@@ -295,7 +302,7 @@ Kako mogu pomoći? Npr:
     const startX = e.clientX, startY = e.clientY
     const startW = dimenzije.w, startH = dimenzije.h
     const maxW = Math.min(window.innerWidth - 60, 1000)
-    const maxH = window.innerHeight - 120
+    const maxH = window.innerHeight - 190  // panel je usidren na bottom:150 — ostavi prostora do vrha
     const pomjeraj = (ev) => {
       const w = Math.max(360, Math.min(maxW, startW + (startX - ev.clientX)))
       const h = Math.max(400, Math.min(maxH, startH + (startY - ev.clientY)))
@@ -1040,7 +1047,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.22)'
         }}
         title={radi ? 'AI radi u pozadini — možete nastaviti rad' : 'Klikni (ili zadrži kursor) da vratiš AI asistenta'}
-        style={{ position: 'fixed', bottom: 80, right: 20, background: odgovorSpreman && !radi ? 'linear-gradient(135deg, #1B4332, #2D6A4F)' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC', transition: 'transform .15s ease, box-shadow .15s ease, background .3s ease' }}>
+        style={{ position: 'fixed', bottom: 20, right: 20, background: odgovorSpreman && !radi ? 'linear-gradient(135deg, #1B4332, #2D6A4F)' : 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC', transition: 'transform .15s ease, box-shadow .15s ease, background .3s ease' }}>
         <span style={{ fontSize: 15 }}>{radi ? '⏳' : (odgovorSpreman ? '✅' : '✨')}</span>
         <div style={{ lineHeight: 1.25 }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>AI Asistent</div>
@@ -1052,7 +1059,7 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
   }
 
   return (
-    <div ref={panelRef} style={{ position: 'fixed', bottom: 80, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
+    <div ref={panelRef} style={{ position: 'fixed', bottom: 150, right: 20, width: dimenzije.w, height: dimenzije.h, background: '#fff', borderRadius: 16, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', zIndex: 300, border: '1px solid #D8D5CC', overflow: 'hidden' }}>
       {/* Ručka za promjenu veličine — samo dvije kose crtice, bez podloge (da ne prekrivaju
           ikonu asistenta). Posvijetle na prelaz miša, kao znak da su klikabilne. */}
       <div onMouseDown={pocniPromjenuVelicine}
