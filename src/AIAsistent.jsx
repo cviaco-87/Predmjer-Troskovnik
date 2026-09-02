@@ -265,6 +265,8 @@ Kako mogu pomoći? Npr:
   const [primjenaLoading, setPrimjenaLoading] = useState(false)
   const [minimiziran, setMinimiziran] = useState(false) // panel skupljen u traku (klik sa strane / Escape)
   const panelRef = useRef(null)
+  const hoverTimerRef = useRef(null) // odgoda za otvaranje trake na zadržavanje kursora
+  useEffect(() => () => clearTimeout(hoverTimerRef.current), [])
   // Kad se asistent ponovo otvori (komponenta se montira), uvijek kreće razvučen — nikad u traci.
   useEffect(() => { setMinimiziran(false) }, [])
   // Pamti za koju fazu je posljednji AI zahtjev za uslove poslat (da parser zna gdje da upiše
@@ -996,10 +998,22 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
 
   // Skupljen u traku — vidi se da asistent "stoji tu", klik ga vraća sa cijelim razgovorom.
   if (minimiziran) {
+    // Traka se otvara klikom ODMAH, ili bez klika nakon kratkog zadržavanja kursora (~0,5 s) —
+    // tako slučajan prelaz mišem preko trake ne otvara panel, a namjerno zadržavanje otvara.
     return (
-      <div onClick={() => setMinimiziran(false)}
-        title="Klikni da vratiš AI asistenta"
-        style={{ position: 'fixed', bottom: 80, right: 20, background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC' }}>
+      <div onClick={() => { clearTimeout(hoverTimerRef.current); setMinimiziran(false) }}
+        onMouseEnter={e => {
+          hoverTimerRef.current = setTimeout(() => setMinimiziran(false), 500)
+          e.currentTarget.style.transform = 'translateY(-2px)'
+          e.currentTarget.style.boxShadow = '0 8px 26px rgba(0,0,0,0.3)'
+        }}
+        onMouseLeave={e => {
+          clearTimeout(hoverTimerRef.current)
+          e.currentTarget.style.transform = 'translateY(0)'
+          e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.22)'
+        }}
+        title="Klikni (ili zadrži kursor) da vratiš AI asistenta"
+        style={{ position: 'fixed', bottom: 80, right: 20, background: 'linear-gradient(135deg, #1B2F43, #2D4B6A)', color: '#fff', borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.22)', zIndex: 300, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 16px', border: '1px solid #D8D5CC', transition: 'transform .15s ease, box-shadow .15s ease' }}>
         <span style={{ fontSize: 15 }}>✨</span>
         <div style={{ lineHeight: 1.25 }}>
           <div style={{ fontWeight: 700, fontSize: 13 }}>AI Asistent</div>
