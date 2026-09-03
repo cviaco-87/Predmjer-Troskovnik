@@ -429,7 +429,9 @@ Kako mogu pomoći? Npr:
   // Puni kontekst (necenzurisan opis) - koristi se za pregled/poboljšanje dokumenta
   const getStavkeKontekstPuni = () => {
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
-    const roditelji = pozicije.filter(p => !p.parent_id)
+    // Vidi napomenu u getStavkeKontekst — označene stavke imaju prednost nad cijelom grupom.
+    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
+    const roditelji = izvor.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
       const djeca = pozicije.filter(d => d.parent_id === p.id)
@@ -450,7 +452,10 @@ Kako mogu pomoći? Npr:
   // Skraćeni kontekst - koristi se za procjenu cijena
   const getStavkeKontekst = () => {
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
-    const roditelji = pozicije.filter(p => !p.parent_id)
+    // Ako je korisnik označio stavke (ikona ✨), šalje se SAMO njihov spisak — inače bi model
+    // vidio cijelu grupu i obradio sve, uprkos uputstvu da radi samo nad označenima.
+    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
+    const roditelji = izvor.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
       const djeca = pozicije.filter(d => d.parent_id === p.id)
@@ -644,13 +649,14 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
   }
 
   const nastaviProcjenuFaze = (valutaZnak, saWebom) => {
-    const roditelji = pozicije.filter(p => !p.parent_id)
-    const brojProcjenjivih = pozicije.filter(p => !p.parent_id && pozicije.filter(d => d.parent_id === p.id).length === 0).length
-      + pozicije.filter(p => p.parent_id).length
+    // Ako korisnik ima označene stavke, procjenjuju se SAMO one — ne cijela grupa.
+    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
+    const brojProcjenjivih = izvor.filter(p => !p.parent_id && izvor.filter(d => d.parent_id === p.id).length === 0).length
+      + izvor.filter(p => p.parent_id).length
     const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
-    const mapa = Object.fromEntries(pozicije.map(p => [p.id, p]))
+    const mapa = Object.fromEntries(izvor.map(p => [p.id, p]))
 
-    const pokreni = () => pokreniBatchProcjenu(pozicije, mapa, valutaZnak, saWebom, false)
+    const pokreni = () => pokreniBatchProcjenu(izvor, mapa, valutaZnak, saWebom, false)
 
     // Upozorenje o trošku samo za velike procjene (prag: preko ~50 stavki ILI preko ~$0.20)
     if (brojProcjenjivih > 50 || usd > 0.20) {
@@ -810,14 +816,14 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
     if (trazeCijene && pozicije && pozicije.length > 0) {
       userContent = `${tekst}
 
-STAVKE U PREDMJERU (procijeni cijene za svaku):
+${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove — procijeni cijene isključivo za njih, ostale stavke u grupi NE diraj):` : 'STAVKE U PREDMJERU (procijeni cijene za svaku):'}
 ${getStavkeKontekst()}
 
 Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
     } else if (trazeIzmjene && pozicije && pozicije.length > 0) {
       userContent = `${tekst}
 
-POSTOJEĆE STAVKE U PREDMJERU (pregledaj svaku i predloži poboljšanja gdje je potrebno):
+${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove — obradi isključivo njih, ostale stavke u grupi NE diraj):` : 'POSTOJEĆE STAVKE U PREDMJERU (pregledaj svaku i predloži poboljšanja gdje je potrebno):'}
 ${getStavkeKontekstPuni()}
 
 Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaju izmjenu.`
@@ -827,10 +833,10 @@ Vrati odgovor ISKLJUČIVO u ---IZMJENE--- formatu. Vrati samo stavke koje trebaj
       // koji format odgovora (---CIJENE--- ili ---IZMJENE---) odgovara traženoj radnji.
       userContent = `${tekst}
 
-POSTOJEĆE STAVKE U PREDMJERU (ovo je kompletan sadržaj trenutne grupe radova "${aktivnaFaza?.naziv || ''}"):
+${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove — obradi isključivo njih):` : `POSTOJEĆE STAVKE U PREDMJERU (ovo je kompletan sadržaj trenutne grupe radova "${aktivnaFaza?.naziv || ''}"):`}
 ${getStavkeKontekstPuni()}
 
-Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJENE--- ako se traži ažuriranje/procjena cijena, ili ---IZMJENE--- ako se traži poboljšanje/dopuna opisa. Obuhvati SVE navedene stavke, ne samo dio.`
+Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJENE--- ako se traži ažuriranje/procjena cijena, ili ---IZMJENE--- ako se traži poboljšanje/dopuna opisa. Obuhvati sve GORE NAVEDENE stavke, ne samo dio${oznacenePozicije.length > 0 ? ' — a to su isključivo označene stavke' : ''}.`
     }
 
     const novaHistorija = [...historija, { role: 'user', content: userContent }]
