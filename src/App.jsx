@@ -472,7 +472,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <>
             <div onClick={() => setPrikaziRezultate(v => !v)}
               title={prikaziRezultate ? 'Sakrij listu rezultata' : 'Prikaži listu rezultata'}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', fontSize: 11, color: '#4C5E6E', background: vertikalno ? '#E7EDF3' : '#f0f0ee', borderBottom: vertikalno ? '1px solid #C9D4DF' : '1px solid #E0DDD5', cursor: 'pointer', userSelect: 'none', fontWeight: 600, position: 'sticky', top: 0, zIndex: 2 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', fontSize: 11, color: '#4C5E6E', background: '#f0f0ee', borderBottom: '1px solid #E0DDD5', cursor: 'pointer', userSelect: 'none', fontWeight: 600, position: 'sticky', top: 0, zIndex: 2 }}>
               <span style={{ fontSize: 10, transition: 'transform .15s', transform: prikaziRezultate ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
               <span style={{ flex: 1 }}>{rezultati.length} rezultata{prikaziRezultate ? ' — kliknite na poziciju da je dodate' : ''}</span>
               <span style={{ fontSize: 10.5, color: '#8A94A0', fontWeight: 500 }}>{prikaziRezultate ? 'sakrij' : 'prikaži'}</span>
@@ -642,6 +642,12 @@ export default function App() {
   const [editFazaNazivMjesto, setEditFazaNazivMjesto] = useState(null) // null | 'toolbar' — da li se trenutno preimenuje aktivna grupa radova (jedino mjesto za to je traka na vrhu; sidebar linija je uklonjena kao suvišna)
   const [dodajStrukuMod, setDodajStrukuMod] = useState(false) // da li je otvoreno polje za unos nove struke
   const [zamjenaPozicijaId, setZamjenaPozicijaId] = useState(null) // ID glavne stavke koja čeka da bude zamijenjena novom iz baze (klik na "🔁")
+  // Stavke označene za AI asistenta (ikona ✨ u redu). Kad ih ima, AI radi SAMO nad njima —
+  // umjesto nad cijelom grupom radova. Rješava čest slučaj: većina stavki je u redu, treba
+  // doraditi samo pojedine.
+  const [aiOznacene, setAiOznacene] = useState(() => new Set())
+  const toggleAiOznaka = id => setAiOznacene(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  useEffect(() => { setAiOznacene(new Set()) }, [aktivnaFaza?.id])
   // Skraćivanje dugih opisa NA EKRANU (preglednost). Duge pozicije se prikazuju skraćeno (~3 reda);
   // klik u polje (fokus) ih razvije radi čitanja/uređivanja, a klik van polja (blur) ih sam skupi.
   // Ovo je čisto vizuelno — PDF i Excel izvoz UVIJEK koriste pun opis (grade se iz p.naziv).
@@ -3222,6 +3228,11 @@ ${globalnaRekapitulacijaHtml}
                                               onMouseLeave={e => { if (!vecUBazi) e.currentTarget.style.opacity = '0.6' }}>{vecUBazi ? '🌟' : '⭐'}</button>
                                           )
                                         })()}
+                                        <button onClick={() => toggleAiOznaka(p.id)}
+                                          title={aiOznacene.has(p.id) ? 'Ukloni oznaku — AI neće posebno obrađivati ovu stavku' : 'Označi ovu stavku za AI asistenta (obradi samo označene)'}
+                                          style={{ background: aiOznacene.has(p.id) ? '#EDE3FA' : 'none', border: aiOznacene.has(p.id) ? '1px solid #7B5EA7' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 3px', borderRadius: 3, opacity: aiOznacene.has(p.id) ? 1 : 0.55 }}
+                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                          onMouseLeave={e => { if (!aiOznacene.has(p.id)) e.currentTarget.style.opacity = '0.55' }}>✨</button>
                                         <button onClick={() => obrisiPoziciju(p.id)}
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 18, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
@@ -3541,6 +3552,8 @@ ${globalnaRekapitulacijaHtml}
           key={aktivniProjekat?.id || 'bez-projekta'}
           aktivnaFaza={aktivnaFaza}
           pozicije={pozicije}
+          oznacenePozicije={pozicije.filter(p => aiOznacene.has(p.id))}
+          onOcistiOznake={() => setAiOznacene(new Set())}
           onDodajStavku={dodajStavkuIzAI}
           valuta={valuta}
           onProcijeniCijene={procijeniCijene}
