@@ -2705,16 +2705,29 @@ ${globalnaRekapitulacijaHtml}
 
                 {projekti.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 22, textAlign: 'left' }}>
-                    {projekti.slice(0, 5).map(p => (
+                    {/* Projekti se ovdje sortiraju po POSLJEDNJOJ IZMJENI (najnoviji na vrhu) i uz naziv
+                        prikazuju investitora i lokaciju — bez toga se projekti sa istim nazivom
+                        (npr. više „Individualnih stambenih objekata") ne mogu razlikovati. */}
+                    {[...projekti]
+                      .sort((a, b) => new Date(b.azuriran_at || b.kreiran_at || 0) - new Date(a.azuriran_at || a.kreiran_at || 0))
+                      .slice(0, 5).map(p => {
+                      const detalji = [p.klijent, p.adresa].map(x => (x || '').trim()).filter(Boolean).join(' · ')
+                      const datum = p.azuriran_at || p.kreiran_at
+                      return (
                       <button key={p.id} onClick={() => setAktivniProjekat(p)}
                         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: '1px solid #E5E2D8', borderRadius: 8, padding: '10px 12px', background: '#F5F4F0', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
                         onMouseEnter={e => e.currentTarget.style.background = '#EEF0F2'}
                         onMouseLeave={e => e.currentTarget.style.background = '#F5F4F0'}>
                         <span style={{ fontSize: 15 }}>📁</span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1B2F43', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.naziv}</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1B2F43', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.naziv}</span>
+                          {detalji && <span style={{ display: 'block', fontSize: 11, color: '#8A94A0', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detalji}</span>}
+                        </span>
+                        {datum && <span style={{ fontSize: 10.5, color: '#B0B6BC', flexShrink: 0, whiteSpace: 'nowrap' }}>{new Date(datum).toLocaleDateString('sr-RS')}</span>}
                         <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0 }}>Otvori →</span>
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
