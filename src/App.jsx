@@ -494,7 +494,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                   // sve stisnulo u nečitljivu kolonu.
                   if (vertikalno) return (
                     <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
-                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#F7F5EF', border: '1px solid #C9D4DF', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
+                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#fff', border: '1px solid #C9D4DF', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A637C'; e.currentTarget.style.boxShadow = '0 1px 5px rgba(27,47,67,.13)' }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#C9D4DF'; e.currentTarget.style.boxShadow = 'none' }}>
                       <div style={{ fontSize: 12, lineHeight: 1.45, color: '#2B2B26' }}>{item.n}</div>
@@ -646,6 +646,10 @@ export default function App() {
   // umjesto nad cijelom grupom radova. Rješava čest slučaj: većina stavki je u redu, treba
   // doraditi samo pojedine.
   const [aiOznacene, setAiOznacene] = useState(() => new Set())
+  // Stavke koje se upravo brišu — prikazuju se crveno i blijede ~0,4 s prije nego nestanu iz
+  // tabele. Bez toga stavka nestane "na blic", pa korisnik nije siguran je li brisanje uspjelo
+  // i zna greškom obrisati još jednu.
+  const [brisuSe, setBrisuSe] = useState(() => new Set())
   const toggleAiOznaka = id => setAiOznacene(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   useEffect(() => { setAiOznacene(new Set()) }, [aktivnaFaza?.id])
   // Skraćivanje dugih opisa NA EKRANU (preglednost). Duge pozicije se prikazuju skraćeno (~3 reda);
@@ -1403,7 +1407,13 @@ export default function App() {
       return
     }
 
+    // Vizuelna potvrda brisanja: red (i njegove podstavke) prvo pocrveni i izblijedi, pa tek
+    // onda nestane iz tabele. Kratko, ali dovoljno da se vidi ŠTA je obrisano.
+    const zaBrisanje = new Set([id, ...djecaPoz.map(d => d.id)])
+    setBrisuSe(prev => new Set([...prev, ...zaBrisanje]))
+    await new Promise(r => setTimeout(r, 400))
     setPozicije(prev => prev.filter(p => p.id !== id && p.parent_id !== id))
+    setBrisuSe(prev => { const n = new Set(prev); zaBrisanje.forEach(x => n.delete(x)); return n })
 
     // Prikaži traku "Opozovi brisanje" na par sekundi. Ako je već postojala jedna (od
     // prethodnog brzog brisanja), otkaži njen tajmer da ne ostane da tiho istekne u pozadini
@@ -3060,7 +3070,8 @@ ${globalnaRekapitulacijaHtml}
                             const hoverBg = '#FFFBEA'
                             const jeArmiranoZaZamjenu = zamjenaPozicijaId === p.id
                             const jePomjerena = pomjerenaId === p.id
-                            const osnovnaBoja = jePomjerena ? '#D6F0DE' : (jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna)
+                            const seBrise = brisuSe.has(p.id)
+                            const osnovnaBoja = seBrise ? '#F8D7D3' : (jePomjerena ? '#D6F0DE' : (jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna))
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -3072,7 +3083,7 @@ ${globalnaRekapitulacijaHtml}
                                   onDragOver={e => onDragOver(e, p)}
                                   onDrop={e => onDrop(e, p)}
                                   onClick={() => { if (jePomjerena) setPomjerenaId(null) }}
-                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: osnovnaBoja, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px', transition: 'background-color .5s ease' }}
+                                  style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: osnovnaBoja, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px', transition: 'background-color .25s ease, opacity .35s ease', opacity: seBrise ? 0.25 : 1, pointerEvents: seBrise ? 'none' : undefined }}
                                   onMouseEnter={e => { if (!jeArmiranoZaZamjenu && !jePomjerena) e.currentTarget.style.background = hoverBg }}
                                   onMouseLeave={e => { e.currentTarget.style.background = osnovnaBoja }}>
                                   <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
@@ -3246,7 +3257,7 @@ ${globalnaRekapitulacijaHtml}
                                 {djeca.map((d, di) => {
                                   const du = calcRowSimple(d)
                                   return (
-                                    <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: paleta.pod }}>
+                                    <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : paleta.pod, transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28, background: paleta.pod }}>{i+1}.{di+1}</td>
                                       <td style={{ width: 82, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
                                       <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
