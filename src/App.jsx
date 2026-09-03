@@ -41,7 +41,17 @@ const REDOSLIJED_KATEGORIJA = [
   { sifra: '19', naziv: 'Vanjsko uređenje' },
   { sifra: '25', naziv: 'Protivpožarna zaštita' },
 ]
-const REDOSLIJED_MAP = new Map(REDOSLIJED_KATEGORIJA.map((r, i) => [r.naziv, i]))
+// Sortiranje grupa radova po BROJU ŠIFRE (01, 01a, 02, 03… 06, 07…), a ne po tehnološkom
+// redoslijedu izvođenja iz REDOSLIJED_KATEGORIJA. Razlog: u meniju i predmjeru korisnik očekuje
+// da grupe idu numerički — npr. „06 · Fasaderski" između 05 i 07 — jer se predmjer i čita po
+// numeraciji. (REDOSLIJED_KATEGORIJA i dalje određuje raspored u padajućem meniju po fazama
+// gradnje: pripremni → grubi → završni.)
+const sifraUBroj = s => {
+  const m = String(s || '').match(/^(\d+)([a-z]?)$/i)
+  if (!m) return 9999
+  return parseInt(m[1], 10) * 10 + (m[2] ? m[2].toLowerCase().charCodeAt(0) - 96 : 0)
+}
+const REDOSLIJED_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, sifraUBroj(r.sifra)]))
 const GRUPA_MAP = new Map(REDOSLIJED_KATEGORIJA.map(r => [r.naziv, r.grupa]))
 // Broj kategorije (prefiks šifre, npr. '01', '04') za prikaz uz naziv u padajućem meniju —
 // ista numeracija koja se koristi u šiframa pozicija unutar te kategorije (npr. 04.01.001).
@@ -361,10 +371,10 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
       {vertikalno && (
         <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
           <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
-            style={{ width: '100%', background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'grab', fontFamily: 'inherit', transition: 'transform .1s ease, background .15s ease' }}
+            style={{ width: '100%', background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'transform .1s ease, background .15s ease' }}
             onMouseDown={e => { e.currentTarget.style.cursor = 'grabbing'; e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.background = '#44525F' }}
-            onMouseUp={e => { e.currentTarget.style.cursor = 'grab'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}
-            onMouseLeave={e => { e.currentTarget.style.cursor = 'grab'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}>
+            onMouseUp={e => { e.currentTarget.style.cursor = 'pointer'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}
+            onMouseLeave={e => { e.currentTarget.style.cursor = 'pointer'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}>
             + Vlastita stavka
           </button>
         </div>
@@ -462,14 +472,14 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <>
             <div onClick={() => setPrikaziRezultate(v => !v)}
               title={prikaziRezultate ? 'Sakrij listu rezultata' : 'Prikaži listu rezultata'}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', fontSize: 11, color: '#4C5E6E', background: '#f0f0ee', borderBottom: '1px solid #E0DDD5', cursor: 'pointer', userSelect: 'none', fontWeight: 600, position: 'sticky', top: 0, zIndex: 2 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', fontSize: 11, color: '#4C5E6E', background: vertikalno ? '#E7EDF3' : '#f0f0ee', borderBottom: vertikalno ? '1px solid #C9D4DF' : '1px solid #E0DDD5', cursor: 'pointer', userSelect: 'none', fontWeight: 600, position: 'sticky', top: 0, zIndex: 2 }}>
               <span style={{ fontSize: 10, transition: 'transform .15s', transform: prikaziRezultate ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
               <span style={{ flex: 1 }}>{rezultati.length} rezultata{prikaziRezultate ? ' — kliknite na poziciju da je dodate' : ''}</span>
               <span style={{ fontSize: 10.5, color: '#8A94A0', fontWeight: 500 }}>{prikaziRezultate ? 'sakrij' : 'prikaži'}</span>
             </div>
             {prikaziRezultate && Object.entries(grouped).map(([k, items]) => (
               <div key={k}>
-                <div style={{ padding: '4px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B6860', background: '#F5F4F0', position: 'sticky', top: 27 }}>{k}</div>
+                <div style={{ padding: vertikalno ? '6px 12px 4px' : '4px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: vertikalno ? '#4A637C' : '#6B6860', background: vertikalno ? '#E7EDF3' : '#F5F4F0', position: 'sticky', top: 27 }}>{k}</div>
                 {items.map((item, i) => {
                   const cijenaPrikaz = (() => {
                     if (!(item.c > 0)) return '—'
@@ -484,7 +494,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                   // sve stisnulo u nečitljivu kolonu.
                   if (vertikalno) return (
                     <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
-                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#fff', border: '1px solid #C9D4DF', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
+                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#F7F5EF', border: '1px solid #C9D4DF', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A637C'; e.currentTarget.style.boxShadow = '0 1px 5px rgba(27,47,67,.13)' }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#C9D4DF'; e.currentTarget.style.boxShadow = 'none' }}>
                       <div style={{ fontSize: 12, lineHeight: 1.45, color: '#2B2B26' }}>{item.n}</div>
@@ -801,7 +811,7 @@ export default function App() {
         redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju podstavke: ' + error.message, 'greska'); return }
-      if (data) setPozicije(prev => [...prev, data])
+      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -1136,7 +1146,7 @@ export default function App() {
         cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju stavke: ' + error.message, 'greska'); return }
-      if (data) setPozicije(prev => [...prev, data])
+      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -1165,11 +1175,27 @@ export default function App() {
         cijena: cijenaUProjektu, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju stavke iz moje baze: ' + error.message, 'greska'); return }
-      if (data) setPozicije(prev => [...prev, data])
+      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
   }, [aktivnaFaza, pozicije, zamjenaPozicijaId, valuta, KURSEVI])
+
+  // Nakon dodavanja stavke: skrolaj do nje, nakratko je istakni (zeleni trag) i po potrebi
+  // fokusiraj polje opisa. Bez ovoga korisnik koji gleda vrh tabele ne vidi da je stavka
+  // uopšte dodata — nova ide na DNO liste.
+  const istakniNovuStavku = useCallback((id, fokusiraj = false) => {
+    if (!id) return
+    setPomjerenaId(id)
+    setTimeout(() => setPomjerenaId(prev => prev === id ? null : prev), 2500)
+    setTimeout(() => {
+      const el = document.querySelector(`[data-poz-id="${id}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (fokusiraj) { const polje = el.querySelector('textarea'); if (polje) polje.focus() }
+      }
+    }, 60)
+  }, [])
 
   const dodajVlastitupoziciju = async () => {
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
@@ -1185,22 +1211,7 @@ export default function App() {
         cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju vlastite stavke: ' + error.message, 'greska'); return }
-      if (data) {
-        setPozicije(prev => [...prev, data])
-        // Nova stavka ide na DNO liste — ako korisnik gleda vrh tabele, ne bi vidio da se išta
-        // desilo. Zato skrolamo do nje, nakratko je istaknemo (isti zeleni trag kao kod
-        // premještanja) i fokusiramo polje opisa da može odmah kucati.
-        setPomjerenaId(data.id)
-        setTimeout(() => setPomjerenaId(prev => prev === data.id ? null : prev), 2500)
-        setTimeout(() => {
-          const el = document.querySelector(`[data-poz-id="${data.id}"]`)
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            const polje = el.querySelector('textarea')
-            if (polje) polje.focus()
-          }
-        }, 60)
-      }
+      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id, true) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -2148,7 +2159,7 @@ ${globalnaRekapitulacijaHtml}
       sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
     }).select().single()
     if (error) { obavijesti('Greška pri dodavanju stavke iz AI asistenta: ' + error.message, 'greska'); return }
-    if (data) setPozicije(prev => [...prev, data])
+    if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
   }
 
 
