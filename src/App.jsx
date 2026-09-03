@@ -334,7 +334,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   }, [rezultati])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', ...(vertikalno ? { height: '100%', flex: 1, minHeight: 0 } : { maxHeight: 280, flexShrink: 0 }) }}>
+    <div style={{ display: 'flex', flexDirection: 'column', background: vertikalno ? '#F2F0E9' : '#E4E9EE', ...(vertikalno ? { height: '100%', flex: 1, minHeight: 0 } : { maxHeight: 280, flexShrink: 0 }) }}>
       {zamjenaNaziv && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#FFF3D6', borderBottom: '1px solid #C9954E', fontSize: 12, color: '#8A6524' }}>
           <span>🔁 Birate zamjenu za: <strong>{zamjenaNaziv}</strong> — kliknite stavku ispod da je zamijeni</span>
@@ -346,8 +346,8 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         </div>
       )}
       {/* Tabovi */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE', flexShrink: 0 }}>
-        {[['glavna', vertikalno ? `📚 Baza (${bazaUcitavanje ? '…' : brojUStruci.toLocaleString('bs-BA')})` : `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #D2DCE6', background: vertikalno ? '#EAE7DE' : '#E4E9EE', flexShrink: 0 }}>
+        {[['glavna', vertikalno ? `📚 Baza (${bazaUcitavanje ? '…' : brojUStruci.toLocaleString('bs-BA')})` : `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: vertikalno ? '8px 10px' : '8px 16px', border: 'none', background: 'none', fontSize: vertikalno ? 11.5 : 12, fontWeight: tab === t ? 700 : 400,
               color: tab === t ? '#1B2F43' : '#666', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
@@ -355,22 +355,24 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             {lbl}
           </button>
         ))}
-        {/* U vertikalnom stupcu "+ Vlastita stavka" stoji uz tabove — u redu pretrage bi u uskom
-            stupcu zauzelo previše prostora ili se izgubilo. */}
-        {vertikalno && (
-          <>
-            <span style={{ flex: 1 }} />
-            <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
-              style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', margin: '0 8px', flexShrink: 0 }}>
-              + Vlastita
-            </button>
-          </>
-        )}
       </div>
+      {/* U vertikalnom stupcu "+ Vlastita stavka" ide u vlastiti red preko pune širine — puni
+          naziv staje, dugme je lako pogoditi, a ne stiska tabove. */}
+      {vertikalno && (
+        <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
+          <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
+            style={{ width: '100%', background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 0', fontSize: 12, fontWeight: 600, cursor: 'grab', fontFamily: 'inherit', transition: 'transform .1s ease, background .15s ease' }}
+            onMouseDown={e => { e.currentTarget.style.cursor = 'grabbing'; e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.background = '#44525F' }}
+            onMouseUp={e => { e.currentTarget.style.cursor = 'grab'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}
+            onMouseLeave={e => { e.currentTarget.style.cursor = 'grab'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = '#556575' }}>
+            + Vlastita stavka
+          </button>
+        </div>
+      )}
 
       {/* Search / izbor grupe — u VERTIKALNOM stupcu ide u dva reda (pretraga preko pune širine,
           kategorija ispod), jer u uskom stupcu nema mjesta za oboje u istom redu. */}
-      <div style={{ display: 'flex', flexDirection: vertikalno ? 'column' : 'row', gap: 8, padding: '8px 12px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: vertikalno ? 'column' : 'row', gap: 8, padding: '8px 12px', borderBottom: vertikalno ? '1px solid #DDD9CE' : '1px solid #D2DCE6', background: vertikalno ? '#F2F0E9' : '#E4E9EE', flexShrink: 0 }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           spellCheck={false}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
@@ -482,11 +484,11 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                   // sve stisnulo u nečitljivu kolonu.
                   if (vertikalno) return (
                     <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
-                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #EEECEA' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
-                      onMouseLeave={e => e.currentTarget.style.background = ''}>
+                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#fff', border: '1px solid #DDD9CE', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A637C'; e.currentTarget.style.boxShadow = '0 1px 5px rgba(27,47,67,.13)' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#DDD9CE'; e.currentTarget.style.boxShadow = 'none' }}>
                       <div style={{ fontSize: 12, lineHeight: 1.45, color: '#2B2B26' }}>{item.n}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 5, borderTop: '1px solid #F0EDE5' }}>
                         {item.s && <span style={{ fontSize: 10, fontWeight: 700, color: '#8A94A0', fontVariantNumeric: 'tabular-nums' }}>{item.s}</span>}
                         <span style={{ flex: 1 }} />
                         <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{cijenaPrikaz}</span>
@@ -1178,7 +1180,22 @@ export default function App() {
         cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju vlastite stavke: ' + error.message, 'greska'); return }
-      if (data) setPozicije(prev => [...prev, data])
+      if (data) {
+        setPozicije(prev => [...prev, data])
+        // Nova stavka ide na DNO liste — ako korisnik gleda vrh tabele, ne bi vidio da se išta
+        // desilo. Zato skrolamo do nje, nakratko je istaknemo (isti zeleni trag kao kod
+        // premještanja) i fokusiramo polje opisa da može odmah kucati.
+        setPomjerenaId(data.id)
+        setTimeout(() => setPomjerenaId(prev => prev === data.id ? null : prev), 2500)
+        setTimeout(() => {
+          const el = document.querySelector(`[data-poz-id="${data.id}"]`)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            const polje = el.querySelector('textarea')
+            if (polje) polje.focus()
+          }
+        }, 60)
+      }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -2725,7 +2742,7 @@ ${globalnaRekapitulacijaHtml}
             umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
             Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
         {aktivniProjekat && aktivnaFaza && (
-          <div style={{ width: 340, minWidth: 340, background: '#DDE4EA', borderRight: '1px solid #B8B8B4', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: 340, minWidth: 340, background: '#F2F0E9', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
             {/* Suptilna naslovna traka — stubac se time vizuelno razlikuje od lijevog menija
                 i radnog prostora, a da ne odudara od ostatka aplikacije. */}
             <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
@@ -3016,6 +3033,7 @@ ${globalnaRekapitulacijaHtml}
                                 {/* GLAVNA STAVKA */}
                                 <tr
                                   draggable
+                                  data-poz-id={p.id}
                                   onDragStart={e => onDragStart(e, p)}
                                   onDragEnd={onDragEnd}
                                   onDragOver={e => onDragOver(e, p)}
@@ -3155,7 +3173,7 @@ ${globalnaRekapitulacijaHtml}
                                     <div style={{ display: 'flex', gap: 2, flexDirection: 'column' }}>
                                       <button onClick={() => dodajPodstavku(p)} title="Dodaj podstavku (sprat/zona)"
                                         style={{ background: '#E8ECF0', border: '1px solid #4A637C', cursor: 'pointer', color: '#1B2F43', fontSize: 11, padding: '2px 5px', borderRadius: 3, fontFamily: 'inherit', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                        + pod
+                                        + Podstavka
                                       </button>
                                       <div className="red-akcije" style={{ display: 'flex', gap: 2 }}>
                                         <button onClick={() => setZamjenaPozicijaId(prev => prev === p.id ? null : p.id)}
