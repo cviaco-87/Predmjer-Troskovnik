@@ -2785,12 +2785,12 @@ ${globalnaRekapitulacijaHtml}
             umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
             Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
         {aktivniProjekat && aktivnaFaza && (
-          <div style={{ width: 340, minWidth: 340, background: '#E7EDF3', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0, marginTop: 12 }}>
-            {/* Suptilna naslovna traka — stubac se time vizuelno razlikuje od lijevog menija
-                i radnog prostora, a da ne odudara od ostatka aplikacije. */}
-            <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-              <span style={{ fontSize: 13 }}>📚</span>
-              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', flex: 1 }}>Baza pozicija</span>
+          <div style={{ width: 340, minWidth: 340, background: '#E7EDF3', border: '1px solid #B8C2CC', borderLeft: '4px solid #4A637C', borderRadius: 10, display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0, margin: '12px 0 12px 12px', boxShadow: '0 1px 3px rgba(0,0,0,.06)' }}>
+            {/* Naslovna traka — ista visina i tipografija kao naslovi panela u lijevom meniju
+                (PROJEKTI, FAZA…), da stubac djeluje kao dio istog sistema. */}
+            <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <span style={{ fontSize: 15.3 }}>📚</span>
+              <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', flex: 1 }}>Baza pozicija</span>
             </div>
             <BazaPanel
               vertikalno
