@@ -265,7 +265,7 @@ const autoSifraPrilagodjena = (faza, trenutnePozicije) => {
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
-function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija, valuta = 'EUR', valutaZnak = '€', konvertuj }) {
+function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija, valuta = 'EUR', valutaZnak = '€', konvertuj, vertikalno = false }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
   const [tab, setTab] = useState('glavna') // glavna | moja
@@ -334,7 +334,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   }, [rezultati])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', maxHeight: 280, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', background: '#E4E9EE', ...(vertikalno ? { height: '100%', flex: 1, minHeight: 0 } : { maxHeight: 280, flexShrink: 0 }) }}>
       {zamjenaNaziv && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#FFF3D6', borderBottom: '1px solid #C9954E', fontSize: 12, color: '#8A6524' }}>
           <span>🔁 Birate zamjenu za: <strong>{zamjenaNaziv}</strong> — kliknite stavku ispod da je zamijeni</span>
@@ -454,7 +454,33 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             {prikaziRezultate && Object.entries(grouped).map(([k, items]) => (
               <div key={k}>
                 <div style={{ padding: '4px 14px', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#6B6860', background: '#F5F4F0', position: 'sticky', top: 27 }}>{k}</div>
-                {items.map((item, i) => (
+                {items.map((item, i) => {
+                  const cijenaPrikaz = (() => {
+                    if (!(item.c > 0)) return '—'
+                    // Cijene u bazi su u EUR; prikaži ih u valuti projekta da se poklope
+                    // sa iznosima u predmjeru (npr. kad korisnik radi u KM).
+                    const c = item._moja ? item.c : (konvertuj ? konvertuj(item.c, 'EUR', valuta) : item.c)
+                    const znak = item._moja ? (item.v || 'EUR') : valutaZnak
+                    return fmt(c) + ' ' + znak
+                  })()
+                  // U VERTIKALNOM stupcu opis ide u vlastiti red (prelama se u 3-4 kratka reda),
+                  // a šifra/cijena/jedinica u pomoćni red ispod — inače bi se u uskom stupcu
+                  // sve stisnulo u nečitljivu kolonu.
+                  if (vertikalno) return (
+                    <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
+                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #EEECEA' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}>
+                      <div style={{ fontSize: 12, lineHeight: 1.45, color: '#2B2B26' }}>{item.n}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        {item.s && <span style={{ fontSize: 10, fontWeight: 700, color: '#8A94A0', fontVariantNumeric: 'tabular-nums' }}>{item.s}</span>}
+                        <span style={{ flex: 1 }} />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{cijenaPrikaz}</span>
+                        <span style={{ fontSize: 10.5, color: '#888', whiteSpace: 'nowrap' }}>/{fmtJmj(item.m)}</span>
+                      </div>
+                    </div>
+                  )
+                  return (
                   <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
                     style={{ padding: '7px 14px', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 10, borderBottom: '1px solid #EEECEA' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#E8ECF0'}
@@ -463,19 +489,11 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                       <span style={{ fontSize: 10.5, fontWeight: 700, color: '#8A94A0', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', minWidth: 68 }}>{item.s}</span>
                     )}
                     <span style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>{item.n}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      {(() => {
-                        if (!(item.c > 0)) return '—'
-                        // Cijene u bazi su u EUR; prikaži ih u valuti projekta da se poklope
-                        // sa iznosima u predmjeru (npr. kad korisnik radi u KM).
-                        const c = item._moja ? item.c : (konvertuj ? konvertuj(item.c, 'EUR', valuta) : item.c)
-                        const znak = item._moja ? (item.v || 'EUR') : valutaZnak
-                        return fmt(c) + ' ' + znak
-                      })()}
-                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{cijenaPrikaz}</span>
                     <span style={{ fontSize: 11, color: '#888', whiteSpace: 'nowrap' }}>/{fmtJmj(item.m)}</span>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             ))}
           </>
@@ -2686,8 +2704,36 @@ ${globalnaRekapitulacijaHtml}
           </div>
         </div>
 
+        {/* ── VERTIKALNI STUBAC: BAZA POZICIJA ──
+            Pretraga baze stoji kao uspravan stubac uz lijevi meni, umjesto horizontalne trake na
+            vrhu radnog prostora. Razlozi: (1) duge opise pozicija je lakše pratiti u užem stupcu
+            (3-4 kratka reda) nego razvučene preko cijelog ekrana, (2) troši širinu koje ima viška
+            umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
+            Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
+        {aktivniProjekat && aktivnaFaza && (
+          <div style={{ width: 340, minWidth: 340, background: '#E4E9EE', borderRight: '1px solid #B8B8B4', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+            <BazaPanel
+              vertikalno
+              valuta={valuta}
+              valutaZnak={valutaZnak}
+              konvertuj={konvertujCijenu}
+              onAdd={dodajPoziciju}
+              onAddFromMojaBaza={dodajIzMojeBaze}
+              mojeBazaStavke={mojeBaza}
+              aktivnaStruka={aktivnaStruka}
+              strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
+              baza={baza}
+              bazaUcitavanje={bazaUcitavanje}
+              onDodajVlastitu={dodajVlastitupoziciju}
+              zamjenaNaziv={zamjenaPozicijaId ? (pozicije.find(p => p.id === zamjenaPozicijaId)?.naziv || '(bez naziva)') : null}
+              onOtkaziZamjenu={() => setZamjenaPozicijaId(null)}
+              zakljucanaKategorija={(aktivnaFaza && (aktivnaFaza.struka_kod || 'gradjevinski') === aktivnaStruka) ? (aktivnaFaza.kategorija || null) : null}
+            />
+          </div>
+        )}
+
         {/* RIGHT PANEL */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {!aktivniProjekat ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
               <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: '#fff', borderRadius: 14, padding: '42px 36px', boxShadow: '0 2px 10px rgba(0,0,0,.08)' }}>
@@ -2819,31 +2865,14 @@ ${globalnaRekapitulacijaHtml}
                 </button>
               </div>
 
-              {/* Baza pretraga */}
-              <div style={{ margin: '0 12px 10px 12px', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,.1)', overflow: 'hidden', flexShrink: 0 }}>
-              <BazaPanel
-                valuta={valuta}
-                valutaZnak={valutaZnak}
-                konvertuj={konvertujCijenu}
-                onAdd={dodajPoziciju}
-                onAddFromMojaBaza={dodajIzMojeBaze}
-                mojeBazaStavke={mojeBaza}
-                aktivnaStruka={aktivnaStruka}
-                strukaNaziv={struke.find(s => s.kod === aktivnaStruka)?.naziv || ''}
-                baza={baza}
-                bazaUcitavanje={bazaUcitavanje}
-                onDodajVlastitu={dodajVlastitupoziciju}
-                zamjenaNaziv={zamjenaPozicijaId ? (pozicije.find(p => p.id === zamjenaPozicijaId)?.naziv || '(bez naziva)') : null}
-                onOtkaziZamjenu={() => setZamjenaPozicijaId(null)}
-                zakljucanaKategorija={(aktivnaFaza && (aktivnaFaza.struka_kod || 'gradjevinski') === aktivnaStruka) ? (aktivnaFaza.kategorija || null) : null}
-              />
-              </div>
-
               {/* ── ZAJEDNIČKI SKROL KONTEJNER (uslovi + tabela kao jedna cjelina) ──
                   Umjesto dva odvojena skrol-okvira, uslovi i tabela idu u JEDAN scroll. Kad
                   korisnik skroluje, opšti tehnički uslovi prirodno odlaze gore "u nevidljivo" a
-                  otkrivaju se stavke ispod — kao jedna duga stranica. Toolbar i pretraga baze
-                  iznad ostaju fiksni. Zaglavlje kolona tabele je "sticky" (lijepi se na vrh). */}
+                  otkrivaju se stavke ispod — kao jedna duga stranica. Toolbar iznad ostaje fiksan.
+                  Zaglavlje kolona tabele je "sticky" (lijepi se na vrh).
+                  NAPOMENA: pretraga baze je premještena u vlastiti VERTIKALNI STUBAC lijevo
+                  (vidi ispod) — tako radni prostor sa stavkama počinje odmah od vrha, a duge
+                  opise pozicija je lakše čitati u užem stupcu nego razvučene preko cijelog ekrana. */}
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
               {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
