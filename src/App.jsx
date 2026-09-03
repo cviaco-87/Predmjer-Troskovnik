@@ -2785,7 +2785,7 @@ ${globalnaRekapitulacijaHtml}
             umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
             Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
         {aktivniProjekat && aktivnaFaza && (
-          <div style={{ width: 340, minWidth: 340, background: '#E7EDF3', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: 340, minWidth: 340, background: '#E7EDF3', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0, marginTop: 12 }}>
             {/* Suptilna naslovna traka — stubac se time vizuelno razlikuje od lijevog menija
                 i radnog prostora, a da ne odudara od ostatka aplikacije. */}
             <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
