@@ -346,28 +346,40 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         </div>
       )}
       {/* Tabovi */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
-        {[['glavna', `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE', flexShrink: 0 }}>
+        {[['glavna', vertikalno ? `📚 Baza (${bazaUcitavanje ? '…' : brojUStruci.toLocaleString('bs-BA')})` : `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
-            style={{ padding: '8px 16px', border: 'none', background: 'none', fontSize: 12, fontWeight: tab === t ? 700 : 400,
+            style={{ padding: vertikalno ? '8px 10px' : '8px 16px', border: 'none', background: 'none', fontSize: vertikalno ? 11.5 : 12, fontWeight: tab === t ? 700 : 400,
               color: tab === t ? '#1B2F43' : '#666', borderBottom: tab === t ? '2px solid #1B2F43' : '2px solid transparent',
-              cursor: 'pointer', fontFamily: 'inherit' }}>
+              cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
             {lbl}
           </button>
         ))}
+        {/* U vertikalnom stupcu "+ Vlastita stavka" stoji uz tabove — u redu pretrage bi u uskom
+            stupcu zauzelo previše prostora ili se izgubilo. */}
+        {vertikalno && (
+          <>
+            <span style={{ flex: 1 }} />
+            <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
+              style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', margin: '0 8px', flexShrink: 0 }}>
+              + Vlastita
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Search / izbor grupe */}
-      <div style={{ display: 'flex', gap: 8, padding: '8px 14px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE' }}>
+      {/* Search / izbor grupe — u VERTIKALNOM stupcu ide u dva reda (pretraga preko pune širine,
+          kategorija ispod), jer u uskom stupcu nema mjesta za oboje u istom redu. */}
+      <div style={{ display: 'flex', flexDirection: vertikalno ? 'column' : 'row', gap: 8, padding: '8px 12px', borderBottom: '1px solid #D2DCE6', background: '#E4E9EE', flexShrink: 0 }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           spellCheck={false}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
           disabled={tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)}
-          style={{ flex: 1, border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
+          style={{ flex: vertikalno ? 'none' : 1, width: vertikalno ? '100%' : undefined, boxSizing: 'border-box', border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px 10px', fontSize: 13, fontFamily: 'inherit', background: (tab === 'glavna' && (bazaUcitavanje || brojUStruci === 0)) ? '#DCE0E3' : '#fff' }} />
         {tab === 'moja' && mojeGrupe.length > 0 && (
           <select value={mojaGrupa} onChange={e => setMojaGrupa(e.target.value)}
             title="Prikaži stavke izabrane grupe iz vaše baze"
-            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: '#fff', cursor: 'pointer' }}>
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', ...(vertikalno ? { width: '100%', boxSizing: 'border-box' } : { minWidth: 150, maxWidth: 220 }), textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: '#fff', cursor: 'pointer' }}>
             <option value="">— Sve moje grupe —</option>
             {mojeGrupe.map(g => <option key={g} value={g}>{(SIFRA_KATEGORIJE_MAP.get(g) ? SIFRA_KATEGORIJE_MAP.get(g) + ' · ' : '') + g}</option>)}
           </select>
@@ -376,7 +388,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
           <select value={kat} onChange={e => setKat(e.target.value)}
             disabled={!!zakljucanaKategorija}
             title={zakljucanaKategorija ? 'Kategorija je zaključana na aktivnu grupu radova. Za slobodan izbor koristite prilagođenu grupu.' : undefined}
-            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', minWidth: 150, maxWidth: 220, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: zakljucanaKategorija ? '#E7EBEF' : '#fff', color: zakljucanaKategorija ? '#556575' : 'inherit', cursor: zakljucanaKategorija ? 'not-allowed' : 'pointer' }}>
+            style={{ border: '1px solid #C2CDD8', borderRadius: 6, padding: '7px', fontSize: 12, fontFamily: 'inherit', ...(vertikalno ? { width: '100%', boxSizing: 'border-box' } : { minWidth: 150, maxWidth: 220 }), textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden', background: zakljucanaKategorija ? '#E7EBEF' : '#fff', color: zakljucanaKategorija ? '#556575' : 'inherit', cursor: zakljucanaKategorija ? 'not-allowed' : 'pointer' }}>
             <option value="">— Sve kategorije —</option>
             {jePoznataStruka ? (
               aktivnaStruka === 'gradjevinski' ? (
@@ -418,10 +430,12 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
             )}
           </select>
         )}
-        <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
-          style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          + Vlastita stavka
-        </button>
+        {!vertikalno && (
+          <button onClick={onDodajVlastitu} title="Dodaj praznu, vlastitu stavku direktno u predmjer"
+            style={{ background: '#556575', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            + Vlastita stavka
+          </button>
+        )}
         {q && <button onClick={() => setQ('')} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>×</button>}
       </div>
 
@@ -2711,7 +2725,13 @@ ${globalnaRekapitulacijaHtml}
             umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
             Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
         {aktivniProjekat && aktivnaFaza && (
-          <div style={{ width: 340, minWidth: 340, background: '#E4E9EE', borderRight: '1px solid #B8B8B4', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: 340, minWidth: 340, background: '#DDE4EA', borderRight: '1px solid #B8B8B4', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+            {/* Suptilna naslovna traka — stubac se time vizuelno razlikuje od lijevog menija
+                i radnog prostora, a da ne odudara od ostatka aplikacije. */}
+            <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+              <span style={{ fontSize: 13 }}>📚</span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', flex: 1 }}>Baza pozicija</span>
+            </div>
             <BazaPanel
               vertikalno
               valuta={valuta}
