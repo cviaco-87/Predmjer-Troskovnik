@@ -142,12 +142,24 @@ KATEGORIJE koje postoje:
 
 TON I NAČIN KOMUNIKACIJE:
 Ponašaj se kao iskusan kolega projektant u razgovoru, ne kao mašina koja samo isporučuje stavke.
-- Odgovaraj prirodno i razgovorno; kratko prokomentariši šta si uradio i zašto (npr. zašto si uzeo baš tu klasu betona ili tu cijenu).
-- Ako je zahtjev nejasan ili nedostaje ključan podatak (debljina, klasa, površina), pitaj jedno kratko pitanje umjesto da nagađaš.
-- Slobodno upozori na propust ili predloži bolje rješenje kad ga uočiš, i kad te korisnik nije izričito pitao — kratko i konkretno.
-- Kad primijetiš da bi neka grupna radnja pomogla (npr. korisnik se žali da su cijene zastarjele ili opisi šturi), sam ponudi: "mogu odjednom ažurirati cijene svih stavki u ovoj grupi" ili "mogu pregledati i dopuniti sve opise" — pa sačekaj potvrdu.
-- Prati kontekst razgovora: valuta, grupa radova i zahtjevi koje je korisnik ranije naveo važe i dalje, ne traži da ih ponavlja.
-- Ne ponavljaj duge uvode i ne nabrajaj svoje mogućnosti u svakom odgovoru; piši kao u normalnom razgovoru.
+
+Ti si prije svega SAGOVORNIK. Korisnik sa tobom razgovara kao sa kolegom — smije te pitati za
+mišljenje, savjet, poređenje rješenja, objašnjenje norme ili tehnologije, procjenu da li je neka
+cijena realna, šta se u praksi radi u BiH/RS, koje su prednosti jednog materijala nad drugim.
+Na takva pitanja odgovaraj NORMALNO I RAZGOVORNO — običnim tekstom, bez ---STAVKA--- ili drugih
+formata. Formate koristi SAMO kad korisnik stvarno traži da se nešto doda ili izmijeni u predmjeru.
+
+- Odgovaraj prirodno; kratko prokomentariši šta si uradio i zašto (npr. zašto baš ta klasa betona).
+- Ako je zahtjev nejasan ili nedostaje ključan podatak (debljina, klasa, površina), pitaj jedno
+  kratko pitanje umjesto da nagađaš.
+- Slobodno iznesi svoje stručno mišljenje i preporuku, i kad te korisnik nije izričito pitao —
+  ako uočiš propust, nerealnu cijenu, nedostajuću poziciju ili bolje rješenje, reci to kratko.
+- Kada te pita da "istražiš", "provjeriš tržište" ili "nađeš aktuelne cijene", koristi web pretragu
+  ako ti je dostupna, pa iznesi šta si našao, sa rasponom cijena i izvorom/obrazloženjem.
+- Kad primijetiš da bi grupna radnja pomogla (zastarjele cijene, šturi opisi), sam ponudi:
+  "mogu odjednom ažurirati cijene svih stavki u ovoj grupi" — pa sačekaj potvrdu.
+- Prati kontekst razgovora: valuta, grupa radova, označene stavke i raniji zahtjevi važe i dalje.
+- Ne ponavljaj duge uvode i ne nabrajaj svoje mogućnosti u svakom odgovoru; piši kao u razgovoru.
 
 Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 
@@ -221,14 +233,19 @@ function formatOdgovor(text) {
 // Formatira broj tokena čitljivo (npr. 12500 -> "12.500", 1250000 -> "1.250.000")
 const fmtTokeni = n => Math.round(n || 0).toLocaleString('bs-BA')
 
-export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session, valuta = 'EUR' }) {
+export default function AIAsistent({ aktivnaFaza, pozicije, onDodajStavku, onProcijeniCijene, onProcijeniCijeneViseFaza, onDohvatiSvePozicije, imaProjekat, brojFaza, onPrimijeniIzmjene, onSetValuta, zahtjevZaUslove, onZahtjevUslovaObradjen, onPrimijeniUslove, onClose, session, valuta = 'EUR', oznacenePozicije = [], onOcistiOznake }) {
   // Sistemski prompt + trenutni kontekst rada. VAŽNO: aktivna valuta projekta se šalje modelu,
   // inače bi cijene uvijek vraćao u EUR (podrazumijevano) i ignorisao to što korisnik radi u KM.
   const promptSaKontekstom = `${SYSTEM_PROMPT}
 
 TRENUTNI KONTEKST RADA:
 - AKTIVNA VALUTA PROJEKTA: ${valuta}  ← sve cijene koje predlažeš izrazi U OVOJ VALUTI, osim ako korisnik izričito zatraži drugu.
-${aktivnaFaza ? `- Aktivna grupa radova: ${aktivnaFaza.naziv}` : '- Nijedna grupa radova trenutno nije aktivna.'}`
+${aktivnaFaza ? `- Aktivna grupa radova: ${aktivnaFaza.naziv}` : '- Nijedna grupa radova trenutno nije aktivna.'}${oznacenePozicije.length > 0 ? `
+
+KORISNIK JE OZNAČIO ${oznacenePozicije.length} STAVK${oznacenePozicije.length === 1 ? 'U' : 'E'} ZA OBRADU (ikona ✨ u redu).
+Kada traži izmjenu, dopunu, procjenu cijene ili analizu — radi SAMO nad ovim stavkama, ne nad
+cijelom grupom radova. Označene stavke (sa njihovim ID-jevima za ---IZMJENE--- format):
+${oznacenePozicije.map((p, i) => `${i + 1}. [id: ${p.id}] ${p.naziv || '(bez opisa)'} — ${p.jedinica || ''}, cijena: ${p.cijena || 0} ${valuta}`).join('\n')}` : ''}`
   // Trajno pamćenje razgovora (po korisniku) — chat preživi zatvaranje panela I osvježavanje
   // stranice. Čuva se lokalno u pregledniku, ograničeno na zadnjih ~50 poruka da ne bubri.
   const CHAT_KEY = `predmjer_ai_chat_${session?.user?.id || 'anon'}`
@@ -825,7 +842,10 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ system: promptSaKontekstom, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju, tip: tipRadnje })
+        // Web pretraga i kod izričitog traženja istraživanja ("provjeri", "istraži", "aktuelne
+        // cijene na tržištu"), ne samo kod procjene cijena — korisnik s asistentom razgovara i
+        // kao sa savjetnikom, pa mu treba pristup aktuelnim podacima.
+        body: JSON.stringify({ system: promptSaKontekstom, messages: novaHistorija, webSearch: trazeCijene || trazeMasovnuRadnju || /istraž|istraz|provjeri na tržišt|provjeri na trzist|aktuelne cijene|tržišn|trzisn|koliko košta|koliko kosta|nađi cijen|nadji cijen/i.test(tekst), tip: tipRadnje })
       })
 
       let data
@@ -1117,6 +1137,22 @@ Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJE
           ? <span>Potrošeno ovog mjeseca: <strong style={{ color: '#4A637C' }}>{fmtTokeni(potrosnjaMjesec.tokena)}</strong> tokena (~${potrosnjaMjesec.cijenaUsd.toFixed(3)})</span>
           : <span>Učitavam potrošnju...</span>}
       </div>
+
+      {/* Traka kad korisnik ima označene stavke (ikona ✨ u redu) — AI tada radi samo nad njima. */}
+      {oznacenePozicije.length > 0 && (
+        <div style={{ padding: '7px 12px', background: '#EDE3FA', borderBottom: '1px solid #D6C7EC', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 12 }}>✨</span>
+          <span style={{ flex: 1, fontSize: 11.5, color: '#4A3568', lineHeight: 1.35 }}>
+            Označeno <strong>{oznacenePozicije.length}</strong> {oznacenePozicije.length === 1 ? 'stavka' : 'stavki'} — radim samo nad njima.
+          </span>
+          {onOcistiOznake && (
+            <button onClick={onOcistiOznake} title="Ukloni sve oznake"
+              style={{ background: 'none', border: '1px solid #C3ADE0', color: '#5B4380', borderRadius: 5, padding: '2px 7px', fontSize: 10.5, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              očisti
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── DUGMAD ZA PROCJENU CIJENA (batch) ── */}
       {/* Dva odvojena toka: "ova faza" (svakodnevni, ciljan) i "cijeli projekat" (finalni prolaz
