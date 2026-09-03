@@ -334,7 +334,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
   }, [rezultati])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', background: vertikalno ? '#F2F0E9' : '#E4E9EE', ...(vertikalno ? { height: '100%', flex: 1, minHeight: 0 } : { maxHeight: 280, flexShrink: 0 }) }}>
+    <div style={{ display: 'flex', flexDirection: 'column', background: vertikalno ? '#E7EDF3' : '#E4E9EE', ...(vertikalno ? { height: '100%', flex: 1, minHeight: 0 } : { maxHeight: 280, flexShrink: 0 }) }}>
       {zamjenaNaziv && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: '#FFF3D6', borderBottom: '1px solid #C9954E', fontSize: 12, color: '#8A6524' }}>
           <span>🔁 Birate zamjenu za: <strong>{zamjenaNaziv}</strong> — kliknite stavku ispod da je zamijeni</span>
@@ -346,7 +346,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
         </div>
       )}
       {/* Tabovi */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #D2DCE6', background: vertikalno ? '#EAE7DE' : '#E4E9EE', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #D2DCE6', background: vertikalno ? '#DCE5EE' : '#E4E9EE', flexShrink: 0 }}>
         {[['glavna', vertikalno ? `📚 Baza (${bazaUcitavanje ? '…' : brojUStruci.toLocaleString('bs-BA')})` : `📚 Baza (${bazaUcitavanje ? 'učitavam...' : brojUStruci.toLocaleString('bs-BA')})`], ['moja', `⭐ Moja baza (${mojeBazaStavke.length})`]].map(([t, lbl]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ padding: vertikalno ? '8px 10px' : '8px 16px', border: 'none', background: 'none', fontSize: vertikalno ? 11.5 : 12, fontWeight: tab === t ? 700 : 400,
@@ -372,7 +372,7 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
 
       {/* Search / izbor grupe — u VERTIKALNOM stupcu ide u dva reda (pretraga preko pune širine,
           kategorija ispod), jer u uskom stupcu nema mjesta za oboje u istom redu. */}
-      <div style={{ display: 'flex', flexDirection: vertikalno ? 'column' : 'row', gap: 8, padding: '8px 12px', borderBottom: vertikalno ? '1px solid #DDD9CE' : '1px solid #D2DCE6', background: vertikalno ? '#F2F0E9' : '#E4E9EE', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: vertikalno ? 'column' : 'row', gap: 8, padding: '8px 12px', borderBottom: vertikalno ? '1px solid #C9D4DF' : '1px solid #D2DCE6', background: vertikalno ? '#E7EDF3' : '#E4E9EE', flexShrink: 0 }}>
         <input type="text" value={q} onChange={e => setQ(e.target.value)}
           spellCheck={false}
           placeholder={tab === 'glavna' ? '🔍 Pretražite bazu... (iskop, beton, malter...)' : '🔍 Pretražite vaše stavke...'}
@@ -484,11 +484,11 @@ function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, st
                   // sve stisnulo u nečitljivu kolonu.
                   if (vertikalno) return (
                     <div key={i} onClick={() => item._moja ? onAddFromMojaBaza(item) : onAdd(item._idx)}
-                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#fff', border: '1px solid #DDD9CE', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
+                      style={{ padding: '9px 11px', margin: '0 10px 7px', cursor: 'pointer', background: '#fff', border: '1px solid #C9D4DF', borderRadius: 7, transition: 'border-color .12s, box-shadow .12s' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A637C'; e.currentTarget.style.boxShadow = '0 1px 5px rgba(27,47,67,.13)' }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#DDD9CE'; e.currentTarget.style.boxShadow = 'none' }}>
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#C9D4DF'; e.currentTarget.style.boxShadow = 'none' }}>
                       <div style={{ fontSize: 12, lineHeight: 1.45, color: '#2B2B26' }}>{item.n}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 5, borderTop: '1px solid #F0EDE5' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, paddingTop: 5, borderTop: '1px solid #EDF1F5' }}>
                         {item.s && <span style={{ fontSize: 10, fontWeight: 700, color: '#8A94A0', fontVariantNumeric: 'tabular-nums' }}>{item.s}</span>}
                         <span style={{ flex: 1 }} />
                         <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1B2F43', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{cijenaPrikaz}</span>
@@ -552,6 +552,11 @@ export default function App() {
     setTimeout(() => setObavjestenja(prev => prev.filter(o => o.id !== id)), vrsta === 'greska' ? 7000 : 3500)
   }, [])
   const [novaFaza, setNovaFaza] = useState('')
+  // Sklapanje liste faza u lijevom meniju — prikazuje samo aktivnu fazu, da se ne troši prostor
+  // na faze na kojima se trenutno ne radi. Izbor se pamti u pregledniku.
+  const [fazeSklopljene, setFazeSklopljene] = useState(() => {
+    try { return localStorage.getItem('predmjer_faze_sklopljene') === '1' } catch { return false }
+  })
   const [showMojaBaza, setShowMojaBaza] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAI, setShowAI] = useState(false)
@@ -1171,9 +1176,9 @@ export default function App() {
     dodavanjeUTokuRef.current = true
     try {
       const roditelji = pozicije.filter(p => !p.parent_id)
-      const zadnjaKat = roditelji.length > 0
-        ? roditelji[roditelji.length - 1].kategorija
-        : 'Ostalo'
+      // Kategorija prati GRUPU RADOVA; ako je grupa prilagođena, uzmi kategoriju zadnje stavke.
+      const zadnjaKat = aktivnaFaza?.kategorija
+        || (roditelji.length > 0 ? roditelji[roditelji.length - 1].kategorija : 'Ostalo')
       const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       const { data, error } = await supabase.from('pozicije').insert({
         faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
@@ -2105,11 +2110,13 @@ ${globalnaRekapitulacijaHtml}
   const dodajStavkuIzAI = async (stavka) => {
     if (!aktivnaFaza) return
 
-    // Uzmi kategoriju zadnje stavke u aktivnoj fazi (ne AI-jevu izmišljenu)
+    // Kategorija nove stavke: prati kategoriju GRUPE RADOVA u koju se dodaje. Ako je grupa
+    // prilagođena (bez vezane kategorije), uzmi kategoriju zadnje stavke; tek ako ni toga nema
+    // (prazna prilagođena grupa) — 'Ostalo'. Ranije se kod prazne grupe uvijek pisalo 'Ostalo',
+    // pa je prva AI stavka u npr. fasaderskim radovima dobijala pogrešan naslov.
     const roditelji = pozicije.filter(p => !p.parent_id)
-    const aktivnaKategorija = roditelji.length > 0
-      ? roditelji[roditelji.length - 1].kategorija
-      : 'Ostalo'
+    const aktivnaKategorija = aktivnaFaza?.kategorija
+      || (roditelji.length > 0 ? roditelji[roditelji.length - 1].kategorija : 'Ostalo')
 
     // Ukloni ** Markdown bold iz naziva
     const cleanNaziv = (stavka.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').trim()
@@ -2547,10 +2554,16 @@ ${globalnaRekapitulacijaHtml}
           {/* Struke (discipline) */}
           {aktivniProjekat && <>
             <div style={{ background: '#fff', border: '1px solid #E5E2D8', borderLeft: '4px solid #6B8299', borderRadius: 10, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#425A70', background: '#DEE4E9', padding: '9px 12px' }}><span style={{ fontSize: 15.3 }}>🏗️</span>Faza</div>
+            <div onClick={() => setFazeSklopljene(v => { const n = !v; try { localStorage.setItem('predmjer_faze_sklopljene', n ? '1' : '0') } catch {} ; return n })}
+              title={fazeSklopljene ? 'Prikaži sve faze' : 'Sakrij neaktivne faze'}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#425A70', background: '#DEE4E9', padding: '9px 12px', cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ fontSize: 15.3 }}>🏗️</span>
+              <span style={{ flex: 1 }}>Faza</span>
+              <span style={{ fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#7A8B9C' }}>{fazeSklopljene ? '▶ prikaži sve' : '▼ sakrij'}</span>
+            </div>
             <div style={{ padding: '12px 12px 14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 14 }}>
-              {struke.map(s => (
+              {(fazeSklopljene ? struke.filter(s => s.kod === aktivnaStruka) : struke).map(s => (
                 <div key={s.kod} onClick={() => {
                     // Ako je već aktivna ova ista struka, ne diraj ništa (izbjegava nepotreban re-fetch pozicija)
                     if (s.kod === aktivnaStruka) return
@@ -2618,7 +2631,10 @@ ${globalnaRekapitulacijaHtml}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#4C5E6E', background: '#E5E9ED', padding: '9px 12px' }}><span style={{ fontSize: 15.3 }}>📦</span>Grupe radova</div>
             <div style={{ padding: '12px 12px 14px' }}>
             {(() => {
-              const fazeUFazi = faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka)
+              // Sortiraj i pri PRIKAZU (ne samo pri učitavanju/dodavanju) — tako grupe uvijek
+              // prate numeraciju šifarnika (01, 02, 03…) bez obzira kojim su redom dodate ili
+              // kako su stigle iz baze. Prilagođene grupe (bez kategorije) idu na kraj.
+              const fazeUFazi = sortirajFaze(faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka))
               const aktivnaPripada = aktivnaFaza && fazeUFazi.some(f => f.id === aktivnaFaza.id)
               const dodate = new Set(fazeUFazi.map(f => f.kategorija).filter(Boolean))
               const dostupne = KATEGORIJE.filter(k => strukaZaKategoriju(k) === aktivnaStruka && !dodate.has(k))
@@ -2742,7 +2758,7 @@ ${globalnaRekapitulacijaHtml}
             umjesto visine koje nema, pa radni prostor sa stavkama počinje odmah od vrha.
             Prikazuje se samo kad je grupa radova aktivna — inače nema gdje dodavati stavke. */}
         {aktivniProjekat && aktivnaFaza && (
-          <div style={{ width: 340, minWidth: 340, background: '#F2F0E9', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: 340, minWidth: 340, background: '#E7EDF3', borderRight: '2px solid #9BA5AE', borderLeft: '3px solid #4A637C', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
             {/* Suptilna naslovna traka — stubac se time vizuelno razlikuje od lijevog menija
                 i radnog prostora, a da ne odudara od ostatka aplikacije. */}
             <div style={{ padding: '9px 12px', background: '#4A637C', color: '#fff', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
@@ -3498,18 +3514,8 @@ ${globalnaRekapitulacijaHtml}
       </button>
       )}
 
-      {/* Tooltip */}
-      {!showAI && (
-        <div style={{
-          position: 'fixed', bottom: 82, right: 18, zIndex: 299,
-          background: '#1B2F43', color: '#fff', borderRadius: 8,
-          padding: '5px 10px', fontSize: 11, fontWeight: 600,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)', pointerEvents: 'none',
-          whiteSpace: 'nowrap'
-        }}>
-          AI Asistent ✨
-        </div>
-      )}
+      {/* Natpis uz plutajuće dugme uklonjen — ikona ✨ je dovoljno prepoznatljiva, a natpis je
+          zauzimao prostor uz rub ekrana. Objašnjenje ostaje kao tooltip na samom dugmetu. */}
 
       {/* AI ASISTENT PANEL */}
       {showUputstvo && <Uputstvo onClose={() => setShowUputstvo(false)} />}
