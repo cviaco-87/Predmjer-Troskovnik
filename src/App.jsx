@@ -251,6 +251,10 @@ const calcRow = (p, svePoz) => {
   }
   return calcRowSimple(p)
 }
+// Boja pozadine PODSTAVKI — topla krem, ista kao zaglavlje panela „Uvećanje/Umanjenje". Cilj je
+// da se podstavke jasnije razlikuju od glavnih stavki, a da boja ostane u paleti aplikacije.
+const BOJA_PODSTAVKE = '#F4ECDD'
+
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
 
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
@@ -823,7 +827,7 @@ export default function App() {
         redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju podstavke: ' + error.message, 'greska'); return }
-      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
+      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id, true) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -2880,7 +2884,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                           niz[idx] = { ...niz[idx], iznos: parsiBroj(e.target.value) }
                           azurirajProjekat('rucne_faze', niz)
                         }}
-                        style={{ width: 82, flexShrink: 0, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0', textAlign: 'right', boxSizing: 'border-box' }} />
+                        style={{ width: 82, flexShrink: 0, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 10px 5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0', textAlign: 'right', boxSizing: 'border-box' }} />
                       <button onClick={() => azurirajProjekat('rucne_faze', (aktivniProjekat.rucne_faze || []).filter((_, i) => i !== idx))}
                         title="Ukloni"
                         style={{ background: 'none', border: 'none', color: '#C0392B', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}>×</button>
@@ -3381,9 +3385,10 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                   const du = calcRowSimple(d)
                                   return (
                                     <tr key={d.id}
-                                      onMouseEnter={e => { if (!brisuSe.has(d.id)) e.currentTarget.style.background = '#FFFBEA' }}
-                                      onMouseLeave={e => { if (!brisuSe.has(d.id)) e.currentTarget.style.background = paleta.pod }}
-                                      style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : paleta.pod, transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
+                                      data-poz-id={d.id}
+                                      onMouseEnter={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = '#FFFBEA' }}
+                                      onMouseLeave={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = BOJA_PODSTAVKE }}
+                                      style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : (pomjerenaId === d.id ? '#D6F0DE' : BOJA_PODSTAVKE), transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
                                       <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
                                       <td style={{ padding: '4px 8px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
