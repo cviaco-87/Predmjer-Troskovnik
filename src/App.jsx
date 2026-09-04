@@ -2859,7 +2859,10 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                     Iznosi faza koje ne vodite u ovom projektu (ViK, elektro…) — upišite ih ručno da uđu u finalni zbir:
                   </div>
                   {(Array.isArray(aktivniProjekat.rucne_faze) ? aktivniProjekat.rucne_faze : []).map((rf, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: 5, marginBottom: 5, alignItems: 'center' }}>
+                    // KLJUČ mora sadržati i sadržaj reda, ne samo indeks: polja koriste defaultValue,
+                    // pa bi React pri brisanju ponovo iskoristio iste elemente sa STARIM tekstom —
+                    // izgledalo bi kao da je obrisan pogrešan red (podaci su ipak bili tačni).
+                    <div key={`rf-${idx}-${rf.naziv || ''}-${rf.iznos ?? ''}`} style={{ display: 'flex', gap: 5, marginBottom: 5, alignItems: 'center' }}>
                       <input type="text" defaultValue={rf.naziv || ''} placeholder="Naziv faze"
                         onBlur={e => {
                           const niz = [...(aktivniProjekat.rucne_faze || [])]
@@ -2867,13 +2870,17 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                           azurirajProjekat('rucne_faze', niz)
                         }}
                         style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0' }} />
-                      <input type="text" inputMode="decimal" defaultValue={rf.iznos ?? ''} placeholder="0"
+                      <input type="text" inputMode="decimal" defaultValue={rf.iznos ? String(rf.iznos) : ''} placeholder="0"
+                        // Prazno umjesto "0" kao početna vrijednost — inače bi se upisana cifra
+                        // nadovezala na nulu (npr. "5" bi dalo "50"). Prazno polje prikazuje "0"
+                        // kao blijedi placeholder, a čim se klikne može se odmah kucati.
+                        onFocus={e => e.target.select()}
                         onBlur={e => {
                           const niz = [...(aktivniProjekat.rucne_faze || [])]
                           niz[idx] = { ...niz[idx], iznos: parsiBroj(e.target.value) }
                           azurirajProjekat('rucne_faze', niz)
                         }}
-                        style={{ width: 72, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0', textAlign: 'right' }} />
+                        style={{ width: 82, flexShrink: 0, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0', textAlign: 'right', boxSizing: 'border-box' }} />
                       <button onClick={() => azurirajProjekat('rucne_faze', (aktivniProjekat.rucne_faze || []).filter((_, i) => i !== idx))}
                         title="Ukloni"
                         style={{ background: 'none', border: 'none', color: '#C0392B', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}>×</button>
