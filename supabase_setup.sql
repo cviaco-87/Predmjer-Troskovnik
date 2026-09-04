@@ -119,6 +119,8 @@ CREATE TABLE IF NOT EXISTS firma_postavke (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE firma_postavke ALTER COLUMN user_id SET DEFAULT auth.uid();
+ALTER TABLE firma_postavke ADD COLUMN IF NOT EXISTS projektant TEXT;  -- odgovorni projektant (blok za potpis u PDF-u)
+ALTER TABLE firma_postavke ADD COLUMN IF NOT EXISTS licenca TEXT;     -- broj licence projektanta
 
 
 -- =============================================================
