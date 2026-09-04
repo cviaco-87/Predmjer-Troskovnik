@@ -3147,6 +3147,9 @@ ${globalnaRekapitulacijaHtml}
                                       onClick={e => e.stopPropagation()}
                                       onDoubleClick={e => {
                                         e.preventDefault()
+                                        // Razvij skraćeni prikaz prije mjerenja — inače maxHeight
+                                        // ograničenje odsiječe tek proširen sadržaj.
+                                        prosiriOpis(p.id)
                                         const potrebno = autoGrowTextarea(e.currentTarget)
                                         // Odmah sačuvaj u bazu da ostane trajno podešeno
                                         azurirajPoziciju(p.id, 'opis_visina', potrebno)
@@ -3263,7 +3266,7 @@ ${globalnaRekapitulacijaHtml}
                                       style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : paleta.pod, transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
                                       <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
-                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                           
                                           <textarea
@@ -3294,6 +3297,16 @@ ${globalnaRekapitulacijaHtml}
                                               skupiOpis(d.id) // opcija B: sam se skupi kad se klikne van polja
                                             }}
                                             rows={1}
+                                            onDoubleClick={e => {
+                                              e.preventDefault()
+                                              // Isto kao kod glavne stavke: dvoklik razvuče ćeliju na punu visinu teksta
+                                              // i trajno je zapamti. Uz to razvija skraćeni prikaz, inače bi maxHeight
+                                              // ograničenje odsjeklo tek proširen sadržaj.
+                                              prosiriOpis(d.id)
+                                              const potrebno = autoGrowTextarea(e.currentTarget)
+                                              azurirajPoziciju(d.id, 'opis_visina', potrebno)
+                                            }}
+                                            title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
                                             onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
