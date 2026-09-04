@@ -3049,7 +3049,7 @@ ${globalnaRekapitulacijaHtml}
                     <thead>
                       <tr style={{ background: '#556575', color: '#fff' }}>
                         {['R.br.', 'Šifra', 'Opis pozicije', 'J.mj.', `Jed. cijena (${valutaZnak})`, 'Količina', `Ukupno (${valutaZnak})`, ''].map((h, i) => (
-                          <th key={i} style={{ padding: '9px 8px', textAlign: i >= 4 && i <= 6 ? 'right' : 'left', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 34, background: '#556575', zIndex: 3, boxShadow: '0 -12px 0 12px #C7C7C4' }}>{h}</th>
+                          <th key={i} style={{ padding: '9px 8px', textAlign: i === 3 ? 'center' : (i >= 4 && i <= 6 ? 'right' : 'left'), fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 34, background: '#556575', zIndex: 3, boxShadow: '0 -12px 0 12px #C7C7C4' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3186,12 +3186,12 @@ ${globalnaRekapitulacijaHtml}
                                       </div>
                                     )}
                                   </td>
-                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', textAlign: 'center', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     {!imadjece && <select
                                       key={`jed-${p.id}-${revizija}`}
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
-                                      style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
+                                      style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer', textAlign: 'center', textAlignLast: 'center' }}
                                       onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                       onBlur={e => e.target.style.border = '1px solid transparent'}>
                                       {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
@@ -3257,10 +3257,13 @@ ${globalnaRekapitulacijaHtml}
                                 {djeca.map((d, di) => {
                                   const du = calcRowSimple(d)
                                   return (
-                                    <tr key={d.id} style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : paleta.pod, transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
-                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28, background: paleta.pod }}>{i+1}.{di+1}</td>
-                                      <td style={{ width: 82, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
-                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                    <tr key={d.id}
+                                      onMouseEnter={e => { if (!brisuSe.has(d.id)) e.currentTarget.style.background = '#FFFBEA' }}
+                                      onMouseLeave={e => { if (!brisuSe.has(d.id)) e.currentTarget.style.background = paleta.pod }}
+                                      style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : paleta.pod, transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
+                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
+                                      <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
+                                      <td style={{ padding: '4px 8px 4px 24px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                           
                                           <textarea
@@ -3305,12 +3308,12 @@ ${globalnaRekapitulacijaHtml}
                                           )}
                                          </div>
                                        </td>
-                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <select
                                           key={`jed-${d.id}-${revizija}`}
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
-                                          style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer' }}
+                                          style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer', textAlign: 'center', textAlignLast: 'center' }}
                                           onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
                                           onBlur={e => e.target.style.border = '1px solid transparent'}>
                                           {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
@@ -3318,19 +3321,19 @@ ${globalnaRekapitulacijaHtml}
                                           ))}
                                         </select>
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parsiBroj(e.target.value))}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parsiBroj(e.target.value))}
                                           placeholder="0"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: '#4A637C', fontSize: 11, fontVariantNumeric: 'tabular-nums', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         {du > 0 ? fmt(du) + ' ' + valutaZnak : '—'}
                                       </td>
-                                      <td style={{ padding: '4px 4px', background: paleta.pod, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 4px', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <button onClick={() => obrisiPoziciju(d.id)}
                                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#333', fontSize: 16, lineHeight: 1, padding: '1px 3px', borderRadius: 3 }}
                                           onMouseEnter={e => { e.currentTarget.style.color = '#C0392B'; e.currentTarget.style.background = '#fdf0ef' }}
