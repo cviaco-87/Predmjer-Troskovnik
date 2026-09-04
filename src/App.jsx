@@ -191,12 +191,14 @@ const prepoznajJedinicu = tekst => {
 // nestane iznad vidljivog dijela dok se ručno ne pokrene ponovno mjerenje (npr. dvoklikom).
 // Trik sa privremenim spuštanjem rows na 1 i height na 'auto' je neophodan da bi scrollHeight
 // izmjerio STVARNU potrebnu visinu sadržaja, ne visinu koju bi nametnuo rows atribut.
-const autoGrowTextarea = (el) => {
+// minVisina: glavne stavke koriste 40px (font 12), a podstavke 22px (font 10) — bez toga bi
+// kratke podstavke uvijek imale 2-3 prazna reda viška do sljedeće ćelije.
+const autoGrowTextarea = (el, minVisina = 40) => {
   if (!el) return 0
   const originalRows = el.rows
   el.rows = 1
   el.style.height = 'auto'
-  const potrebno = Math.max(el.scrollHeight + 6, 40)
+  const potrebno = Math.max(el.scrollHeight + 6, minVisina)
   el.rows = originalRows
   el.style.height = potrebno + 'px'
   return potrebno
@@ -3272,9 +3274,9 @@ ${globalnaRekapitulacijaHtml}
                                           <textarea
                                             key={`podnaz-${d.id}-${revizija}`}
                                             spellCheck={false}
-                                            ref={el => { if (el && !d.opis_visina) autoGrowTextarea(el) }}
+                                            ref={el => { if (el && !d.opis_visina) autoGrowTextarea(el, 22) }}
                                             defaultValue={d.naziv || ''}
-                                            onInput={e => autoGrowTextarea(e.target)}
+                                            onInput={e => autoGrowTextarea(e.target, 22)}
                                             onBlur={e => {
                                               // Snimi u bazu i azuriraj stil
                                               azurirajPoziciju(d.id, 'naziv', e.target.value)
@@ -3299,14 +3301,22 @@ ${globalnaRekapitulacijaHtml}
                                             rows={1}
                                             onDoubleClick={e => {
                                               e.preventDefault()
-                                              // Isto kao kod glavne stavke: dvoklik razvuče ćeliju na punu visinu teksta
-                                              // i trajno je zapamti. Uz to razvija skraćeni prikaz, inače bi maxHeight
-                                              // ograničenje odsjeklo tek proširen sadržaj.
-                                              prosiriOpis(d.id)
-                                              const potrebno = autoGrowTextarea(e.currentTarget)
-                                              azurirajPoziciju(d.id, 'opis_visina', potrebno)
+                                              // Dvoklik radi kao PREKIDAČ: prvi put razvuče ćeliju na punu visinu
+                                              // teksta, drugi put je skupi natrag na minimum (visina samog teksta,
+                                              // bez praznog prostora do sljedeće ćelije).
+                                              const el = e.currentTarget
+                                              const razvijeno = prosireniOpisi.has(d.id)
+                                              if (razvijeno) {
+                                                skupiOpis(d.id)
+                                                el.style.height = 'auto'
+                                                azurirajPoziciju(d.id, 'opis_visina', null)
+                                              } else {
+                                                prosiriOpis(d.id)
+                                                const potrebno = autoGrowTextarea(el, 22)
+                                                azurirajPoziciju(d.id, 'opis_visina', potrebno)
+                                              }
                                             }}
-                                            title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
+                                            title="Dvoklik razvlači ćeliju na cijeli tekst; ponovni dvoklik je skuplja"
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
                                             onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
