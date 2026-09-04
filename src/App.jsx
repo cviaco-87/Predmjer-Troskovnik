@@ -842,13 +842,16 @@ export default function App() {
     setFirma(data || null)
   }
 
-  const sacuvajFirmu = async (logoDataUrl, naziv) => {
+  const sacuvajFirmu = async (logoDataUrl, naziv, projektant, licenca) => {
     setFirmaLoading(true)
     try {
       const payload = {
         user_id: session.user.id,
         logo: logoDataUrl !== undefined ? logoDataUrl : (firma?.logo || null),
         naziv: naziv !== undefined ? naziv : (firma?.naziv || null),
+        // Podaci o odgovornom projektantu — štampaju se kao blok za potpis ispod rekapitulacije.
+        projektant: projektant !== undefined ? projektant : (firma?.projektant || null),
+        licenca: licenca !== undefined ? licenca : (firma?.licenca || null),
         updated_at: new Date().toISOString()
       }
       const { data, error } = await supabase.from('firma_postavke').upsert(payload, { onConflict: 'user_id' }).select().single()
@@ -2023,6 +2026,21 @@ export default function App() {
     const imaBiloKakvuKorekciju = struke.some(s => (s.uvecanjePct||0) > 0 || (s.umanjenjePct||0) > 0)
 
     const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
+    // ── BLOK ZA POTPIS ODGOVORNOG PROJEKTANTA ──
+    // Štampa se na kraju izvještaja, ispod zbirne rekapitulacije. Poravnat desno, sa linijom za
+    // svojeručni potpis — kako je uobičajeno u projektnoj dokumentaciji. Ako projektant nije
+    // upisan u „Postavke firme", blok se izostavlja u cijelosti.
+    const potpisHtml = firma?.projektant ? `
+<div style="margin-top:26px; page-break-inside:avoid; display:flex; justify-content:flex-end;">
+  <div style="width:250px; text-align:center;">
+    <div style="font-size:9pt; color:#555; margin-bottom:34px;">Odgovorni projektant:</div>
+    <div style="border-top:1px solid #333; padding-top:5px;">
+      <div style="font-size:9.5pt; font-weight:bold; color:#1B2F43;">${escHtml(firma.projektant)}</div>
+      ${firma.licenca ? `<div style="font-size:8.5pt; color:#555; margin-top:2px;">Licenca br. ${escHtml(firma.licenca)}</div>` : ''}
+    </div>
+  </div>
+</div>` : ''
+
     const globalnaRekapitulacijaHtml = prikaziGlobalnuRekapitulaciju ? `
 <div class="page-break"></div>
 <h2 style="color:#1B2F43;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B2F43">REKAPITULACIJA</h2>
@@ -2113,6 +2131,7 @@ export default function App() {
 </div>
 ${sviFazeSadrzaj}
 ${globalnaRekapitulacijaHtml}
+${potpisHtml}
 </body></html>`
 
     // Otvori print prozor
@@ -3533,6 +3552,20 @@ ${globalnaRekapitulacijaHtml}
                   onBlur={e => sacuvajFirmu(undefined, e.target.value.trim() || null)}
                   style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0' }} />
                 <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 6 }}>Prikazuje se u podnožju svake stranice PDF izvještaja, uz broj stranice.</div>
+              </div>
+
+              {/* Odgovorni projektant — blok za potpis na kraju izvještaja */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #E8E5DC' }}>
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Odgovorni projektant (opciono)</div>
+                <input type="text" defaultValue={firma?.projektant || ''} placeholder="Ime i prezime, npr. Marko Marković, dipl. inž. građ."
+                  spellCheck={false}
+                  onBlur={e => sacuvajFirmu(undefined, undefined, e.target.value.trim() || null)}
+                  style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', boxSizing: 'border-box' }} />
+                <input type="text" defaultValue={firma?.licenca || ''} placeholder="Broj licence (npr. 350 1234 5678)"
+                  spellCheck={false}
+                  onBlur={e => sacuvajFirmu(undefined, undefined, undefined, e.target.value.trim() || null)}
+                  style={{ width: '100%', border: '1px solid #D8D5CC', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontFamily: 'inherit', background: '#F5F4F0', marginTop: 8, boxSizing: 'border-box' }} />
+                <div style={{ fontSize: 10.5, color: '#aaa', marginTop: 6 }}>Štampa se na kraju izvještaja, ispod zbirne rekapitulacije, sa linijom za potpis. Ako ostavite prazno, blok se ne prikazuje.</div>
               </div>
             </div>
 
