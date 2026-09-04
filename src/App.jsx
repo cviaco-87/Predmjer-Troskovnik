@@ -1862,6 +1862,20 @@ export default function App() {
     // "ukupno" (finalni zbir za SVEUKUPNO na dnu) se gradi kao zbir već korigovanih iznosa
     // svake pojedinačne struke — postavlja se tek nakon petlje kroz struke.
 
+    // ── BLOK ZA POTPIS ODGOVORNOG PROJEKTANTA ──
+    // Definisan ovdje (prije prve upotrebe) jer se ubacuje na kraj SVAKE struke, a po potrebi
+    // i ispod finalne rekapitulacije. Ako projektant nije upisan u „Postavke firme", prazan je.
+    const potpisHtml = firma?.projektant ? `
+<div style="margin-top:26px; page-break-inside:avoid; display:flex; justify-content:flex-end;">
+  <div style="width:250px; text-align:center;">
+    <div style="font-size:9pt; color:#555; margin-bottom:34px;">Odgovorni projektant:</div>
+    <div style="border-top:1px solid #333; padding-top:5px;">
+      <div style="font-size:9.5pt; font-weight:bold; color:#1B2F43;">${escHtml(firma.projektant)}</div>
+      ${firma.licenca ? `<div style="font-size:8.5pt; color:#555; margin-top:2px;">Licenca br. ${escHtml(firma.licenca)}</div>` : ''}
+    </div>
+  </div>
+</div>` : ''
+
     let sviFazeSadrzaj = ''
     const strukaSubtotali = [] // { naziv, ukupno } - za rekapitulaciju po struci
 
@@ -1967,15 +1981,20 @@ export default function App() {
       }
 
       if (prikaziDetalj) {
-        // Zbirna rekapitulacija grupa radova unutar ove struke (samo ako ih ima više od jedne)
+        // Zbirna rekapitulacija grupa radova unutar ove struke (samo ako ih ima više od jedne).
+        // UVIJEK počinje na NOVOJ STRANI — ranije se znala prelomiti preko dvije strane, što je
+        // neuredno za dokument koji ide investitoru.
         if (grupaSubtotali.length > 1) {
           const grupaRekapRows = grupaSubtotali.map(g =>
             `<tr><td>${g.naziv}</td><td class="r">${fmtN(g.ukupno)} ${valutaZnak}</td></tr>`
           ).join('')
           sviFazeSadrzaj += `
-            <div class="faza-header"><h2>ZBIRNA REKAPITULACIJA — ${s.naziv.toUpperCase()}</h2></div>
-            <table><tbody>${grupaRekapRows}</tbody></table>
-            <div style="margin-bottom:16px"></div>`
+            <div class="page-break"></div>
+            <div style="page-break-inside:avoid;">
+              <div class="faza-header"><h2>ZBIRNA REKAPITULACIJA — ${s.naziv.toUpperCase()}</h2></div>
+              <table><tbody>${grupaRekapRows}</tbody></table>
+              <div style="margin-bottom:16px"></div>
+            </div>`
         }
         sviFazeSadrzaj += `<div class="struka-total">UKUPNO ${toRoman(brStruke)} — ${s.naziv.toUpperCase()}: <span>${fmtN(strukaUkupno)} ${valutaZnak}</span></div>`
 
@@ -1998,6 +2017,11 @@ export default function App() {
           sviFazeSadrzaj += `</tbody></table>`
         }
 
+        // Potpis odgovornog projektanta — na kraju SVAKE struke (faze), ispod njene rekapitulacije.
+        // Predmjer se u praksi predaje po fazama kao odvojeni dokumenti, pa svaka faza treba svoj
+        // potpis; ako je uključena i finalna rekapitulacija svih faza, potpis se ponavlja i tamo.
+        sviFazeSadrzaj += potpisHtml
+
         // Globalna rekapitulacija zbraja VEĆ KORIGOVANE iznose po struci (ne primjenjuje
         // dodatnu korekciju na nivou cijelog projekta — svaka struka je već obračunata).
         strukaSubtotali.push({ naziv: s.naziv, ukupno: strukaSveukupno, rimski: toRoman(brStruke) })
@@ -2015,43 +2039,39 @@ export default function App() {
       return `<tr><td>${s.rimski}&nbsp;&nbsp;${s.naziv}</td><td class="r">${fmtN(s.ukupno)} ${valutaZnak}</td></tr>`
     }).join('')
 
-    // Finalna rekapitulacija SVIH faza projekta se prikazuje samo za kompletan export
-    // ili kad se izvozi Građevinsko-zanatski (glavni/koordinacioni dokument projekta).
-    // Ostale pojedinačne faze (ViK, Elektro, Mašinske, Vanjsko) su samostalni dokumenti
-    // za tog izvođača i ne treba da otkrivaju cijene drugih struka.
-    // Sveukupno projekta je prost zbir već korigovanih iznosa po struci — svaka struka
-    // je obračunata sa svojim vlastitim uvećanjem/umanjenjem, pa se ovdje ništa dodatno
-    // ne primjenjuje (izbjegava dvostruko računanje korekcije).
-    const ukupno = strukaSubtotali.reduce((s, x) => s + x.ukupno, 0)
+    // Finalna rekapitulacija SVIH faza projekta. U praksi se predmjer predaje PO FAZAMA kao
+    // odvojeni dokumenti (A, E, ViK, mašinstvo), a ova zbirna rekapitulacija ide samo uz vodeću
+    // (građevinsko-zanatsku) fazu — zato je i uključivanje/isključivanje u rukama korisnika
+    // (prekidač u panelu REKAPITULACIJA).
+    // Uz faze koje postoje u projektu (računaju se iz stavki), uključuju se i RUČNO upisani
+    // iznosi faza koje kolege rade u svojim programima — inače finalni zbir ne bi bio potpun.
+    const rucneFaze = Array.isArray(aktivniProjekat?.rucne_faze) ? aktivniProjekat.rucne_faze : []
+    const rucneValidne = rucneFaze.filter(f => f && (f.naziv || '').trim() && parsiBroj(f.iznos) > 0)
+    const ukupnoRucnih = rucneValidne.reduce((s, f) => s + parsiBroj(f.iznos), 0)
+    const ukupno = strukaSubtotali.reduce((s, x) => s + x.ukupno, 0) + ukupnoRucnih
     const imaBiloKakvuKorekciju = struke.some(s => (s.uvecanjePct||0) > 0 || (s.umanjenjePct||0) > 0)
 
-    const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
-    // ── BLOK ZA POTPIS ODGOVORNOG PROJEKTANTA ──
-    // Štampa se na kraju izvještaja, ispod zbirne rekapitulacije. Poravnat desno, sa linijom za
-    // svojeručni potpis — kako je uobičajeno u projektnoj dokumentaciji. Ako projektant nije
-    // upisan u „Postavke firme", blok se izostavlja u cijelosti.
-    const potpisHtml = firma?.projektant ? `
-<div style="margin-top:26px; page-break-inside:avoid; display:flex; justify-content:flex-end;">
-  <div style="width:250px; text-align:center;">
-    <div style="font-size:9pt; color:#555; margin-bottom:34px;">Odgovorni projektant:</div>
-    <div style="border-top:1px solid #333; padding-top:5px;">
-      <div style="font-size:9.5pt; font-weight:bold; color:#1B2F43;">${escHtml(firma.projektant)}</div>
-      ${firma.licenca ? `<div style="font-size:8.5pt; color:#555; margin-top:2px;">Licenca br. ${escHtml(firma.licenca)}</div>` : ''}
-    </div>
-  </div>
-</div>` : ''
+    const rucniRedovi = rucneValidne.map((f, i) => {
+      const rimski = toRoman(strukaSubtotali.length + i + 1)
+      return `<tr><td>${rimski} ${escHtml(f.naziv)}</td><td class="r">${fmtN(parsiBroj(f.iznos))} ${valutaZnak}</td></tr>`
+    }).join('')
 
+    const prikaziGlobalnuRekapitulaciju = (aktivniProjekat?.prikazi_finalnu !== false)
+      && (!filtrirajStruku || filtrirajStruku === 'gradjevinski')
     const globalnaRekapitulacijaHtml = prikaziGlobalnuRekapitulaciju ? `
 <div class="page-break"></div>
+<div style="page-break-inside:avoid;">
 <h2 style="color:#1B2F43;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #1B2F43">REKAPITULACIJA</h2>
 <table style="width:400px">
   <thead><tr><th>Faza</th><th class="r">Ukupno (${valutaZnak})</th></tr></thead>
   <tbody>
     ${rekapRows}
+    ${rucniRedovi}
     ${imaBiloKakvuKorekciju ? `<tr><td colspan="2" style="font-size:8pt;color:#888;font-style:italic;padding-top:2px">* iznosi po fazi već uključuju eventualno uvećanje/umanjenje te faze</td></tr>` : ''}
     <tr class="total"><td><strong>SVEUKUPNO</strong></td><td class="r bold" style="font-size:12pt">${fmtN(ukupno)} ${valutaZnak}</td></tr>
   </tbody>
-</table>` : ''
+</table>
+</div>` : ''
 
     const html = `<!DOCTYPE html><html lang="bs">
 <head><meta charset="UTF-8"><title>Predmjer — ${escHtml(proj.naziv)}</title>
@@ -2233,6 +2253,9 @@ ${potpisHtml}
         valuta: aktivniProjekat.valuta || 'EUR',
         // Zapamti i koja je struka bila zadnja aktivna, da se klon otvori na istoj (vjernija kopija).
         zadnja_struka_kod: aktivniProjekat.zadnja_struka_kod || null,
+        // Postavke finalne rekapitulacije (prikaz + ručno upisani iznosi ostalih faza)
+        prikazi_finalnu: aktivniProjekat.prikazi_finalnu !== false,
+        rucne_faze: aktivniProjekat.rucne_faze || [],
         // KLJUČNO: kopirati stvarne strukе originalnog projekta (nazivi, eventualno
         // preimenovani/obrisani/custom dodati, uvecanjePct/umanjenjePct po struci).
         // Bez ovoga bi klon tiho pao na generički DEFAULT_STRUKE i izgubio sve te izmjene,
@@ -2809,6 +2832,57 @@ ${potpisHtml}
               </tbody>
             </table>
           ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite grupu radova.</p>}
+
+          {/* ── FINALNA REKAPITULACIJA SVIH FAZA (opciono) ──
+              Predmjer se u praksi predaje po fazama kao odvojeni dokumenti; zbirna rekapitulacija
+              svih faza ide samo uz vodeću (građevinsko-zanatsku). Zato je uključivanje na korisniku.
+              Faze koje kolege rade u svojim programima ne postoje u ovom projektu, pa se njihovi
+              iznosi upisuju ručno — inače finalni zbir ne bi bio potpun. */}
+          {aktivniProjekat && (
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #D8D5CC' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={aktivniProjekat.prikazi_finalnu !== false}
+                  onChange={e => azurirajProjekat('prikazi_finalnu', e.target.checked)}
+                  style={{ marginTop: 2, cursor: 'pointer' }} />
+                <span style={{ fontSize: 11.5, color: '#425A70', fontWeight: 600, lineHeight: 1.35 }}>
+                  Štampaj finalnu rekapitulaciju svih faza
+                </span>
+              </label>
+
+              {aktivniProjekat.prikazi_finalnu !== false && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 10.5, color: '#8A94A0', marginBottom: 6, lineHeight: 1.4 }}>
+                    Iznosi faza koje ne vodite u ovom projektu (ViK, elektro…) — upišite ih ručno da uđu u finalni zbir:
+                  </div>
+                  {(Array.isArray(aktivniProjekat.rucne_faze) ? aktivniProjekat.rucne_faze : []).map((rf, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 5, marginBottom: 5, alignItems: 'center' }}>
+                      <input type="text" defaultValue={rf.naziv || ''} placeholder="Naziv faze"
+                        onBlur={e => {
+                          const niz = [...(aktivniProjekat.rucne_faze || [])]
+                          niz[idx] = { ...niz[idx], naziv: e.target.value }
+                          azurirajProjekat('rucne_faze', niz)
+                        }}
+                        style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                      <input type="text" inputMode="decimal" defaultValue={rf.iznos ?? ''} placeholder="0"
+                        onBlur={e => {
+                          const niz = [...(aktivniProjekat.rucne_faze || [])]
+                          niz[idx] = { ...niz[idx], iznos: parsiBroj(e.target.value) }
+                          azurirajProjekat('rucne_faze', niz)
+                        }}
+                        style={{ width: 72, border: '1px solid #D8D5CC', borderRadius: 5, padding: '5px 7px', fontSize: 11.5, fontFamily: 'inherit', background: '#F5F4F0', textAlign: 'right' }} />
+                      <button onClick={() => azurirajProjekat('rucne_faze', (aktivniProjekat.rucne_faze || []).filter((_, i) => i !== idx))}
+                        title="Ukloni"
+                        style={{ background: 'none', border: 'none', color: '#C0392B', cursor: 'pointer', fontSize: 13, padding: '0 2px', flexShrink: 0 }}>×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => azurirajProjekat('rucne_faze', [...(aktivniProjekat.rucne_faze || []), { naziv: '', iznos: 0 }])}
+                    style={{ width: '100%', background: '#EEF0F2', border: '1px dashed #B8C2CC', color: '#4A637C', borderRadius: 6, padding: '5px 0', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 2 }}>
+                    + Dodaj fazu
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           </div>
           </div>
         </div>
