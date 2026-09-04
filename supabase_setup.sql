@@ -38,6 +38,8 @@ ALTER TABLE projekti ADD COLUMN IF NOT EXISTS struke JSONB;                    -
 ALTER TABLE projekti ADD COLUMN IF NOT EXISTS uvecanje_pct NUMERIC DEFAULT 0;
 ALTER TABLE projekti ADD COLUMN IF NOT EXISTS umanjenje_pct NUMERIC DEFAULT 0;
 ALTER TABLE projekti ADD COLUMN IF NOT EXISTS zadnja_struka_kod TEXT;          -- pamti gdje je korisnik stao
+ALTER TABLE projekti ADD COLUMN IF NOT EXISTS prikazi_finalnu BOOLEAN DEFAULT true;  -- štampa finalne rekapitulacije svih faza
+ALTER TABLE projekti ADD COLUMN IF NOT EXISTS rucne_faze JSONB DEFAULT '[]'::jsonb;    -- ručno upisani iznosi faza koje se ne vode u projektu
 -- Legacy kolone (starije verzije uv/um po radovima/materijalu) — kod ih još čita kao rezervu:
 ALTER TABLE projekti ADD COLUMN IF NOT EXISTS uv_radovi NUMERIC DEFAULT 0;
 ALTER TABLE projekti ADD COLUMN IF NOT EXISTS uv_materijal NUMERIC DEFAULT 0;
