@@ -1778,7 +1778,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token || ''}`
         },
-        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku, firma: firma ? { naziv: firma.naziv || '', logo: firma.logo || null } : null, logoOdnos })
+        body: JSON.stringify({ projekat: aktivniProjekat, faze, svePozicije, valutaZnak, struke, filtrirajStruku, firma: firma ? { naziv: firma.naziv || '', logo: firma.logo || null, projektant: firma.projektant || null, licenca: firma.licenca || null } : null, logoOdnos })
       })
 
       if (!response.ok) {
