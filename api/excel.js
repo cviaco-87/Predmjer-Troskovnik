@@ -794,6 +794,12 @@ export default async function handler(req, res) {
     const prikaziGlobalnuRekapitulaciju = (projekat?.prikazi_finalnu !== false)
       && (!filtrirajStruku || filtrirajStruku === 'gradjevinski')
     if (prikaziGlobalnuRekapitulaciju) {
+    // Rekapitulacija UVIJEK počinje na novoj stranici i ne smije se lomiti preko dvije — u
+    // odštampanom dokumentu koji ide investitoru to je zaseban, zaokružen pregled.
+    // (Prelom se postavlja na posljednji red PRIJE rekapitulacije.)
+    if (ws.lastRow && ws.lastRow.number > 1) {
+      ws.getRow(ws.lastRow.number).addPageBreak()
+    }
     const rekNas = ws.addRow(['','REKAPITULACIJA','','','','',''])
     ws.mergeCells(`A${rekNas.number}:G${rekNas.number}`)
     rekNas.height = 18
@@ -815,9 +821,12 @@ export default async function handler(req, res) {
 
     const rekapGAddrs = []
     for (const info of strukaTotalInfo) {
-      const fRow = ws.addRow(['', `${info.rimski}   ${info.naziv}`,'','','','',''])
+      // VAŽNO: naziv se upisuje TEK POSLIJE spajanja ćelija — mergeCells(A:F) briše sadržaj
+      // ćelija u opsegu, pa bi tekst upisan kroz addRow() nestao (ostajali su samo iznosi).
+      const fRow = ws.addRow([])
       ws.mergeCells(`A${fRow.number}:F${fRow.number}`)
       fRow.height = 14.1
+      fRow.getCell('B').value     = `${info.rimski}   ${info.naziv}`
       fRow.getCell('B').font      = font({size:10})
       fRow.getCell('B').border    = borderBottom('thin','EEECEA')
       if (info.addr) {
