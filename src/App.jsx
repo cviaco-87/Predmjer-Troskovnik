@@ -1876,6 +1876,11 @@ export default function App() {
   </div>
 </div>` : ''
 
+    // Da li se na kraju štampa ZBIRNA REKAPITULACIJA SVIH FAZA. Mora biti izračunato PRIJE petlje
+    // po strukama, jer o tome zavisi i gdje ide potpis (na kraj svake faze ili jednom na kraju).
+    const prikaziGlobalnuRekapitulaciju = (aktivniProjekat?.prikazi_finalnu !== false)
+      && (!filtrirajStruku || filtrirajStruku === 'gradjevinski')
+
     let sviFazeSadrzaj = ''
     const strukaSubtotali = [] // { naziv, ukupno } - za rekapitulaciju po struci
 
@@ -2017,10 +2022,11 @@ export default function App() {
           sviFazeSadrzaj += `</tbody></table>`
         }
 
-        // Potpis odgovornog projektanta — na kraju SVAKE struke (faze), ispod njene rekapitulacije.
-        // Predmjer se u praksi predaje po fazama kao odvojeni dokumenti, pa svaka faza treba svoj
-        // potpis; ako je uključena i finalna rekapitulacija svih faza, potpis se ponavlja i tamo.
-        sviFazeSadrzaj += potpisHtml
+        // Potpis odgovornog projektanta na kraju ove struke (faze).
+        // VAŽNO: dodaje se SAMO ako se ne štampa finalna rekapitulacija svih faza — u tom slučaju
+        // potpis ide jednom, na samom kraju dokumenta (ispod finalne rekapitulacije). Bez ovog
+        // uslova potpis bi se pojavio dvaput na susjednim stranama.
+        if (!prikaziGlobalnuRekapitulaciju) sviFazeSadrzaj += potpisHtml
 
         // Globalna rekapitulacija zbraja VEĆ KORIGOVANE iznose po struci (ne primjenjuje
         // dodatnu korekciju na nivou cijelog projekta — svaka struka je već obračunata).
@@ -2056,8 +2062,6 @@ export default function App() {
       return `<tr><td>${rimski} ${escHtml(f.naziv)}</td><td class="r">${fmtN(parsiBroj(f.iznos))} ${valutaZnak}</td></tr>`
     }).join('')
 
-    const prikaziGlobalnuRekapitulaciju = (aktivniProjekat?.prikazi_finalnu !== false)
-      && (!filtrirajStruku || filtrirajStruku === 'gradjevinski')
     const globalnaRekapitulacijaHtml = prikaziGlobalnuRekapitulaciju ? `
 <div class="page-break"></div>
 <div style="page-break-inside:avoid;">
@@ -2151,7 +2155,7 @@ export default function App() {
 </div>
 ${sviFazeSadrzaj}
 ${globalnaRekapitulacijaHtml}
-${potpisHtml}
+${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
 </body></html>`
 
     // Otvori print prozor
