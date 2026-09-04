@@ -2124,14 +2124,28 @@ ${globalnaRekapitulacijaHtml}
     printWin.document.open()
     printWin.document.write(html)
     printWin.document.close()
-    // Čekaj da se učita pa štampaj
-    printWin.addEventListener('load', () => {
-      setTimeout(() => printWin.print(), 300)
-    })
-    // Fallback ako load event ne okine
-    setTimeout(() => {
-      try { printWin.print() } catch(e) {}
-    }, 1200)
+
+    // VAŽNO: print() se smije pozvati SAMO JEDNOM. Ranije su postojala dva poziva (na 'load' i
+    // rezervni poslije 1,2 s); ako bi se oba izvršila, drugi bi udario u već otvoren print dijalog,
+    // što u nekim preglednicima (Edge/Chrome) zna zaključati i GLAVNU karticu — aplikacija izgleda
+    // "zaleđeno", a refresh se vrti u beskonačnost. Zastavica osigurava jedan poziv.
+    let odstampano = false
+    const pokreniStampu = () => {
+      if (odstampano || printWin.closed) return
+      odstampano = true
+      try {
+        printWin.focus()
+        printWin.print()
+        // Zatvori prozor kad korisnik završi sa print dijalogom — inače ostaju otvoreni prozori
+        // koji se gomilaju pri svakom izvozu.
+        printWin.addEventListener('afterprint', () => { try { printWin.close() } catch (e) {} })
+      } catch (e) {
+        console.error('Greška pri pokretanju štampe:', e)
+      }
+    }
+    // Slike (logo/memorandum) se učitavaju asinhrono — sačekaj 'load', uz rezervu ako ne okine.
+    printWin.addEventListener('load', () => setTimeout(pokreniStampu, 300))
+    setTimeout(pokreniStampu, 1500)
   }
 
 
