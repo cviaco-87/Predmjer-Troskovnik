@@ -786,9 +786,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── REKAPITULACIJA — samo za kompletan export ili Građevinsko-zanatski (glavni dokument projekta).
-    // Ostale pojedinačne faze su samostalni dokumenti za tog izvođača, ne otkrivaju cijene drugih struka.
-    const prikaziGlobalnuRekapitulaciju = !filtrirajStruku || filtrirajStruku === 'gradjevinski'
+    // ── REKAPITULACIJA — ista logika kao u PDF/Print izvozu ──
+    // Predmjer se u praksi predaje PO FAZAMA kao odvojeni dokumenti, pa zbirna rekapitulacija svih
+    // faza ide samo uz vodeću (građevinsko-zanatsku) fazu, i to samo ako korisnik to uključi
+    // (prekidač u panelu REKAPITULACIJA). Ostale faze su samostalni dokumenti i ne otkrivaju
+    // cijene drugih struka.
+    const prikaziGlobalnuRekapitulaciju = (projekat?.prikazi_finalnu !== false)
+      && (!filtrirajStruku || filtrirajStruku === 'gradjevinski')
     if (prikaziGlobalnuRekapitulaciju) {
     const rekNas = ws.addRow(['','REKAPITULACIJA','','','','',''])
     ws.mergeCells(`A${rekNas.number}:G${rekNas.number}`)
@@ -828,6 +832,27 @@ export default async function handler(req, res) {
       rekapGAddrs.push(`G${fRow.number}`)
     }
 
+    // ── RUČNO UPISANE FAZE ──
+    // Faze koje se ne vode u ovom projektu (kolege ih rade u svojim programima) korisnik upisuje
+    // ručno u panelu REKAPITULACIJA. Bez njih finalni zbir ne bi bio potpun.
+    const rucneFaze = Array.isArray(projekat?.rucne_faze) ? projekat.rucne_faze : []
+    const rucneValidne = rucneFaze.filter(f => f && String(f.naziv || '').trim() && Number(f.iznos) > 0)
+    rucneValidne.forEach((rf, i) => {
+      const rimski = toRoman(strukaTotalInfo.length + i + 1)
+      const rRow = ws.addRow([])
+      ws.mergeCells(`A${rRow.number}:F${rRow.number}`)
+      rRow.height = 14.1
+      rRow.getCell('B').value     = `${rimski}   ${rf.naziv}`
+      rRow.getCell('B').font      = font({size:10})
+      rRow.getCell('B').border    = borderBottom('thin','EEECEA')
+      rRow.getCell('G').value     = Number(rf.iznos)
+      rRow.getCell('G').numFmt    = FMT_CUR
+      rRow.getCell('G').font      = font({bold:true, color:Z})
+      rRow.getCell('G').alignment = al('center','center',false)
+      rRow.getCell('G').border    = borderBottom('thin','EEECEA')
+      rekapGAddrs.push(`G${rRow.number}`)
+    })
+
     // ── SVEUKUPNO — prost zbir već korigovanih iznosa po struci. Svaka struka je
     // obračunata sa svojim vlastitim uvećanjem/umanjenjem (vidi petlju iznad), pa se
     // ovdje ništa dodatno ne primjenjuje — time se izbjegava dvostruko računanje
@@ -860,6 +885,36 @@ export default async function handler(req, res) {
     svRow.getCell('G').numFmt    = FMT_CUR
     svRow.getCell('G').alignment = al('center','center',false)
     } // kraj prikaziGlobalnuRekapitulaciju bloka
+
+    // ── POTPIS ODGOVORNOG PROJEKTANTA ──
+    // Ista logika kao u PDF/Print izvozu: potpis ide TAČNO JEDNOM. Ako se štampa finalna
+    // rekapitulacija, potpis dolazi ispod nje; ako se ne štampa, dolazi na kraj dokumenta
+    // (poslije posljednje faze). Ako projektant nije upisan u „Postavke firme" — izostavlja se.
+    if (firma && firma.projektant) {
+      ws.addRow([])
+      const labRow = ws.addRow(['','','','','','Odgovorni projektant:',''])
+      ws.mergeCells(`F${labRow.number}:G${labRow.number}`)
+      labRow.getCell('F').font      = font({size:9, color:'555555'})
+      labRow.getCell('F').alignment = al('center','center',false)
+
+      // Prazan red kao prostor za svojeručni potpis
+      const prazanRow = ws.addRow([])
+      prazanRow.height = 34
+
+      const potRow = ws.addRow(['','','','','', String(firma.projektant), ''])
+      ws.mergeCells(`F${potRow.number}:G${potRow.number}`)
+      potRow.getCell('F').font      = font({bold:true, size:9.5, color:Z})
+      potRow.getCell('F').alignment = al('center','center',false)
+      // Linija iznad imena = linija za potpis
+      ;['F','G'].forEach(col => { potRow.getCell(col).border = { top: { style:'thin', color:{argb:'FF333333'} } } })
+
+      if (firma.licenca) {
+        const licRow = ws.addRow(['','','','','', `Licenca br. ${firma.licenca}`, ''])
+        ws.mergeCells(`F${licRow.number}:G${licRow.number}`)
+        licRow.getCell('F').font      = font({size:8.5, color:'555555'})
+        licRow.getCell('F').alignment = al('center','center',false)
+      }
+    }
 
     // ── SLANJE FAJLA ──
     const buffer = await wb.xlsx.writeBuffer()
