@@ -3344,12 +3344,12 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.cijena || ''} onBlur={e => azurirajPoziciju(p.id, 'cijena', parsiBroj(e.target.value))}
+                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.cijena ? String(p.cijena).replace('.', ',') : ''} onBlur={e => { const v = parsiBroj(e.target.value); const unos = String(e.target.value).trim(); const dec = (unos.split(/[.,]/)[1] || '').length; e.target.value = v ? v.toFixed(Math.min(Math.max(dec, 0), 2)).replace('.', ',') : ''; azurirajPoziciju(p.id, 'cijena', v) }}
                                       style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.kolicina || ''} onBlur={e => azurirajPoziciju(p.id, 'kolicina', parsiBroj(e.target.value))}
+                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.kolicina ? String(p.kolicina).replace('.', ',') : ''} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(p.id, 'kolicina', v) }}
                                       placeholder="0"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
@@ -3484,11 +3484,11 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                         </select>
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena || ''} onBlur={e => azurirajPoziciju(d.id, 'cijena', parsiBroj(e.target.value))}
+                                        <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena ? String(d.cijena).replace('.', ',') : ''} onBlur={e => { const v = parsiBroj(e.target.value); const unos = String(e.target.value).trim(); const dec = (unos.split(/[.,]/)[1] || '').length; e.target.value = v ? v.toFixed(Math.min(Math.max(dec, 0), 2)).replace('.', ',') : ''; azurirajPoziciju(d.id, 'cijena', v) }}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
                                       <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina || ''} onBlur={e => azurirajPoziciju(d.id, 'kolicina', parsiBroj(e.target.value))}
+                                        <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina ? String(d.kolicina).replace('.', ',') : ''} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(d.id, 'kolicina', v) }}
                                           placeholder="0"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
