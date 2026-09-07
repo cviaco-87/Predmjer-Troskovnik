@@ -286,6 +286,15 @@ const primijeniOznaku = (el, znak) => {
 }
 
 // Da li opis sadrži oznake formatiranja (**podebljano** ili *kurziv*).
+// Pretvara oznake formatiranja u HTML za PDF/Print izvoz:
+//   **tekst** -> podebljano, *tekst* -> kurziv.
+// VAŽNO: prvo se obrađuje ** (dvije zvjezdice), pa tek onda * — inače bi jednostruko pravilo
+// „pojelo" polovinu dvostruke oznake. HTML znakovi se prethodno neutrališu radi sigurnosti.
+const oznakeUHtml = (t) => (t || '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+
 const imaOznakeFormata = t => /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(t || '')
 
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
@@ -2035,7 +2044,7 @@ export default function App() {
           for (const p of stavke) {
             const u = calcRow(p, poz)
             const imadjece = p.djeca.length > 0
-            const naziv = (p.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            const naziv = oznakeUHtml(p.naziv)
             const sifra = (p.sifra||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             rows += `<tr>
               <td class="c" style="font-size:11pt;color:#002060;font-weight:600;vertical-align:middle">${rb++}</td>
@@ -2049,7 +2058,7 @@ export default function App() {
             if (imadjece) {
               p.djeca.forEach((d, di) => {
                 const du = calcRowSimple(d)
-                const dNaziv = (d.naziv||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                const dNaziv = oznakeUHtml(d.naziv)
                 rows += `<tr class="pod">
                   <td class="c" style="color:#aaa;font-size:8pt">${rb-1}.${di+1}</td>
                   <td></td>
