@@ -1263,19 +1263,69 @@ export default function App() {
   }
 
   const onDragEnd = (e) => {
+    zaustaviAutoSkrol()
     dragRuckaAktivna.current = false
     e.currentTarget.style.opacity = '1'
     document.body.classList.remove('vuce-stavku')
   }
 
+  // ── AUTO-SKROL PRI PREVLAČENJU STAVKE ──
+  // Preglednik ima vlastiti auto-skrol, ali je nepouzdan (radi povremeno, zavisno od toga gdje se
+  // kursor zatekne). Zato ga vodimo sami: dok se stavka prevlači i kursor priđe gornjoj ili donjoj
+  // ivici liste, lista klizi u tom smjeru sve dok se kursor ne udalji ili se stavka ne ispusti.
+  const skrolKontejnerRef = React.useRef(null)
+  const autoSkrolRAF = React.useRef(null)
+  const autoSkrolBrzina = React.useRef(0)
+
+  const petljaAutoSkrol = () => {
+    const el = skrolKontejnerRef.current
+    if (el && autoSkrolBrzina.current !== 0) {
+      el.scrollTop += autoSkrolBrzina.current
+      autoSkrolRAF.current = requestAnimationFrame(petljaAutoSkrol)
+    } else {
+      autoSkrolRAF.current = null
+    }
+  }
+  const azurirajAutoSkrol = (clientY) => {
+    const el = skrolKontejnerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const prag = 80, maxBrzina = 22
+    let v = 0
+    if (clientY < r.top + prag) v = -Math.ceil((r.top + prag - clientY) / prag * maxBrzina)
+    else if (clientY > r.bottom - prag) v = Math.ceil((clientY - (r.bottom - prag)) / prag * maxBrzina)
+    autoSkrolBrzina.current = v
+    if (v !== 0 && !autoSkrolRAF.current) autoSkrolRAF.current = requestAnimationFrame(petljaAutoSkrol)
+  }
+  const zaustaviAutoSkrol = () => {
+    autoSkrolBrzina.current = 0
+    if (autoSkrolRAF.current) { cancelAnimationFrame(autoSkrolRAF.current); autoSkrolRAF.current = null }
+  }
+
+  // Skrol točkićem dok traje prevlačenje. React veže 'wheel' pasivno (ne dozvoljava
+  // preventDefault), pa slušalac dodajemo direktno na element sa { passive: false }.
+  useEffect(() => {
+    const el = skrolKontejnerRef.current
+    if (!el) return
+    const naTockic = (e) => {
+      if (!dragPoz.current) return
+      e.preventDefault()
+      el.scrollTop += e.deltaY
+    }
+    el.addEventListener('wheel', naTockic, { passive: false })
+    return () => el.removeEventListener('wheel', naTockic)
+  }, [aktivnaFaza?.id])
+
   const onDragOver = (e, poz) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     dragOverPoz.current = poz
+    azurirajAutoSkrol(e.clientY)
   }
 
   const onDrop = async (e, targetPoz) => {
     e.preventDefault()
+    zaustaviAutoSkrol()
     document.body.classList.remove('vuce-stavku')  // vrati normalan kursor odmah po ispuštanju
     if (!dragPoz.current || dragPoz.current.id === targetPoz.id) return
     if (dragPoz.current.parent_id || targetPoz.parent_id) return
@@ -3093,7 +3143,10 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                   NAPOMENA: pretraga baze je premještena u vlastiti VERTIKALNI STUBAC lijevo
                   (vidi ispod) — tako radni prostor sa stavkama počinje odmah od vrha, a duge
                   opise pozicija je lakše čitati u užem stupcu nego razvučene preko cijelog ekrana. */}
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <div ref={skrolKontejnerRef}
+                onDragOver={e => { e.preventDefault(); azurirajAutoSkrol(e.clientY) }}
+                onDragLeave={() => zaustaviAutoSkrol()}
+                style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
               {/* ── OPŠTI TEHNIČKI USLOVI GRUPE RADOVA (sklopivo) ── */}
               {/* Traka sa naslovom je NAMJERNO izvan okvira panela i direktno u skrol-kontejneru:
