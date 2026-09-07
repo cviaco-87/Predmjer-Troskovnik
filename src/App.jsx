@@ -285,24 +285,6 @@ const primijeniOznaku = (el, znak) => {
   return novi
 }
 
-// Prikaz teksta sa primijenjenim oznakama: **tekst** -> podebljano, *tekst* -> kurziv.
-// Koristi se kad polje NIJE u fokusu, da se odmah vidi kako će opis izgledati u izvozu.
-function FormatiranOpis({ tekst, stil }) {
-  if (!tekst) return null
-  const dijelovi = []
-  const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g
-  let zadnji = 0, m, k = 0
-  while ((m = re.exec(tekst)) !== null) {
-    if (m.index > zadnji) dijelovi.push(tekst.slice(zadnji, m.index))
-    const s = m[0]
-    if (s.startsWith('**')) dijelovi.push(<strong key={k++}>{s.slice(2, -2)}</strong>)
-    else dijelovi.push(<em key={k++}>{s.slice(1, -1)}</em>)
-    zadnji = m.index + s.length
-  }
-  if (zadnji < tekst.length) dijelovi.push(tekst.slice(zadnji))
-  return <div style={stil}>{dijelovi}</div>
-}
-
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
 
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
@@ -3425,7 +3407,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                         azurirajPoziciju(p.id, 'opis_visina', potrebno)
                                       }}
                                       title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
-                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, maxHeight: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 78 : 'none', overflow: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 'hidden' : undefined, color: '#2B2B26' }}
+                                      style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, maxHeight: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 78 : 'none', overflow: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 'hidden' : undefined, /* Kad se preko polja prikazuje formatiran tekst, tekst u samom polju mora biti proziran — inače se vide oba i preklapaju se. Karet (kursor) ostaje vidljiv. */ color: '#2B2B26' }}
                                       onFocus={e => { prosiriOpis(p.id); setOpisUFokusu(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         // Ctrl+B = podebljano (**tekst**), Ctrl+I = kurziv (*tekst*).
@@ -3459,16 +3441,8 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                           </button>
                                         ))}
                                         <span style={{ fontSize: 9.5, color: '#AEB4BA' }}>označi tekst pa klikni</span>
+                                        {imaOznakeFormata(p.naziv) && <span title="Ova stavka sadrži formatiran tekst (**podebljano**, *kurziv*)" style={{ fontSize: 9.5, color: '#4A637C', fontWeight: 600 }}>• formatirano</span>}
                                       </div>
-                                    )}
-                                    {/* Kad polje NIJE u fokusu, preko njega se prikazuje formatiran tekst
-                                        (podebljano/kurziv, bez zvjezdica) — odmah se vidi kako će izgledati u izvozu. */}
-                                    {opisUFokusu !== p.id && /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(p.naziv || '') && (
-                                      <FormatiranOpis tekst={p.naziv} stil={{
-                                        position: 'absolute', inset: 0, padding: '3px 6px', fontSize: 12, lineHeight: 1.6,
-                                        wordBreak: 'break-word', whiteSpace: 'pre-wrap', color: '#2B2B26', background: 'inherit',
-                                        pointerEvents: 'none', overflow: 'hidden'
-                                      }} />
                                     )}
                                     {jeDugOpis(p) && (
                                       <div style={{ textAlign: 'right', marginTop: 1 }}>
@@ -3648,14 +3622,6 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                                 </button>
                                               ))}
                                             </span>
-                                          )}
-                                          {/* Formatiran prikaz kad polje nije u fokusu */}
-                                          {opisUFokusu !== d.id && /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(d.naziv || '') && (
-                                            <FormatiranOpis tekst={d.naziv} stil={{
-                                              position: 'absolute', inset: 0, padding: '2px 4px', fontSize: 11, lineHeight: 1.4,
-                                              color: '#444', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                              pointerEvents: 'none', overflow: 'hidden'
-                                            }} />
                                           )}
                                          </div>
                                        </td>
