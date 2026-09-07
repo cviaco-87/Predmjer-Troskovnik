@@ -80,7 +80,12 @@ export default async function handler(req, res) {
       if (punaRijec[t]) return punaRijec[t]
       return t.replace(/m2\b/g, 'm²').replace(/m3\b/g, 'm³').replace(/m1\b/g, 'm').replace(/m¹/g, 'm').replace(/M2\b/g, 'M²').replace(/M3\b/g, 'M³')
     }
-    const strip = s => (s||'').replace(/\*\*([^*]+)\*\*/g,'$1')
+    // Uklanja oznake formatiranja iz teksta za Excel (**podebljano** i *kurziv*). Excel ćelija
+    // ne podržava djelimično formatiranje kroz običan tekst, pa se oznake uklanjaju — inače bi
+    // se zvjezdice vidjele u dokumentu. (Redoslijed: prvo **, pa *.)
+    const strip = s => (s||'')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
     const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n }
 
     const toRoman = n => {
