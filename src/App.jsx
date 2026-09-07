@@ -255,6 +255,54 @@ const calcRow = (p, svePoz) => {
 // da se podstavke jasnije razlikuju od glavnih stavki, a da boja ostane u paleti aplikacije.
 const BOJA_PODSTAVKE = '#F4ECDD'
 
+// Umeće oznake za podebljano (**) ili kurziv (*) oko označenog teksta u polju.
+// Ako je označeni dio VEĆ formatiran, oznake se uklanjaju (radi kao prekidač).
+// Vraća novi tekst ili null ako nema šta da se mijenja.
+const primijeniOznaku = (el, znak) => {
+  if (!el) return null
+  const start = el.selectionStart, end = el.selectionEnd
+  if (start === end) return null
+  const sel = el.value.slice(start, end)
+  const prije = el.value.slice(0, start)
+  const poslije = el.value.slice(end)
+  const n = znak.length
+  let novi, novoStart, novoEnd
+  if (sel.startsWith(znak) && sel.endsWith(znak) && sel.length > 2 * n) {
+    // već formatirano → ukloni oznake
+    novi = prije + sel.slice(n, -n) + poslije
+    novoStart = start; novoEnd = end - 2 * n
+  } else if (prije.endsWith(znak) && poslije.startsWith(znak)) {
+    // oznake su tik uz označeni tekst → ukloni ih
+    novi = prije.slice(0, -n) + sel + poslije.slice(n)
+    novoStart = start - n; novoEnd = end - n
+  } else {
+    novi = prije + znak + sel + znak + poslije
+    novoStart = start + n; novoEnd = end + n
+  }
+  el.value = novi
+  el.selectionStart = novoStart
+  el.selectionEnd = novoEnd
+  return novi
+}
+
+// Prikaz teksta sa primijenjenim oznakama: **tekst** -> podebljano, *tekst* -> kurziv.
+// Koristi se kad polje NIJE u fokusu, da se odmah vidi kako će opis izgledati u izvozu.
+function FormatiranOpis({ tekst, stil }) {
+  if (!tekst) return null
+  const dijelovi = []
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g
+  let zadnji = 0, m, k = 0
+  while ((m = re.exec(tekst)) !== null) {
+    if (m.index > zadnji) dijelovi.push(tekst.slice(zadnji, m.index))
+    const s = m[0]
+    if (s.startsWith('**')) dijelovi.push(<strong key={k++}>{s.slice(2, -2)}</strong>)
+    else dijelovi.push(<em key={k++}>{s.slice(1, -1)}</em>)
+    zadnji = m.index + s.length
+  }
+  if (zadnji < tekst.length) dijelovi.push(tekst.slice(zadnji))
+  return <div style={stil}>{dijelovi}</div>
+}
+
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
 
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
@@ -662,6 +710,9 @@ export default function App() {
   // klik u polje (fokus) ih razvije radi čitanja/uređivanja, a klik van polja (blur) ih sam skupi.
   // Ovo je čisto vizuelno — PDF i Excel izvoz UVIJEK koriste pun opis (grade se iz p.naziv).
   const [prosireniOpisi, setProsireniOpisi] = useState(() => new Set())
+  // ID stavke čije je polje opisa trenutno u fokusu — dok je u fokusu vide se oznake (**tekst**),
+  // a kad se izađe prikazuje se formatiran tekst (podebljano/kurziv, bez zvjezdica).
+  const [opisUFokusu, setOpisUFokusu] = useState(null)
   const jeDugOpis = p => ((p?.naziv || '').length > 180) || (p?.opis_visina && p.opis_visina > 92)
   const prosiriOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.add(id); return n })
   const skupiOpis = id => setProsireniOpisi(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n })
@@ -3325,7 +3376,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       onFocus={e => { e.target.style.border = '1px solid #C2CDD8'; e.target.style.background = '#fff' }}
                                       title="Šifra pozicije" />
                                   </td>
-                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                     <textarea
                                       key={`naz-${p.id}-${revizija}`}
                                       spellCheck={false}
@@ -3360,7 +3411,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                         }
                                         e.target.style.border = '1px solid transparent'
                                         e.target.style.background = 'transparent'
-                                        skupiOpis(p.id) // opcija B: opis se sam skupi kad se klikne van polja
+                                        skupiOpis(p.id); setOpisUFokusu(null) // opcija B: opis se sam skupi kad se klikne van polja
                                       }}
                                       rows={Math.max(2, Math.ceil((p.naziv||'').length / 65))}
                                       onClick={e => e.stopPropagation()}
@@ -3375,28 +3426,50 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       }}
                                       title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, maxHeight: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 78 : 'none', overflow: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 'hidden' : undefined, color: '#2B2B26' }}
-                                      onFocus={e => { prosiriOpis(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
+                                      onFocus={e => { prosiriOpis(p.id); setOpisUFokusu(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
-                                        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                                        // Ctrl+B = podebljano (**tekst**), Ctrl+I = kurziv (*tekst*).
+                                        // Ponovni pritisak nad istim izborom uklanja oznake.
+                                        if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'i')) {
                                           e.preventDefault()
-                                          const t = e.target
-                                          const start = t.selectionStart
-                                          const end = t.selectionEnd
-                                          if (start === end) return
-                                          const sel = t.value.slice(start, end)
-                                          const before = t.value.slice(0, start)
-                                          const after = t.value.slice(end)
-                                          const novi = before + '**' + sel + '**' + after
-                                          // Direktno azuriraj DOM bez React re-rendera
-                                          t.value = novi
-                                          t.selectionStart = start + 2
-                                          t.selectionEnd = end + 2
-                                          autoGrowTextarea(t)
-                                          // Azuriraj bazu (ali ne state da ne re-renderuje)
+                                          const novi = primijeniOznaku(e.target, e.key === 'b' ? '**' : '*')
+                                          if (novi === null) return
+                                          autoGrowTextarea(e.target)
                                           azurirajPoziciju(p.id, 'naziv', novi)
                                         }
                                       }}
                                     />
+                                    {/* Traka za formatiranje — vidljiva dok se opis uređuje.
+                                        Označi tekst pa klikni B ili I (isto što i Ctrl+B / Ctrl+I). */}
+                                    {opisUFokusu === p.id && (
+                                      <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginTop: 2 }}>
+                                        {[['**', 'B', 'Podebljano (Ctrl+B)'], ['*', 'I', 'Kurziv (Ctrl+I)']].map(([znak, oznaka, opis]) => (
+                                          <button key={oznaka} title={opis}
+                                            onMouseDown={e => {
+                                              // onMouseDown (ne onClick) — da polje ne izgubi fokus i izbor teksta.
+                                              e.preventDefault()
+                                              const polje = e.currentTarget.closest('td').querySelector('textarea')
+                                              const novi = primijeniOznaku(polje, znak)
+                                              if (novi === null) return
+                                              autoGrowTextarea(polje)
+                                              azurirajPoziciju(p.id, 'naziv', novi)
+                                            }}
+                                            style={{ background: '#EEF0F2', border: '1px solid #C7CDD3', borderRadius: 4, width: 22, height: 20, fontSize: 11, fontWeight: 700, fontStyle: oznaka === 'I' ? 'italic' : 'normal', color: '#1B2F43', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>
+                                            {oznaka}
+                                          </button>
+                                        ))}
+                                        <span style={{ fontSize: 9.5, color: '#AEB4BA' }}>označi tekst pa klikni</span>
+                                      </div>
+                                    )}
+                                    {/* Kad polje NIJE u fokusu, preko njega se prikazuje formatiran tekst
+                                        (podebljano/kurziv, bez zvjezdica) — odmah se vidi kako će izgledati u izvozu. */}
+                                    {opisUFokusu !== p.id && /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(p.naziv || '') && (
+                                      <FormatiranOpis tekst={p.naziv} stil={{
+                                        position: 'absolute', inset: 0, padding: '3px 6px', fontSize: 12, lineHeight: 1.6,
+                                        wordBreak: 'break-word', whiteSpace: 'pre-wrap', color: '#2B2B26', background: 'inherit',
+                                        pointerEvents: 'none', overflow: 'hidden'
+                                      }} />
+                                    )}
                                     {jeDugOpis(p) && (
                                       <div style={{ textAlign: 'right', marginTop: 1 }}>
                                         <button onClick={e => { e.stopPropagation(); toggleOpis(p.id) }}
@@ -3486,7 +3559,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : (pomjerenaId === d.id ? '#D6F0DE' : BOJA_PODSTAVKE), transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
                                       <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
                                       <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
-                                      <td style={{ padding: '4px 8px', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td style={{ padding: '4px 8px', verticalAlign: 'top', position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                           
                                           <textarea
@@ -3494,6 +3567,16 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                             spellCheck={false}
                                             ref={el => { if (el && !d.opis_visina) autoGrowTextarea(el, 22) }}
                                             defaultValue={d.naziv || ''}
+                                            onKeyDown={e => {
+                                              // Ctrl+B / Ctrl+I — isto kao kod glavne stavke.
+                                              if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'i')) {
+                                                e.preventDefault()
+                                                const novi = primijeniOznaku(e.target, e.key === 'b' ? '**' : '*')
+                                                if (novi === null) return
+                                                autoGrowTextarea(e.target, 22)
+                                                azurirajPoziciju(d.id, 'naziv', novi)
+                                              }
+                                            }}
                                             onInput={e => autoGrowTextarea(e.target, 22)}
                                             onBlur={e => {
                                               // Snimi u bazu i azuriraj stil
@@ -3514,7 +3597,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                               }
                                               e.target.style.border = '1px solid transparent'
                                               e.target.style.background = 'transparent'
-                                              skupiOpis(d.id) // opcija B: sam se skupi kad se klikne van polja
+                                              skupiOpis(d.id); setOpisUFokusu(null) // opcija B: sam se skupi kad se klikne van polja
                                             }}
                                             rows={1}
                                             onDoubleClick={e => {
@@ -3537,7 +3620,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                             title="Dvoklik razvlači ćeliju na cijeli tekst; ponovni dvoklik je skuplja"
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
-                                            onFocus={e => { prosiriOpis(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
+                                            onFocus={e => { prosiriOpis(d.id); setOpisUFokusu(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
                                           {jeDugOpis(d) && (
                                             <button onClick={e => { e.stopPropagation(); toggleOpis(d.id) }} title={prosireniOpisi.has(d.id) ? 'Skrati' : 'Prikaži cijelo'}
@@ -3546,6 +3629,33 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                               onMouseLeave={e => e.currentTarget.style.color = '#AEB4BA'}>
                                               {prosireniOpisi.has(d.id) ? '▴' : '▾'}
                                             </button>
+                                          )}
+                                          {/* Traka za formatiranje podstavke (Ctrl+B / Ctrl+I ili klik) */}
+                                          {opisUFokusu === d.id && (
+                                            <span style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                                              {[['**', 'B'], ['*', 'I']].map(([znak, oznaka]) => (
+                                                <button key={oznaka} title={oznaka === 'B' ? 'Podebljano (Ctrl+B)' : 'Kurziv (Ctrl+I)'}
+                                                  onMouseDown={e => {
+                                                    e.preventDefault()
+                                                    const polje = e.currentTarget.closest('td').querySelector('textarea')
+                                                    const novi = primijeniOznaku(polje, znak)
+                                                    if (novi === null) return
+                                                    autoGrowTextarea(polje, 22)
+                                                    azurirajPoziciju(d.id, 'naziv', novi)
+                                                  }}
+                                                  style={{ background: '#EEF0F2', border: '1px solid #C7CDD3', borderRadius: 3, width: 19, height: 17, fontSize: 10, fontWeight: 700, fontStyle: oznaka === 'I' ? 'italic' : 'normal', color: '#1B2F43', cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, padding: 0 }}>
+                                                  {oznaka}
+                                                </button>
+                                              ))}
+                                            </span>
+                                          )}
+                                          {/* Formatiran prikaz kad polje nije u fokusu */}
+                                          {opisUFokusu !== d.id && /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(d.naziv || '') && (
+                                            <FormatiranOpis tekst={d.naziv} stil={{
+                                              position: 'absolute', inset: 0, padding: '2px 4px', fontSize: 11, lineHeight: 1.4,
+                                              color: '#444', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                              pointerEvents: 'none', overflow: 'hidden'
+                                            }} />
                                           )}
                                          </div>
                                        </td>
