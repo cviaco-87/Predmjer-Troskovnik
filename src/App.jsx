@@ -285,6 +285,9 @@ const primijeniOznaku = (el, znak) => {
   return novi
 }
 
+// Da li opis sadrži oznake formatiranja (**podebljano** ili *kurziv*).
+const imaOznakeFormata = t => /(\*\*[^*]+\*\*|\*[^*]+\*)/.test(t || '')
+
 const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena) || 0)
 
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
