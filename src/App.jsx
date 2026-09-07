@@ -1869,6 +1869,34 @@ export default function App() {
     return m
   }, [pozicije])
 
+  // ── UKUPNI IZNOSI CIJELOG PROJEKTA (za panel REKAPITULACIJA) ──
+  // U memoriji se drže pozicije SAMO aktivne grupe, pa se za pregled cijelog projekta iznosi
+  // dovlače zasebno. Osvježava se pri promjeni projekta i kad se izmijene stavke aktivne grupe,
+  // da zbir uvijek prati stvarno stanje.
+  const [zbiroviFaza, setZbiroviFaza] = useState({})
+  useEffect(() => {
+    if (!aktivniProjekat || faze.length === 0) { setZbiroviFaza({}); return }
+    let otkazano = false
+    ;(async () => {
+      const rez = await Promise.all(
+        faze.map(f => supabase.from('pozicije').select('id,parent_id,cijena,kolicina').eq('faza_id', f.id))
+      )
+      if (otkazano) return
+      const zbir = {}
+      faze.forEach((f, i) => {
+        const poz = rez[i].data || []
+        // Roditelj sa podstavkama = zbir podstavki; roditelj bez djece = cijena × količina.
+        zbir[f.id] = poz.filter(p => !p.parent_id).reduce((s, p) => {
+          const djeca = poz.filter(d => d.parent_id === p.id)
+          if (djeca.length > 0) return s + djeca.reduce((ss, d) => ss + (parseFloat(d.cijena)||0) * (parseFloat(d.kolicina)||0), 0)
+          return s + (parseFloat(p.cijena)||0) * (parseFloat(p.kolicina)||0)
+        }, 0)
+      })
+      setZbiroviFaza(zbir)
+    })()
+    return () => { otkazano = true }
+  }, [aktivniProjekat?.id, faze, pozicije])
+
   const fazaTotali = useMemo(() => {
     const t = {}
     if (aktivnaFaza) t[aktivnaFaza.id] = pozicije.reduce((s, p) => s + calcRow(p, pozicije), 0)
@@ -2940,27 +2968,54 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
           <div style={{ background: '#EEF0F3', border: '1px solid #C9D3DE', borderRadius: 10, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#1B2F43', background: '#DDE0E3', padding: '9px 12px' }}><span style={{ fontSize: 15.3 }}>📊</span>Rekapitulacija</div>
           <div style={{ padding: '12px 12px 14px' }}>
-          {aktivnaFaza && pozicije.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '3px 0', color: '#666' }}>{aktivnaFaza.naziv}</td>
-                  <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt(fazaTotali[aktivnaFaza.id] || 0)} {valutaZnak}
-                  </td>
-                </tr>
-                <tr><td colSpan={2} style={{ borderTop: '1px solid #D8D5CC', paddingTop: 5 }}></td></tr>
-                {uvecanje > 0 && <tr><td style={{ color: '#1B2F43' }}>+ Uvećanje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>+{fmt(uvecanje)} {valutaZnak}</td></tr>}
-                {umanjenje > 0 && <tr><td style={{ color: '#C0392B' }}>− Umanjenje</td><td style={{ textAlign: 'right', fontWeight: 600, color: '#C0392B', fontVariantNumeric: 'tabular-nums' }}>−{fmt(umanjenje)} {valutaZnak}</td></tr>}
-                <tr>
-                  <td style={{ fontWeight: 800, fontSize: 14 }}>UKUPNO</td>
-                  <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#1B2F43', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt((fazaTotali[aktivnaFaza.id] || 0) + uvecanje - umanjenje)} {valutaZnak}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          ) : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite grupu radova.</p>}
+          {aktivniProjekat ? (() => {
+            // Pregled CIJELOG projekta: iznos po fazama (strukama) sa uvećanjem/umanjenjem te faze,
+            // pa ukupno. Zbir aktivne grupe se ne ponavlja ovdje — vidi se u dnu tabele
+            // („UKUPNO GRUPA"), a ovdje je potreban pregled cjeline.
+            const poFazama = struke.map(s => {
+              const fazeStruke = faze.filter(f => (f.struka_kod || 'gradjevinski') === s.kod)
+              const osnovica = fazeStruke.reduce((sum, f) => sum + (zbiroviFaza[f.id] || 0), 0)
+              const uv = osnovica * (s.uvecanjePct || 0) / 100
+              const um = osnovica * (s.umanjenjePct || 0) / 100
+              return { kod: s.kod, naziv: s.naziv, iznos: osnovica + uv - um, imaStavki: fazeStruke.length > 0 }
+            }).filter(x => x.imaStavki)
+
+            const rucne = (Array.isArray(aktivniProjekat.rucne_faze) ? aktivniProjekat.rucne_faze : [])
+              .filter(f => f && String(f.naziv || '').trim() && parsiBroj(f.iznos) > 0)
+            const ukupnoProjekta = poFazama.reduce((s, x) => s + x.iznos, 0)
+              + (aktivniProjekat.prikazi_finalnu !== false ? rucne.reduce((s, f) => s + parsiBroj(f.iznos), 0) : 0)
+
+            if (poFazama.length === 0) return <p style={{ fontSize: 12, color: '#aaa' }}>Još nema unesenih stavki.</p>
+            return (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <tbody>
+                  {poFazama.map(x => (
+                    <tr key={x.kod}>
+                      <td style={{ padding: '3px 0', color: x.kod === aktivnaStruka ? '#1B2F43' : '#666', fontWeight: x.kod === aktivnaStruka ? 600 : 400 }}>{x.naziv}</td>
+                      <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmt(x.iznos)} {valutaZnak}
+                      </td>
+                    </tr>
+                  ))}
+                  {aktivniProjekat.prikazi_finalnu !== false && rucne.map((f, i) => (
+                    <tr key={`r-${i}`}>
+                      <td style={{ padding: '3px 0', color: '#8A94A0', fontStyle: 'italic' }}>{f.naziv}</td>
+                      <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: 600, color: '#8A94A0', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {fmt(parsiBroj(f.iznos))} {valutaZnak}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr><td colSpan={2} style={{ borderTop: '1px solid #D8D5CC', paddingTop: 5 }}></td></tr>
+                  <tr>
+                    <td style={{ fontWeight: 800, fontSize: 13.5 }}>UKUPNO</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 13.5, color: '#1B2F43', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                      {fmt(ukupnoProjekta)} {valutaZnak}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )
+          })() : <p style={{ fontSize: 12, color: '#aaa' }}>Odaberite projekat.</p>}
 
           {/* ── FINALNA REKAPITULACIJA SVIH FAZA (opciono) ──
               Predmjer se u praksi predaje po fazama kao odvojeni dokumenti; zbirna rekapitulacija
