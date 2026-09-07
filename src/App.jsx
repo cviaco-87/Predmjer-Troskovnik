@@ -1290,7 +1290,7 @@ export default function App() {
     const el = skrolKontejnerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const prag = 80, maxBrzina = 22
+    const prag = 110, maxBrzina = 30
     let v = 0
     if (clientY < r.top + prag) v = -Math.ceil((r.top + prag - clientY) / prag * maxBrzina)
     else if (clientY > r.bottom - prag) v = Math.ceil((clientY - (r.bottom - prag)) / prag * maxBrzina)
@@ -1302,19 +1302,45 @@ export default function App() {
     if (autoSkrolRAF.current) { cancelAnimationFrame(autoSkrolRAF.current); autoSkrolRAF.current = null }
   }
 
-  // Skrol točkićem dok traje prevlačenje. React veže 'wheel' pasivno (ne dozvoljava
-  // preventDefault), pa slušalac dodajemo direktno na element sa { passive: false }.
+  // Skrol točkićem DOK SE STAVKA PREVLAČI.
+  // Tokom HTML5 prevlačenja preglednik ne isporučuje 'wheel' događaj elementu ispod kursora, pa ga
+  // hvatamo na nivou dokumenta u capture fazi i sami pomjeramo listu. Slušalac je stalno aktivan,
+  // ali radi samo dok je prevlačenje u toku (dragPoz.current), pa ne smeta običnom skrolanju.
   useEffect(() => {
-    const el = skrolKontejnerRef.current
-    if (!el) return
     const naTockic = (e) => {
       if (!dragPoz.current) return
+      const el = skrolKontejnerRef.current
+      if (!el) return
       e.preventDefault()
+      e.stopPropagation()
       el.scrollTop += e.deltaY
     }
-    el.addEventListener('wheel', naTockic, { passive: false })
-    return () => el.removeEventListener('wheel', naTockic)
-  }, [aktivnaFaza?.id])
+    document.addEventListener('wheel', naTockic, { passive: false, capture: true })
+
+    // Rezerva: neki preglednici tokom prevlačenja uopšte ne isporučuju 'wheel'. Tastatura radi
+    // pouzdano — strelice gore/dolje i PageUp/PageDown pomjeraju listu dok se stavka drži.
+    const naTaster = (e) => {
+      if (!dragPoz.current) return
+      const el = skrolKontejnerRef.current
+      if (!el) return
+      const korak = { ArrowUp: -60, ArrowDown: 60, PageUp: -300, PageDown: 300 }[e.key]
+      if (korak === undefined) return
+      e.preventDefault()
+      el.scrollTop += korak
+    }
+    document.addEventListener('keydown', naTaster, { passive: false, capture: true })
+
+    // Auto-skrol prati kursor na nivou CIJELOG dokumenta — tako radi i kad kursor izađe iznad ili
+    // ispod liste (npr. preko toolbara), gdje 'dragover' na samom kontejneru više ne stiže.
+    const naDragOver = (e) => { if (dragPoz.current) azurirajAutoSkrol(e.clientY) }
+    document.addEventListener('dragover', naDragOver)
+
+    return () => {
+      document.removeEventListener('wheel', naTockic, { capture: true })
+      document.removeEventListener('keydown', naTaster, { capture: true })
+      document.removeEventListener('dragover', naDragOver)
+    }
+  }, [])
 
   const onDragOver = (e, poz) => {
     e.preventDefault()
