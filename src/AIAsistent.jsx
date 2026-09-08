@@ -428,10 +428,19 @@ Kako mogu pomoći? Npr:
 
   // Puni kontekst (necenzurisan opis) - koristi se za pregled/poboljšanje dokumenta
   const getStavkeKontekstPuni = () => {
+    // Kad korisnik ima OZNAČENE stavke, spisak se gradi direktno od njih — bez filtriranja na
+    // roditelje. Ranije se uzimalo samo `!p.parent_id`, pa je lista bila PRAZNA ako su označene
+    // podstavke (ili su podstavke bile među označenima), i asistent nije dobijao nikakav podatak.
+    if (oznacenePozicije.length > 0) {
+      return oznacenePozicije.map((p, i) => {
+        const naziv = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1') || '(bez naziva)'
+        const tip = p.parent_id ? '[PODSTAVKA]' : ''
+        const cijena = `cijena: ${p.cijena || 0}, količina: ${p.kolicina || 0}, jed.: ${p.jedinica || ''}`
+        return `${i + 1}. ID:${p.id} ${tip} OPIS: "${naziv}" (${cijena})`
+      }).join('\n')
+    }
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
-    // Vidi napomenu u getStavkeKontekst — označene stavke imaju prednost nad cijelom grupom.
-    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
-    const roditelji = izvor.filter(p => !p.parent_id)
+    const roditelji = pozicije.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
       const djeca = pozicije.filter(d => d.parent_id === p.id)
@@ -451,11 +460,16 @@ Kako mogu pomoći? Npr:
 
   // Skraćeni kontekst - koristi se za procjenu cijena
   const getStavkeKontekst = () => {
+    // Kad korisnik ima OZNAČENE stavke, spisak se gradi direktno od njih (uključujući podstavke) —
+    // filtriranje na roditelje bi ostavilo praznu listu ako su označene podstavke.
+    if (oznacenePozicije.length > 0) {
+      return oznacenePozicije.map((p, i) => {
+        const naziv = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 100) || '(bez naziva)'
+        return `ID:${p.id} | ${i + 1}. ${naziv} | jed: ${p.jedinica || ''} | trenutna cijena: ${p.cijena || 0}`
+      }).join('\n')
+    }
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
-    // Ako je korisnik označio stavke (ikona ✨), šalje se SAMO njihov spisak — inače bi model
-    // vidio cijelu grupu i obradio sve, uprkos uputstvu da radi samo nad označenima.
-    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
-    const roditelji = izvor.filter(p => !p.parent_id)
+    const roditelji = pozicije.filter(p => !p.parent_id)
     const linije = []
     roditelji.forEach((p, i) => {
       const djeca = pozicije.filter(d => d.parent_id === p.id)
@@ -837,6 +851,17 @@ ${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove 
 ${getStavkeKontekstPuni()}
 
 Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJENE--- ako se traži ažuriranje/procjena cijena, ili ---IZMJENE--- ako se traži poboljšanje/dopuna opisa. Obuhvati sve GORE NAVEDENE stavke, ne samo dio${oznacenePozicije.length > 0 ? ' — a to su isključivo označene stavke' : ''}.`
+    } else if (oznacenePozicije.length > 0) {
+      // KLJUČNO: korisnik je označio stavke (ikona ✨), ali poruka ne pogađa nijedan od gornjih
+      // obrazaca — npr. „skrati ovu stavku", „dodaj armaturu u opis", „je li ova cijena realna?".
+      // Ranije se spisak označenih stavki tada UOPŠTE nije slao, pa je asistent s pravom odgovarao
+      // da ništa nije označeno. Sada se označene stavke prilažu uvijek kad postoje.
+      userContent = `${tekst}
+
+OZNAČENE STAVKE (korisnik je izabrao SAMO ove — radi isključivo nad njima):
+${getStavkeKontekstPuni()}
+
+Ako tražena radnja mijenja opise stavki, odgovori u ---IZMJENE--- formatu; ako mijenja cijene, u ---CIJENE--- formatu; a ako je riječ o pitanju, mišljenju ili savjetu — odgovori normalno, običnim tekstom.`
     }
 
     const novaHistorija = [...historija, { role: 'user', content: userContent }]
