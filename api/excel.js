@@ -905,7 +905,8 @@ export default async function handler(req, res) {
     // rekapitulacija, potpis dolazi ispod nje; ako se ne štampa, dolazi na kraj dokumenta
     // (poslije posljednje faze). Ako projektant nije upisan u „Postavke firme" — izostavlja se.
     if (firma && firma.projektant) {
-      ws.addRow([])
+      // Razmak iznad potpisa — bez njega je blok prislonjen uz rekapitulaciju.
+      ws.addRow([]); ws.addRow([]); ws.addRow([])
       const labRow = ws.addRow(['','','','','','Odgovorni projektant:',''])
       ws.mergeCells(`F${labRow.number}:G${labRow.number}`)
       labRow.getCell('F').font      = font({size:9, color:'555555'})
