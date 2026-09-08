@@ -2245,8 +2245,18 @@ export default function App() {
   .header { margin-bottom:16px; border-bottom:2px solid #1B2F43; padding-bottom:10px; }
   .header h1 { font-size:15pt; color:#1B2F43; margin-bottom:6px; }
   .header h1 { font-size:15pt; color:#1B2F43; margin-bottom:6px; background:#B9CDE5 !important; padding:8px 10px; text-align:center; border-radius:2px; }
-  .info { display:grid; grid-template-columns:1fr 1fr; gap:3px 20px; font-size:9pt; margin-top:8px; }
-  .info span { color:#555; }
+  /* Podaci o projektu — druga po važnosti informacija u dokumentu (odmah iza naslova), pa su
+     VRIJEDNOSTI krupnije i podebljane, a natpisi ("PROJEKAT", "INVESTITOR") sitni i sivi iznad njih.
+     Kontrast je postignut tipografijom, ne bojom — radi jednako dobro na crno-bijeloj štampi i ne
+     takmiči se sa plavim trakama naslova ispod.
+     Koristi se TABELA (ne grid) jer se PDF izvoz radi kroz štampu preglednika, gdje je tabela
+     najpouzdanija za poravnanje u dvije kolone. */
+  table.info-blok { width:100%; border-collapse:collapse; margin:14px 0 8px; border-bottom:2px solid #1B2F43; }
+  table.info-blok td { padding:0 14px 10px 0; vertical-align:top; width:50%; }
+  table.info-blok td + td { padding:0 0 10px 14px; }
+  table.info-blok .lbl { color:#666; font-size:8pt; font-weight:400;
+                         text-transform:uppercase; letter-spacing:.07em; padding-bottom:2px; }
+  table.info-blok .val { font-size:11.5pt; font-weight:700; color:#1B2F43; line-height:1.2; }
   .struka-blok { page-break-after:avoid; }
   .struka-naslov { background:#1B2F43 !important; color:#fff !important; font-size:13pt; font-weight:700; padding:9px 12px; margin:18px 0 10px; letter-spacing:.03em; }
   .struka-blok:first-child .struka-naslov { margin-top:4px; }
@@ -2306,12 +2316,16 @@ export default function App() {
     : `<div style="text-align:left;margin-bottom:6px;"><img src="${firma.logo}" style="height:52px;max-width:150px;object-fit:contain;" /></div>`) : ''}
   <h1 style="text-align:center;">PREDMJER I PREDRAČUN</h1>
   ${filtrirajStruku ? `<div style="text-align:center;font-size:10pt;color:#4A637C;margin-top:-4px;margin-bottom:6px;">— ${escHtml(struke.find(s=>s.kod===filtrirajStruku)?.naziv || '')} —</div>` : ''}
-  <div class="info">
-    <div><span>Projekat: </span><strong>${escHtml(proj.naziv)||'—'}</strong></div>
-    <div style="text-align:right;"><span>Investitor: </span><strong>${escHtml(proj.klijent)||'—'}</strong></div>
-    <div><span>Datum: </span>${escHtml(proj.datum)||'—'}</div>
-    <div style="text-align:right;"><span>Lokacija: </span>${escHtml(proj.adresa)||'—'}</div>
-  </div>
+  <table class="info-blok"><tbody>
+    <tr>
+      <td><div class="lbl">Projekat</div><div class="val">${escHtml(proj.naziv)||'—'}</div></td>
+      <td style="text-align:right;"><div class="lbl">Investitor</div><div class="val">${escHtml(proj.klijent)||'—'}</div></td>
+    </tr>
+    <tr>
+      <td><div class="lbl">Datum</div><div class="val">${escHtml(proj.datum)||'—'}</div></td>
+      <td style="text-align:right;"><div class="lbl">Lokacija</div><div class="val">${escHtml(proj.adresa)||'—'}</div></td>
+    </tr>
+  </tbody></table>
 </div>
 ${sviFazeSadrzaj}
 ${globalnaRekapitulacijaHtml}
