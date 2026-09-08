@@ -432,12 +432,25 @@ Kako mogu pomoći? Npr:
     // roditelje. Ranije se uzimalo samo `!p.parent_id`, pa je lista bila PRAZNA ako su označene
     // podstavke (ili su podstavke bile među označenima), i asistent nije dobijao nikakav podatak.
     if (oznacenePozicije.length > 0) {
-      return oznacenePozicije.map((p, i) => {
+      const linije = []
+      let br = 0
+      oznacenePozicije.forEach(p => {
         const naziv = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1') || '(bez naziva)'
-        const tip = p.parent_id ? '[PODSTAVKA]' : ''
-        const cijena = `cijena: ${p.cijena || 0}, količina: ${p.kolicina || 0}, jed.: ${p.jedinica || ''}`
-        return `${i + 1}. ID:${p.id} ${tip} OPIS: "${naziv}" (${cijena})`
-      }).join('\n')
+        const djeca = (pozicije || []).filter(d => d.parent_id === p.id)
+        br++
+        if (djeca.length > 0) {
+          // Uz označenog roditelja idu i njegove podstavke — cijena roditelja je zbir podstavki.
+          linije.push(`${br}. ID:${p.id} [RODITELJ sa ${djeca.length} podstavki] OPIS: "${naziv}"`)
+          djeca.forEach((d, j) => {
+            const nazivD = (d.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1') || '(bez naziva)'
+            linije.push(`  ${br}.${j + 1}. ID:${d.id} [PODSTAVKA] OPIS: "${nazivD}" (cijena: ${d.cijena || 0}, količina: ${d.kolicina || 0}, jed.: ${d.jedinica || ''})`)
+          })
+        } else {
+          const tip = p.parent_id ? '[PODSTAVKA]' : ''
+          linije.push(`${br}. ID:${p.id} ${tip} OPIS: "${naziv}" (cijena: ${p.cijena || 0}, količina: ${p.kolicina || 0}, jed.: ${p.jedinica || ''})`)
+        }
+      })
+      return linije.join('\n')
     }
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
     const roditelji = pozicije.filter(p => !p.parent_id)
@@ -462,11 +475,27 @@ Kako mogu pomoći? Npr:
   const getStavkeKontekst = () => {
     // Kad korisnik ima OZNAČENE stavke, spisak se gradi direktno od njih (uključujući podstavke) —
     // filtriranje na roditelje bi ostavilo praznu listu ako su označene podstavke.
+    // VAŽNO: roditelj sa podstavkama nema vlastitu cijenu (ona je zbir), pa se uz njega prilažu
+    // i NJEGOVE PODSTAVKE — inače bi AI procijenio cijenu za roditelja, a ona se nema gdje upisati.
     if (oznacenePozicije.length > 0) {
-      return oznacenePozicije.map((p, i) => {
+      const linije = []
+      let br = 0
+      oznacenePozicije.forEach(p => {
         const naziv = (p.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 100) || '(bez naziva)'
-        return `ID:${p.id} | ${i + 1}. ${naziv} | jed: ${p.jedinica || ''} | trenutna cijena: ${p.cijena || 0}`
-      }).join('\n')
+        const djeca = (pozicije || []).filter(d => d.parent_id === p.id)
+        if (djeca.length > 0) {
+          br++
+          linije.push(`${br}. ${naziv} [RODITELJ - ima ${djeca.length} podstavki, cijena je zbir, NE procjenjuj cijenu za ovu stavku]`)
+          djeca.forEach((d, j) => {
+            const nazivD = (d.naziv || '').replace(/\*\*([^*]+)\*\*/g, '$1').slice(0, 100) || `(podstavka ${j + 1} bez naziva, dio: "${naziv}")`
+            linije.push(`  ID:${d.id} | ${br}.${j + 1} ${nazivD} | jed: ${d.jedinica || ''} | trenutna cijena: ${d.cijena || 0}`)
+          })
+        } else {
+          br++
+          linije.push(`ID:${p.id} | ${br}. ${naziv} | jed: ${p.jedinica || ''} | trenutna cijena: ${p.cijena || 0}`)
+        }
+      })
+      return linije.join('\n')
     }
     if (!pozicije || pozicije.length === 0) return '(nema stavki u ovoj grupi radova)'
     const roditelji = pozicije.filter(p => !p.parent_id)
@@ -664,7 +693,17 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
 
   const nastaviProcjenuFaze = (valutaZnak, saWebom) => {
     // Ako korisnik ima označene stavke, procjenjuju se SAMO one — ne cijela grupa.
-    const izvor = oznacenePozicije.length > 0 ? oznacenePozicije : pozicije
+    // Uz označenog RODITELJA obavezno idu i njegove podstavke: roditelj nema vlastitu cijenu
+    // (ona je zbir podstavki), pa bi bez njih procjena nemala gdje da se upiše.
+    let izvor = pozicije
+    if (oznacenePozicije.length > 0) {
+      const skup = new Map()
+      oznacenePozicije.forEach(p => {
+        skup.set(p.id, p)
+        pozicije.filter(d => d.parent_id === p.id).forEach(d => skup.set(d.id, d))
+      })
+      izvor = [...skup.values()]
+    }
     const brojProcjenjivih = izvor.filter(p => !p.parent_id && izvor.filter(d => d.parent_id === p.id).length === 0).length
       + izvor.filter(p => p.parent_id).length
     const { usd, tokena } = procijeniTokeneIUsd(brojProcjenjivih, saWebom)
