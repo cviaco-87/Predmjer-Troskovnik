@@ -1,0 +1,49 @@
+# ═══════════════════════════════════════════════════════════════════
+# AUTOMATSKE PROVJERE — Predmjer / Troškovnik
+#
+# Pokreće se SAMO na GitHubu, pri svakom commitu. Ne treba nikakav program na računaru.
+# Rezultat se vidi kao ✓ (zeleno) ili ✗ (crveno) pored commita u listi na GitHubu.
+#
+# Šta provjerava:
+#   1. da se kod uopšte može sastaviti (build)
+#   2. da nema poziva nepostojećih funkcija — uzrok "bijelog ekrana" u pregledniku
+#   3. da nema tajnih ključeva u kodu koji ide korisniku
+#   4. da sve API rute traže prijavu
+#   5. da kolone koje kod upisuje postoje u bazi
+#   6. da kloniranje projekta prenosi sva obavezna polja
+#
+# VAŽNO: ovo NE mijenja aplikaciju i ne utiče na Vercel deploy. Ako provjera padne,
+# aplikacija se svejedno objavi — crveni ✗ je upozorenje da nešto treba pogledati.
+# ═══════════════════════════════════════════════════════════════════
+
+name: Provjere koda
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  provjere:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preuzmi kod
+        uses: actions/checkout@v4
+
+      - name: Pripremi Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instaliraj pakete
+        run: npm install --no-audit --no-fund
+
+      - name: Instaliraj alate za provjeru
+        run: npm install --no-save acorn acorn-walk esbuild@0.21.5
+
+      - name: Provjeri da se aplikacija može sastaviti
+        run: npm run build
+
+      - name: Pokreni provjere koda
+        run: node testovi/provjera.mjs
