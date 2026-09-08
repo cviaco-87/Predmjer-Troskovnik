@@ -2326,15 +2326,22 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
     // što u nekim preglednicima (Edge/Chrome) zna zaključati i GLAVNU karticu — aplikacija izgleda
     // "zaleđeno", a refresh se vrti u beskonačnost. Zastavica osigurava jedan poziv.
     let odstampano = false
+    const zatvori = () => { try { if (!printWin.closed) printWin.close() } catch (e) {} }
     const pokreniStampu = () => {
       if (odstampano || printWin.closed) return
       odstampano = true
       try {
+        // VAŽNO: 'afterprint' se mora registrovati PRIJE poziva print(). print() blokira dalje
+        // izvršavanje dok je dijalog otvoren, pa bi slušalac dodat poslije njega zakasnio —
+        // događaj bi već prošao i prozor bi ostao otvoren.
+        printWin.addEventListener('afterprint', zatvori)
+        // Rezerva: neki preglednici ne okinu 'afterprint' pouzdano (npr. kad se štampa otkaže).
+        // Kad se korisnik vrati na glavni prozor, print dijalog je završen — zatvori i print prozor.
+        const naPovratak = () => { setTimeout(zatvori, 400); window.removeEventListener('focus', naPovratak) }
+        window.addEventListener('focus', naPovratak)
+
         printWin.focus()
         printWin.print()
-        // Zatvori prozor kad korisnik završi sa print dijalogom — inače ostaju otvoreni prozori
-        // koji se gomilaju pri svakom izvozu.
-        printWin.addEventListener('afterprint', () => { try { printWin.close() } catch (e) {} })
       } catch (e) {
         console.error('Greška pri pokretanju štampe:', e)
       }
