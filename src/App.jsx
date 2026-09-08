@@ -2019,7 +2019,7 @@ export default function App() {
     // Definisan ovdje (prije prve upotrebe) jer se ubacuje na kraj SVAKE struke, a po potrebi
     // i ispod finalne rekapitulacije. Ako projektant nije upisan u „Postavke firme", prazan je.
     const potpisHtml = firma?.projektant ? `
-<div style="margin-top:26px; page-break-inside:avoid; display:flex; justify-content:flex-end;">
+<div style="margin-top:70px; page-break-inside:avoid; display:flex; justify-content:flex-end;">
   <div style="width:250px; text-align:center;">
     <div style="font-size:9pt; color:#555; margin-bottom:34px;">Odgovorni projektant:</div>
     <div style="border-top:1px solid #333; padding-top:5px;">
