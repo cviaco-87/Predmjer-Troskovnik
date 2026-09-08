@@ -301,7 +301,14 @@ const calcRowSimple = p => (parseFloat(p.kolicina) || 0) * (parseFloat(p.cijena)
 
 // Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
 // ima zarez, pa korisnik ne mora prebacivati na tačku). "5,5" i "5.5" -> 5.5; prazno/nevalidno -> 0.
-const parsiBroj = v => { const n = parseFloat(String(v ?? '').trim().replace(',', '.')); return isNaN(n) ? 0 : n }
+// Parsiranje broja iz polja koje prihvata I zarez I tačku kao decimalni znak (numerička tastatura
+// ima zarez, pa korisnik ne mora prebacivati na tačku). "5,5" i "5.5" -> 5.5; prazno/nevalidno -> 0.
+// Uklanjaju se i razmaci unutar broja ("1 000" -> 1000), jer se hiljade tako često kucaju.
+const parsiBroj = v => {
+  const t = String(v ?? '').trim().replace(/[\s\u00A0]/g, '').replace(',', '.')
+  const n = parseFloat(t)
+  return isNaN(n) ? 0 : n
+}
 
 // Auto-šifra za PRILAGOĐENE stavke (AI-generisane ili ručno dodate „vlastite"), koje nemaju
 // katalošku šifru. Format: [broj kategorije grupe].90.[redni broj] — npr. "04.90.001".
