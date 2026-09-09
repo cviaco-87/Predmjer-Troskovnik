@@ -76,7 +76,7 @@ export default function Uputstvo({ onClose }) {
     uvod: (
       <>
         <H>1. Uvod</H>
-        <P><B>Predmjer / Troškovnik</B> je alat namijenjen projektantima i inženjerima za brzu i preglednu izradu predmjera i predračuna građevinskih radova. Stavke unosite iz ugrađene baze od preko 1.200 pozicija, ručno, ili uz pomoć AI asistenta, organizujete ih po fazama i strukama, i izvozite u profesionalni Excel ili PDF dokument spreman za predaju.</P>
+        <P><B>Predmjer / Troškovnik</B> je alat namijenjen projektantima i inženjerima za brzu i preglednu izradu predmjera i predračuna građevinskih radova. Stavke unosite iz ugrađene baze pozicija, ručno, ili uz pomoć AI asistenta, organizujete ih po fazama i grupama radova, i izvozite u profesionalni Excel ili PDF dokument spreman za predaju.</P>
         <P>Aplikacija je namijenjena <B>projektantima, ne izvođačima</B> — fokus je na opisu pozicija, količinama i orijentacionim cijenama za projektnu dokumentaciju.</P>
         <Info naslov="💡 Prije nego počnete">Za rad je potreban nalog (prijava putem e-pošte). Svi projekti čuvaju se sigurno i vezani su za vaš nalog — dostupni sa bilo kog uređaja nakon prijave.</Info>
       </>
@@ -85,11 +85,11 @@ export default function Uputstvo({ onClose }) {
       <>
         <H>2. Brzi početak — vaš prvi predmjer</H>
         <P>Šest koraka da odmah počnete. Detaljna objašnjenja slijede u narednim poglavljima.</P>
-        <Korak broj="1" naslov="Kreirajte projekat.">U lijevom panelu upišite naziv u polje „Novi projekat…" i kliknite <B>+ Dodaj</B>.</Korak>
+        <Korak broj="1" naslov="Kreirajte projekat.">Na početnom ekranu kliknite <B>+ Novi projekat</B> — otvara se prozor u koji upišete naziv i potvrdite. (Kad već imate projekte, možete i brzo: polje „Novi projekat…" u lijevom panelu pa <B>+ Dodaj</B>.)</Korak>
         <Korak broj="2" naslov="Popunite podatke.">U panelu „Podaci o projektu" unesite investitora, lokaciju i datum — pojavljuju se u zaglavlju dokumenta.</Korak>
         <Korak broj="3" naslov="Izaberite fazu.">Kliknite na fazu (struku) u kojoj radite — npr. Građevinsko-zanatski radovi.</Korak>
         <Korak broj="4" naslov="Dodajte grupu radova.">U panelu „Grupe radova" iz padajućeg menija <B>„➕ Dodaj grupu radova"</B> izaberite grupu iz šifarnika (npr. „04 · Zidarski radovi") ili dodajte prilagođenu.</Korak>
-        <Korak broj="5" naslov="Unesite stavke.">Pretražite bazu i kliknite na poziciju, ili koristite <B>+ Vlastita stavka</B> / <B>AI asistenta (✨)</B>. Zatim unesite količine.</Korak>
+        <Korak broj="5" naslov="Unesite stavke.">U stupcu <B>„📚 BAZA POZICIJA"</B> (lijevo od tabele) pretražite i kliknite na poziciju, ili koristite <B>+ Vlastita stavka</B> / <B>AI asistenta (✨)</B>. Zatim unesite količine.</Korak>
         <Korak broj="6" naslov="Izvezite predmjer.">U traci na vrhu kliknite <B>📊 Excel</B> ili <B>🖨 Print/PDF</B>.</Korak>
         <Info naslov="✓ To je to" boja={ZLATNA}>Ovih šest koraka pokriva osnovni tok. Sve ostalo — podstavke, opšti tehnički uslovi, AI procjena cijena, uvećanja — su dodatne mogućnosti koje koristite po potrebi.</Info>
       </>
@@ -120,9 +120,9 @@ export default function Uputstvo({ onClose }) {
       <>
         <H>4. Rad sa projektima</H>
         <H3>Kreiranje i otvaranje</H3>
-        <P>Pri svakom ulasku prikazuje se ekran za izbor projekta. Otvorite postojeći sa liste ili kreirajte novi. Aplikacija pamti gdje ste posljednji put stali u svakom projektu.</P>
+        <P>Pri svakom ulasku prikazuje se ekran za izbor projekta. Uz naziv se vide i <B>investitor, lokacija i datum posljednje izmjene</B>, a lista je poređana tako da je projekat na kojem ste zadnji put radili na vrhu — korisno kad imate više objekata sličnog naziva.</P><P>Dugme <B>+ Novi projekat</B> otvara prozor za unos naziva. Aplikacija pamti gdje ste posljednji put stali u svakom projektu (fazu i grupu radova).</P>
         <H3>Kloniranje projekta</H3>
-        <P>Dugme <B>⧉ (Kloniraj)</B> pravi potpunu kopiju sa svim fazama i stavkama. Korisno kad novi projekat liči na postojeći.</P>
+        <P>Dugme <B>⧉ (Kloniraj)</B> pravi potpunu kopiju: sve faze, grupe radova, stavke i podstavke, cijene, količine, šifre, opšte tehničke uslove, valutu, uvećanja/umanjenja i podešenja rekapitulacije. Korisno kad novi projekat liči na postojeći.</P>
         <H3>Izvoz i uvoz (dijeljenje)</H3>
         <P>Dugme <B>📤 Izvezi projekat</B> čuva projekat kao fajl za slanje kolegi. Kolega ga učita preko <B>📥 Uvezi projekat</B>. Uvoz uvijek kreira <B>novi</B> projekat — nikad ne prepisuje postojeće.</P>
         <Info naslov="💡 Savjet">Ako preimenujete .json fajl prije slanja, uvezeni projekat će se pojaviti pod tim novim imenom.</Info>
@@ -132,41 +132,40 @@ export default function Uputstvo({ onClose }) {
       <>
         <H>5. Faze i grupe radova</H>
         <H3>Faze (struke)</H3>
-        <P>Kliktanjem na fazu birate u kojoj radite. Dvoklik na naziv omogućava preimenovanje. Dugme <B>+ Nova faza (vlastita)</B> dodaje prilagođenu fazu.</P>
+        <P>Kliktanjem na fazu birate u kojoj radite. Dvoklik na naziv omogućava preimenovanje. Dugme <B>+ Nova faza (vlastita)</B> dodaje prilagođenu fazu.</P><P>Klikom na naslov <B>„🏗️ FAZA"</B> lista se <B>sklapa</B> — ostaje vidljiva samo faza na kojoj radite, a sve ispod (grupe radova, uvećanje, rekapitulacija) se podigne. Izbor se pamti.</P>
         <Info naslov="ℹ️ Vlastita faza i baza">U predefinisanim fazama pretraga prikazuje samo stavke relevantne za tu struku. U <B>vlastitoj fazi</B> imate pristup <B>cijeloj bazi</B> (preko 1.000 stavki).</Info>
         <H3>Grupe radova</H3>
         <P>Unutar aktivne faze koristite padajući meni <B>„➕ Dodaj grupu radova"</B>. Ima dvije obojene sekcije: <B>Vaše grupe radova</B> (već dodate — zelena pozadina, za prebacivanje između njih) i <B>➕ Dodaj grupu iz šifarnika</B> (plava pozadina — standardne grupe sa numeracijom koje još niste dodali). Izborom grupe iz šifarnika ona se odmah doda i aktivira — bez ručnog kucanja.</P>
         <P>Grupe se u listi <B>same slažu po numeraciji</B> (01, 02, 03…), bez obzira kojim ih redom dodate — pa ako naknadno ubacite zaboravljenu grupu, ona sjedne na svoje mjesto. Kad je aktivna predefinisana grupa, centralni filter baze je <B>zaključan</B> na tu kategoriju (vidite samo njene stavke), a ostale su zasivljene.</P>
         <Info naslov="ℹ️ Prilagođena grupa">Ako vam treba grupa van šifarnika, upišite naziv u polje <B>„ili prilagođena grupa (van šifarnika)"</B> i kliknite <B>+ Dodaj</B>. Prilagođene grupe idu na kraj liste i <B>nisu zaključane</B> — u njima vidite cijelu bazu. Ista predefinisana grupa dodaje se samo jednom; za dvije iste koristite prilagođenu.</Info>
-        <P>Na dnu panela je dugme <B>⭐ Upravljaj mojom bazom</B> (vidi 6.3). Dvoklik na naziv aktivne grupe (u traci iznad tabele) omogućava preimenovanje.</P>
+        <P>Na dnu panela je dugme <B>⭐ Upravljaj mojom bazom</B> (vidi 6.3).</P><H3>Prečica u traci iznad tabele</H3><P>Naziv aktivne grupe u traci iznad tabele je ujedno i <B>padajući meni</B> — grupu možete promijeniti odmah odatle, bez odlaska u lijevi meni. <B>Dvoklik</B> na njega otvara preimenovanje.</P><H3>🔢 Preuredi šifre</H3><P>Dugme <B>„🔢 Preuredi šifre"</B> u traci prenumeriše šifre svih pozicija aktivne grupe tako da <B>prate stvarni redoslijed</B> u predmjeru:</P><Ul><Li>Pozicije iz baze zadržavaju kataloški oblik: <B>04.01.001, 04.01.002…</B></Li><Li>Prilagođene pozicije (AI-generisane, vlastite, ili sa ručno upisanom šifrom) dobijaju <B>slovo „a"</B> na kraju — npr. <B>04.01.003a</B>. Tako se odmah vidi šta nije iz normiranog kataloga i nema sudara sa stvarnim kataloškim šiframa.</Li></Ul><Info naslov="⚠️ Napomena" boja={ZLATNA}>Preuređivanje se ne može opozvati dugmetom „Opozovi" (mijenja sve šifre odjednom), pa se pokreće uz potvrdu. Najbolje ga pokrenuti <B>kad završite sa slaganjem redoslijeda</B> u grupi.</Info>
       </>
     ),
     stavke: (
       <>
         <H>6. Unos stavki (pozicija)</H>
         <P>Postoje <B>četiri načina</B> da dodate stavku. Možete ih kombinovati.</P>
-        <H3>6.1 Iz baze pozicija</H3>
-        <P>Iznad tabele je pretraga. Upišite pojam („beton", „malter", „iskop") ili izaberite kategoriju, pa kliknite na rezultat. Baza ima preko 1.000 detaljno opisanih pozicija. Panel rezultata možete sklopiti klikom na traku „X rezultata" da oslobodite prostor.</P>
+        <H3>6.1 Iz baze pozicija</H3><P>Baza stoji kao <B>uspravan stubac</B> („📚 BAZA POZICIJA") lijevo od tabele. Gore su kartice <B>📚 Baza</B> i <B>⭐ Moja baza</B>, ispod dugme <B>+ Vlastita stavka</B>, pa polje za pretragu i izbor grupe radova.</P><P>Upišite pojam („beton", „malter", „iskop") ili izaberite kategoriju, pa kliknite na rezultat da ga dodate. Svaka pozicija je prikazana kao kartica sa opisom, šifrom, cijenom i jedinicom. Listu rezultata možete sklopiti klikom na traku „X rezultata".</P><Info naslov="💡 Zašto uspravan stubac">Duge opise pozicija lakše je pratiti u užem stupcu (nekoliko kratkih redova) nego razvučene preko cijelog ekrana, a radni prostor sa vašim stavkama počinje odmah od vrha.</Info>
         <H3>6.2 Vlastita stavka</H3>
         <P>Dugme <B>+ Vlastita stavka</B> dodaje praznu stavku koju popunjavate ručno.</P>
         <H3>6.3 Moja baza (lična biblioteka)</H3>
         <P>Moja baza je vaša lična biblioteka stavki koje često koristite — <B>dostupna u svim projektima</B>. Stavku iz predmjera sačuvate klikom na <B>⭐</B>. Njome upravljate dugmetom <B>⭐ Upravljaj mojom bazom</B> na dnu panela „Grupe radova".</P>
         <Ul>
           <Li><B>Dodavanje:</B> pri unosu birate <B>jedinicu</B>, <B>valutu</B> (EUR/KM/RSD/USD) i <B>kategoriju (grupu radova)</B> iz padajućih menija. Dok dodajete, lista dolje prikazuje postojeće stavke baš te grupe (za referencu).</Li>
-          <Li><B>Korišćenje:</B> u tabu <B>„⭐ Moja baza"</B> iznad tabele izaberete grupu iz padajućeg menija (samo grupe koje stvarno imate) i kliknete na stavku da je dodate.</Li>
+          <Li><B>Korišćenje:</B> u kartici <B>„⭐ Moja baza"</B> izaberete grupu iz padajućeg menija (samo grupe koje stvarno imate) i kliknete na stavku da je dodate.</Li><Li><B>Šifre i redoslijed:</B> svaka stavka dobija redni broj i šifru po logici centralne baze — <B>[broj grupe].01.[redni broj]a</B> (npr. 03.01.001a). Strelicama <B>▲▼</B> mijenjate redoslijed unutar grupe, a šifre se automatski preslažu. Šifru možete i ručno upisati ili obrisati.</Li><Li><B>Zvjezdica pokazuje stanje:</B> ako je stavka već u vašoj bazi, zvjezdica je puna (🌟) i neaktivna — ne možete je dodati dvaput.</Li>
           <Li><B>Preračun valute:</B> ako je stavka unesena npr. u KM, a projekat je u EUR — pri ubacivanju se cijena automatski preračuna po tekućem kursu.</Li>
         </Ul>
         <H3>6.4 AI asistent</H3>
         <P>Dugme <B>✨</B> generiše kompletne stavke na osnovu vašeg opisa (vidi poglavlje 8).</P>
         <H3>6.5 Podstavke</H3>
-        <P>Dugme <B>+ pod</B> dodaje podstavku — za razbijanje pozicije po cjelinama (Prizemlje, Sprat 1…). Cijena se unosi na podstavke, a zbir se prikazuje na glavnoj stavci.</P>
+        <P>Dugme <B>+ Podstavka</B> dodaje podstavku — za razbijanje pozicije po cjelinama (Prizemlje, Sprat 1…). Cijena se unosi na podstavke, a zbir se prikazuje na glavnoj stavci. Podstavke imaju blago drugačiju pozadinu, pa se lako razlikuju od glavnih stavki.</P>
         <H3>6.6 Uređivanje</H3>
         <Ul>
-          <Li><B>Opis:</B> kliknite i kucajte; ćelija se širi. Ctrl+B podebljava tekst. Dugi opisi se prikazuju <B>skraćeno</B> — klik u polje ih razvije, klik van polja ih sam skupi, a tu je i diskretno <B>„▾ prikaži cijelo / ▴ skrati"</B>. (Skraćivanje je samo na ekranu; u Excel/PDF izvozu ide pun opis.)</Li>
+          <Li><B>Opis:</B> kliknite i kucajte; ćelija se širi. Dugi opisi se prikazuju <B>skraćeno</B> — klik u polje ih razvije, klik van polja ih sam skupi, a tu je i diskretno <B>„▾ prikaži cijelo / ▴ skrati"</B>. (Skraćivanje je samo na ekranu; u izvozu ide pun opis.) <B>Dvoklik</B> u polje razvlači ćeliju na cijeli tekst, a ponovni dvoklik je skuplja.</Li><Li><B>Podebljano i kurziv:</B> označite dio teksta pa <B>Ctrl+B</B> (podebljano) ili <B>Ctrl+I</B> (kurziv) — ili kliknite dugmad <B>B</B> / <B>I</B> koja se pojave ispod polja. Ponovni pritisak uklanja oznaku. U polju vidite oznake (<B>**tekst**</B>, <B>*tekst*</B>), a u PDF-u se prikazuju kao stvarno podebljanje i kurziv. Radi i na glavnim stavkama i na podstavkama.</Li><Li><B>Brojevi:</B> količinu i cijenu možete kucati sa zarezom (numerička tastatura) — „,92" postaje „0,92". <B>Enter</B> potvrđuje unos, <B>Escape</B> poništava. Cijene se uvijek prikazuju sa dvije decimale.</Li>
           <Li><B>Jedinica:</B> bira se iz menija; upisom „Obračun po m³" i sl. prilagodi se sama.</Li>
-          <Li><B>Redoslijed:</B> prevucite za ručicu ⠿.</Li>
+          <Li><B>Redoslijed:</B> prevucite za ručicu ⠿. Kad se približite vrhu ili dnu liste, ona se <B>sama pomjera</B> — tako stavku možete prenijeti i daleko izvan vidljivog dijela.</Li>
           <Li><B>🔁 Zamjena:</B> zamjenjuje stavku novom iz baze, zadržava mjesto.</Li>
-          <Li><B>× Brisanje:</B> uz mogućnost „Opozovi".</Li>
+          <Li><B>× Brisanje:</B> stavka nakratko <B>pocrveni i izblijedi</B> pa nestane, uz traku „Opozovi brisanje". Ako briše stavku sa podstavkama, i one nestaju zajedno s njom.</Li><Li><B>Vizuelne potvrde:</B> nova ili premještena stavka <B>zasija zeleno</B> i tabela sama skroluje do nje, pa uvijek vidite šta se desilo.</Li>
           <Li><B>↩ Opozovi:</B> vraća posljednje izmjene polja.</Li>
         </Ul>
       </>
@@ -174,7 +173,7 @@ export default function Uputstvo({ onClose }) {
     uslovi: (
       <>
         <H>7. Opšti tehnički uslovi grupe radova</H>
-        <P>Iznad tabele je sklopivi panel <B>„📋 Opšti tehnički uslovi grupe radova"</B>. Ovdje unosite uvodni tehnički tekst (obračun, kvalitet, uslovi izvođenja, normativi) koji se u Excel i PDF izvozu prikazuje prije stavki grupe.</P>
+        <P>Iznad tabele je sklopivi panel <B>„📋 Opšti tehnički uslovi grupe radova"</B>. Ovdje unosite uvodni tehnički tekst (obračun, kvalitet, uslovi izvođenja, normativi) koji se u Excel i PDF izvozu prikazuje prije stavki grupe.</P><P>Traka sa naslovom <B>ostaje vidljiva</B> i kad skrolujete kroz stavke — sklapate je i otvarate u bilo kom trenutku, bez vraćanja na vrh.</P>
         <Ul>
           <Li><B>📥 Ubaci šablon za ovu grupu:</B> gotov, detaljan tekst uslova pripremljen po građevinskim normama (za glavne grupe: zemljani, betonski, zidarski, izolaterski, pokrivački, fasaderski, limarski, gipsarski, podopolagački, molerski, kamenorezački, stolarija, bravarski i druge). Tekst po potrebi doradite.</Li>
           <Li><B>✨ AI predlog uslova:</B> jednim klikom AI asistent automatski predloži uslove za tu grupu radova; vi ih pregledate i primijenite (kao kod cijena).</Li>
@@ -188,7 +187,7 @@ export default function Uputstvo({ onClose }) {
     ai: (
       <>
         <H>8. AI asistent</H>
-        <P>AI asistent (dugme <B>✨</B> dolje desno) je pomoćnik koji razumije građevinski predmjer.</P>
+        <P>AI asistent (dugme <B>✨</B> dolje desno) je pomoćnik koji razumije građevinski predmjer. Sa njim možete i <B>razgovarati kao sa kolegom</B> — pitati za mišljenje, poređenje rješenja, objašnjenje norme ili da li je neka cijena realna. Na takva pitanja odgovara običnim tekstom; formate stavki koristi samo kad stvarno tražite izmjenu u predmjeru.</P><H3>Prozor asistenta</H3><Ul><Li><B>Minimiziranje:</B> klik bilo gdje van prozora (ili <B>Escape</B>) skuplja asistenta u malu traku dolje desno — razgovor ostaje sačuvan. Klik na traku, ili zadržavanje kursora na njoj pola sekunde, vraća ga.</Li><Li><B>Rad u pozadini:</B> dok AI generiše odgovor možete slobodno nastaviti rad. Traka pokazuje <B>⏳ „generišem odgovor…"</B>, a kad završi <B>pozeleni</B> sa oznakom da je odgovor spreman.</Li><Li><B>Veličina prozora:</B> povucite <B>gornji lijevi ugao</B> (dvije kose crtice) da povećate panel. Veličina se pamti.</Li><Li><B>🗑 Očisti:</B> briše dosadašnji razgovor. Razgovor se inače pamti i poslije zatvaranja i osvježavanja stranice.</Li></Ul><H3>Rad na pojedinačnim stavkama</H3><P>Ako ne želite da AI radi nad cijelom grupom, <B>označite pojedine stavke</B> ikonom <B>✨</B> u redu stavke. U asistentu se tada pojavi traka „Označeno N stavki — radim samo nad njima", i sve što tražite primjenjuje se <B>isključivo na njih</B>. Kad označite stavku koja ima podstavke, AI automatski obrađuje i njene podstavke. Dugme <B>„očisti"</B> uklanja oznake.</P>
         <H3>Šta može</H3>
         <Ul>
           <Li><B>Generisanje stavki</B> na osnovu vašeg opisa.</Li>
@@ -200,8 +199,7 @@ export default function Uputstvo({ onClose }) {
         <H3>Procjena cijena — dva dugmeta</H3>
         <Ul>
           <Li><B>💶 Procijeni ovu fazu:</B> samo trenutnu grupu radova. Za svakodnevni rad.</Li>
-          <Li><B>📊 Procijeni cijeli projekat:</B> sve faze. Za finalni prolaz pred predaju.</Li>
-        </Ul>
+          <Li><B>📊 Procijeni cijeli projekat:</B> sve faze. Za finalni prolaz pred predaju.</Li><Li><B>✍️ Dopuni i poboljšaj opise ove grupe:</B> AI pregleda sve stavke grupe i predlaže potpunije opise po pravilima struke — dopunjuje tehnologiju izvođenja, materijal i klasu, pripremu podloge, mjere zaštite i način obračuna. Korisno kad ubacite šture stavke pa ih hoćete dovesti na nivo pravog opisa pozicije.</Li></Ul><P>Prije procjene cijena aplikacija pita <B>u kojoj valuti</B> je želite (EUR, KM, RSD, USD) — valuta projekta je istaknuta i predložena.</P>
         <P>Procjena se radi <B>u paketima</B>, uz prikaz napretka i mogućnost prekida. Za velike procjene prikazuje se <B>procjena troška</B> prije pokretanja.</P>
         <Info naslov="⚠️ Važno o AI cijenama" boja={ZLATNA}>AI cijene su <B>procjena tržišta, ne obavezujuća ponuda</B>. Odlične kao orijentacija, ali za konačan predračun provjerite sa aktuelnim stanjem. Sve cijene pregledate i prihvatate prije nego se upišu.</Info>
       </>
@@ -213,7 +211,7 @@ export default function Uputstvo({ onClose }) {
         <P>U traci iznad tabele birate valutu (EUR, KM, RSD, USD). Promjena valute <B>preračunava</B> sve cijene po tekućem kursu. <B>KM</B> je zakonski fiksno vezana za euro (1 € = 1,95583 KM). Kurs za <B>RSD i USD</B> aplikacija automatski povlači sa zvanične kursne liste i osvježava se dnevno — pređite mišem preko birača valute da vidite datum posljednjeg osvježenja.</P>
         <P>Cijene iz <B>Moje baze</B> mogu biti unesene u bilo kojoj od četiri valute; pri ubacivanju u projekat automatski se preračunaju u valutu projekta po tekućem kursu.</P>
         <H3>Uvećanje i umanjenje</H3>
-        <P>U panelu <B>„⚖️ Uvećanje / Umanjenje"</B> podešavate procente <B>po fazi</B> (ne globalno) — jer izvođači mogu imati različitu maržu ili popust. Uvećanje pokriva npr. PDV ili opšte troškove, umanjenje npr. popust. Prikazuju se u rekapitulaciji.</P>
+        <P>U panelu <B>„⚖️ Uvećanje / Umanjenje"</B> podešavate procente <B>po fazi</B> (ne globalno) — jer izvođači mogu imati različitu maržu ili popust. Uvećanje pokriva npr. PDV ili opšte troškove, umanjenje npr. popust.</P><H3>Panel Rekapitulacija</H3><P>Panel <B>„📊 Rekapitulacija"</B> u lijevom meniju pokazuje <B>stanje cijelog projekta</B> — iznos po svakoj fazi (sa uračunatim uvećanjem/umanjenjem) i ukupan zbir. Zbir aktivne grupe radova vidite u dnu tabele („UKUPNO GRUPA").</P><H3>Finalna rekapitulacija svih faza</H3><P>U praksi se predmjer predaje <B>po fazama</B> kao odvojeni dokumenti (A, elektro, ViK, mašinstvo), a zbirna rekapitulacija svih faza ide samo uz vodeću, arhitektonsko-građevinsku fazu. Zato je prikaz na vama:</P><Ul><Li><B>Prekidač „Štampaj finalnu rekapitulaciju svih faza"</B> — uključite kad štampate glavnu fazu, isključite kad predajete samo elektro ili ViK.</Li><Li><B>Ručni iznosi ostalih faza:</B> faze koje kolege rade u svojim programima ne postoje u vašem projektu, pa se njihovi iznosi ne mogu izračunati. Dugmetom <B>+ Dodaj fazu</B> upišete naziv (npr. „Elektroinstalacije") i iznos — ulaze u finalni zbir i u izvoz. Ostaju sačuvani u projektu.</Li></Ul>
       </>
     ),
     izvoz: (
@@ -223,9 +221,9 @@ export default function Uputstvo({ onClose }) {
           <Li><B>📊 Excel:</B> tabela sa formulama (zbirovi se računaju automatski). Birate izabranu fazu ili kompletan predmjer.</Li>
           <Li><B>🖨 Print/PDF:</B> pregled za štampu / snimanje u PDF.</Li>
         </Ul>
-        <P>Oba sadrže zaglavlje sa podacima o projektu, stavke po grupama radova sa međuzbirovima, opšte tehničke uslove (ako su unijeti), i završnu <B>rekapitulaciju</B> sa sveukupnim iznosom.</P>
+        <P>Oba sadrže zaglavlje sa podacima o projektu, stavke po grupama radova sa međuzbirovima, opšte tehničke uslove (ako su unijeti), i <B>rekapitulaciju</B>. Rekapitulacija uvijek počinje na novoj stranici i ne prelama se.</P><H3>Potpis odgovornog projektanta</H3><P>Ako u <B>🏢 Firma</B> upišete ime i broj licence, na kraju dokumenta se štampa blok za potpis (linija, ime, licenca). Pojavljuje se <B>tačno jednom</B>: ispod finalne rekapitulacije ako je štampate, a inače na kraju svake faze — jer se fazni predmjeri predaju odvojeno i svaki treba svoj potpis. Ako ime nije upisano, blok se ne štampa.</P>
         <H3>Logo firme</H3>
-        <P>Kroz <B>🏢 Firma</B> (gore desno) učitavate logo i naziv firme koji se pojavljuju u zaglavlju i podnožju dokumenata.</P>
+        <P>Kroz <B>🏢 Firma</B> (gore desno) učitavate <B>logo ili cijeli memorandum</B>, naziv firme, te ime i licencu odgovornog projektanta.</P><P>Aplikacija sama prepozna oblik slike: <B>širok memorandum</B> se razvlači preko cijele širine strane (kao zaglavlje dopisa), a <B>kvadratni logo</B> ostaje mali u gornjem lijevom uglu. Slika se čuva u rezoluciji dovoljnoj za oštru štampu.</P><Info naslov="💡 Ako je memorandum mutan">Ako ste sliku učitali u ranijoj verziji aplikacije, učitajte je ponovo — nove verzije čuvaju memorandum u znatno višoj rezoluciji.</Info>
       </>
     ),
     referenca: (
@@ -233,8 +231,9 @@ export default function Uputstvo({ onClose }) {
         <H>11. Brza referenca — sve opcije</H>
         <H3>Traka na vrhu</H3>
         <RefTabela redovi={[
-          ['Naziv grupe', 'Dvoklik za preimenovanje aktivne grupe radova.'],
+          ['Naziv grupe (meni)', 'Padajući meni za brzu promjenu aktivne grupe; dvoklik preimenuje.'],
           ['↩ Opozovi', 'Vraća posljednje izmjene polja.'],
+          ['🔢 Preuredi šifre', 'Prenumeriše šifre da prate redoslijed (prilagođene dobijaju „a").'],
           ['Valuta', 'Mijenja valutu i preračunava cijene.'],
           ['📊 Excel', 'Izvoz — izabrana faza ili kompletan predmjer.'],
           ['🖨 Print/PDF', 'Pregled za štampu / PDF.'],
@@ -244,23 +243,33 @@ export default function Uputstvo({ onClose }) {
         <RefTabela redovi={[
           ['📁 Projekti', 'Izbor, kreiranje, kloniranje (⧉), brisanje (🗑), uvoz.'],
           ['📋 Podaci o projektu', 'Naziv, investitor, lokacija, datum.'],
-          ['🏗️ Faza', 'Izbor struke; vlastita faza; preimenovanje (dvoklik).'],
+          ['🏗️ Faza', 'Izbor struke; vlastita faza; preimenovanje (dvoklik); klik na naslov sklapa listu.'],
           ['📦 Grupe radova', 'Izbor/dodavanje grupa (šifarnik + prilagođene); ⭐ Upravljaj mojom bazom.'],
           ['⚖️ Uvećanje / Umanjenje', 'Korekcije procenata po fazi.'],
-          ['📊 Rekapitulacija', 'Zbir aktivne grupe radova sa korekcijama.'],
+          ['📊 Rekapitulacija', 'Iznos po fazama i ukupno za projekat; prekidač i ručni unos ostalih faza.'],
+        ]} />
+        <H3>Stubac „Baza pozicija"</H3>
+        <RefTabela redovi={[
+          ['📚 Baza', 'Pretraga ugrađene baze pozicija.'],
+          ['⭐ Moja baza', 'Vaše sačuvane stavke (sa šiframa i redoslijedom).'],
+          ['+ Vlastita stavka', 'Dodaje praznu stavku u predmjer.'],
+          ['Pretraga / grupa', 'Filtriranje po pojmu i grupi radova.'],
         ]} />
         <H3>Red stavke</H3>
         <RefTabela redovi={[
-          ['⠿', 'Ručica za prevlačenje — redoslijed stavki.'],
-          ['+ pod', 'Dodaje podstavku.'],
+          ['⠿', 'Ručica za prevlačenje — redoslijed stavki (lista se sama pomjera uz ivicu).'],
+          ['+ Podstavka', 'Dodaje podstavku.'],
           ['🔁', 'Zamjenjuje stavku novom iz baze.'],
-          ['⭐', 'Čuva u „Moju bazu".'],
-          ['×', 'Briše stavku (uz opoziv).'],
+          ['⭐ / 🌟', 'Čuva u „Moju bazu" (puna zvjezdica = već sačuvana).'],
+          ['✨', 'Označava stavku za AI asistenta (radi samo nad označenima).'],
+          ['×', 'Briše stavku (crveno izblijedi, uz opoziv).'],
+          ['B / I', 'Podebljano i kurziv za označeni tekst (Ctrl+B / Ctrl+I).'],
         ]} />
         <H3>Plutajuća dugmad</H3>
         <RefTabela redovi={[
-          ['✨ (dolje desno)', 'Otvara AI asistenta.'],
-          ['🏢 Firma (gore desno)', 'Logo i naziv firme.'],
+          ['✨ (dolje desno)', 'Otvara AI asistenta (klik van njega ga skuplja u traku).'],
+          ['🏢 Firma (gore desno)', 'Logo/memorandum, naziv firme, odgovorni projektant i licenca.'],
+          ['📖 Uputstvo (gore desno)', 'Otvara ovo uputstvo.'],
         ]} />
       </>
     ),
@@ -273,7 +282,7 @@ export default function Uputstvo({ onClose }) {
           <Li><B>Cijene ostavite za kraj</B> — unesite sve, pa AI-jem osvježite na tržište pred predaju.</Li>
           <Li><B>Koristite opšte tehničke uslove</B> — ubacite šablon za svaku grupu.</Li>
           <Li><B>Podstavke za etaže</B> kad se pozicija ponavlja po spratovima.</Li>
-          <Li><B>Provjerite prije predaje</B> — AI cijene su orijentacija.</Li>
+          <Li><B>Označite stavke sa ✨</B> kad treba doraditi samo pojedine — AI tada ne dira ostale.</Li><Li><B>Preuredite šifre na kraju</B> — kad završite slaganje redoslijeda u grupi.</Li><Li><B>Isključite finalnu rekapitulaciju</B> kad predajete samo jednu fazu (elektro, ViK…).</Li><Li><B>Provjerite prije predaje</B> — AI cijene su orijentacija, ne obavezujuća ponuda.</Li>
         </Ul>
         <Info naslov="Podrška" boja={ZLATNA}>Za dodatna pitanja ili prijedloge obratite se timu Kapitel d.o.o.</Info>
       </>
@@ -291,7 +300,7 @@ export default function Uputstvo({ onClose }) {
         <P>AI-ju treba nekoliko sekundi, naročito za procjenu cijelog projekta (radi u paketima). Sačekajte traku napretka ili prekinite dugmetom <B>⏹ Prekini</B>.</P>
         <H3>Klonirani projekat nema neke podatke</H3>
         <P>Kloniranje kopira sve — faze, grupe, stavke, podstavke, cijene, količine i opšte tehničke uslove. Ako nešto nedostaje, provjerite da kloniranje nije prekinuto porukom o grešci, pa po potrebi ponovite.</P>
-        <Info naslov="💾 Savjet za sigurnost" boja={ZLATNA}>Prije velikih izmjena ili brisanja, izvezite projekat u fajl (📤) kao sigurnosnu kopiju. Tako imate rezervu ako nešto pođe naopako.</Info>
+        <H3>Memorandum je mutan u PDF-u</H3><P>Učitajte sliku ponovo kroz <B>🏢 Firma → Promijeni sliku</B>. Ranije verzije aplikacije čuvale su sliku u manjoj rezoluciji; nova je čuva znatno oštrije, ali postojeću sliku ne može popraviti unazad.</P><H3>AI ne vidi stavku koju sam označio</H3><P>Provjerite da se u asistentu vidi ljubičasta traka <B>„Označeno N stavki"</B>. Ako je nema, oznaka nije postavljena — kliknite ✨ u redu stavke. Oznake se brišu kad promijenite grupu radova.</P><H3>Prozor za štampu ostane otvoren</H3><P>Zatvara se sam kad završite sa štampom ili je otkažete. Ako ipak ostane, zatvorite ga ručno — dok je otvoren, glavni prozor aplikacije može djelovati zaleđeno jer čeka da se dijalog razriješi.</P><H3>Cijena je unesena, a iznos je pogrešan</H3><P>Provjerite da stavka nema podstavke — kod stavki sa podstavkama cijena se unosi <B>na podstavke</B>, a glavna stavka prikazuje njihov zbir („zbir podstavki").</P><Info naslov="💾 Savjet za sigurnost" boja={ZLATNA}>Prije velikih izmjena ili brisanja, izvezite projekat u fajl (📤) kao sigurnosnu kopiju. Tako imate rezervu ako nešto pođe naopako.</Info>
       </>
     ),
   }
