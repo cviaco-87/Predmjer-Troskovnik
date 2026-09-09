@@ -3063,8 +3063,24 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                 </span>
               </label>
 
+              {/* Nagovještaj kad je prekidač ISKLJUČEN — bez njega korisnik ne zna da se ispod
+                  kriju polja za ručni unos iznosa faza koje se vode u drugim programima. */}
+              {aktivniProjekat.prikazi_finalnu === false && (
+                <div style={{ fontSize: 10.5, color: '#8A94A0', marginTop: 6, lineHeight: 1.4, paddingLeft: 21 }}>
+                  Uključite kad predajete vodeću (arhitektonsko-građevinsku) fazu — tada možete
+                  dodati i iznose faza koje kolege rade u svojim programima (ViK, elektro…).
+                </div>
+              )}
+
               {aktivniProjekat.prikazi_finalnu !== false && (
                 <div style={{ marginTop: 8 }}>
+                  {/* Prijedlozi standardnih naziva faza — kucanjem se filtriraju, ali korisnik
+                      može upisati i bilo koji vlastiti naziv. */}
+                  <datalist id="standardne-faze">
+                    {DEFAULT_STRUKE.map(s => <option key={s.kod} value={s.naziv} />)}
+                    <option value="Projektantski nadzor" />
+                    <option value="Nepredviđeni radovi" />
+                  </datalist>
                   <div style={{ fontSize: 10.5, color: '#8A94A0', marginBottom: 6, lineHeight: 1.4 }}>
                     Iznosi faza koje ne vodite u ovom projektu (ViK, elektro…) — upišite ih ručno da uđu u finalni zbir:
                   </div>
@@ -3073,7 +3089,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                     // pa bi React pri brisanju ponovo iskoristio iste elemente sa STARIM tekstom —
                     // izgledalo bi kao da je obrisan pogrešan red (podaci su ipak bili tačni).
                     <div key={`rf-${idx}-${rf.naziv || ''}-${rf.iznos ?? ''}`} style={{ display: 'flex', gap: 5, marginBottom: 5, alignItems: 'center' }}>
-                      <input type="text" defaultValue={rf.naziv || ''} placeholder="Naziv faze"
+                      <input type="text" list="standardne-faze" defaultValue={rf.naziv || ''} placeholder="Naziv faze"
                         onBlur={e => {
                           const niz = [...(aktivniProjekat.rucne_faze || [])]
                           niz[idx] = { ...niz[idx], naziv: e.target.value }
