@@ -2952,7 +2952,9 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                   spellCheck={false}
                   onKeyDown={e => e.key === 'Enter' && dodajFazu(novaFaza)}
                   placeholder="Naziv prilagođene grupe..."
-                  style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />
+                  // Sitniji font i manji unutrašnji razmak — da se cio tekst nagovještaja vidi
+                  // u uskom polju (ranije se skraćivao na „...prilagođene grup").
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #D8D5CC', borderRadius: 6, padding: '6px 6px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                 <button onClick={() => dodajFazu(novaFaza)} style={B('#556575')}>+ Dodaj</button>
               </div>
             </div>
