@@ -2758,9 +2758,17 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <select value={aktivniProjekat?.id || ''}
                   onChange={e => setAktivniProjekat(projekti.find(p => p.id === e.target.value) || null)}
-                  style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 8px', fontSize: 13, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #C7CDD3', borderRadius: 6, padding: '7px 6px', fontSize: 12, fontFamily: 'inherit', background: '#EEF0F2', cursor: 'pointer', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   <option value="" disabled>— Odaberite projekat —</option>
-                  {projekti.map(p => <option key={p.id} value={p.id}>{p.naziv}</option>)}
+                  {/* Uz naziv se prikazuje i INVESTITOR — kad ima više objekata istog naziva
+                      („Individualni stambeni objekat"), bez toga se u meniju ne mogu razlikovati.
+                      Ako investitor nije upisan, pokazuje se lokacija; ako ni nje nema, samo naziv. */}
+                  {projekti.map(p => {
+                    const razlika = (p.klijent || '').trim() || (p.adresa || '').trim()
+                    return <option key={p.id} value={p.id} title={razlika ? `${p.naziv} — ${razlika}` : p.naziv}>
+                      {p.naziv}{razlika ? ` — ${razlika}` : ''}
+                    </option>
+                  })}
                 </select>
                 {aktivniProjekat && (
                   <>
