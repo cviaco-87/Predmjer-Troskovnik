@@ -255,6 +255,19 @@ const calcRow = (p, svePoz) => {
 // da se podstavke jasnije razlikuju od glavnih stavki, a da boja ostane u paleti aplikacije.
 const BOJA_PODSTAVKE = '#F4ECDD'
 
+// Boja okvira TRAJNO OZNAČENE (aktivne) ćelije — tamno plava iz palete aplikacije. Namjerno NIJE
+// zelena ni žuta: te boje već nose značenje (dodato/pomjereno, briše se, naoružano za zamjenu,
+// hover), pa bi se oznake miješale. Narandžasti okvir (#C9954E) je rezervisan za zamjenu stavke.
+const BOJA_AKTIVNE_CELIJE = '#2D4B6A'
+// Okvir se nanosi na <td> (ne na polje unutra) da bi oznaka bila jednako vidljiva i kad je ćelija
+// prazna, i kad polje izgubi fokus — npr. pri prelasku u ArchiCAD ili drugi program.
+const OKVIR_AKTIVNE_CELIJE = {
+  outline: `2px solid ${BOJA_AKTIVNE_CELIJE}`,
+  outlineOffset: '-2px',
+  boxShadow: `inset 0 0 0 3px rgba(255,255,255,.55)`,
+  borderRadius: 4,
+}
+
 // Umeće oznake za podebljano (**) ili kurziv (*) oko označenog teksta u polju.
 // Ako je označeni dio VEĆ formatiran, oznake se uklanjaju (radi kao prekidač).
 // Vraća novi tekst ili null ako nema šta da se mijenja.
@@ -714,6 +727,22 @@ export default function App() {
   // ID stavke čije je polje opisa trenutno u fokusu — dok je u fokusu vide se oznake (**tekst**),
   // a kad se izađe prikazuje se formatiran tekst (podebljano/kurziv, bez zvjezdica).
   const [opisUFokusu, setOpisUFokusu] = useState(null)
+
+  // ── TRAJNO OZNAČENA (AKTIVNA) ĆELIJA — kao u Excelu ──
+  // Problem iz prakse: dok se količine prepisuju iz ArchiCAD-a, prozori se stalno prebacuju. Hover
+  // boja nestane čim se miš pomjeri, pa se po vraćanju u aplikaciju ne zna u koju ćeliju se upisivalo.
+  // Zato se posljednja kliknuta ćelija pamti u stanju i ostaje vidno uokvirena dok se ne klikne druga.
+  // Ne oslanjamo se na native fokus: `blur` (prelazak u drugi program, klik van polja) resetuje ivicu
+  // polja i skuplja dugi opis, pa bi oznaka nestala upravo kad je najpotrebnija.
+  const [aktivnaCelija, setAktivnaCelija] = useState(null) // { id, polje }
+  // Promjenom grupe radova (ili projekta) prikazuje se druga lista pozicija — stara oznaka nema smisla.
+  useEffect(() => { setAktivnaCelija(null) }, [aktivnaFaza?.id])
+  const oznaciCeliju = (id, polje) => setAktivnaCelija(prev => (prev && prev.id === id && prev.polje === polje) ? prev : { id, polje })
+  // Spaja osnovni stil <td>-a sa okvirom, ako je ta ćelija aktivna.
+  const stilCelije = (osnovni, id, polje) =>
+    (aktivnaCelija && aktivnaCelija.id === id && aktivnaCelija.polje === polje)
+      ? { ...osnovni, ...OKVIR_AKTIVNE_CELIJE }
+      : osnovni
   const jeDugOpis = p => ((p?.naziv || '').length > 180) || (p?.opis_visina && p.opis_visina > 92)
   const prosiriOpis = id => setProsireniOpisi(prev => { const n = new Set(prev); n.add(id); return n })
   const skupiOpis = id => setProsireniOpisi(prev => { if (!prev.has(id)) return prev; const n = new Set(prev); n.delete(id); return n })
@@ -3445,6 +3474,9 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                             const jePomjerena = pomjerenaId === p.id
                             const seBrise = brisuSe.has(p.id)
                             const osnovnaBoja = seBrise ? '#F8D7D3' : (jePomjerena ? '#D6F0DE' : (jeArmiranoZaZamjenu ? '#FFF3D6' : paleta.glavna))
+                            // Red u kojem je trajno označena ćelija — redni broj se prikazuje kao tamna
+                            // pločica (analogija zaglavlja reda u Excelu), uz plavu liniju na lijevoj ivici.
+                            const jeAktivanRed = aktivnaCelija?.id === p.id
                             return (
                               <React.Fragment key={p.id}>
                                 {/* GLAVNA STAVKA */}
@@ -3459,13 +3491,13 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                   style={{ borderBottom: imadjece ? 'none' : '2px solid #E4E1D8', background: osnovnaBoja, cursor: 'grab', outline: jeArmiranoZaZamjenu ? '2px solid #C9954E' : 'none', outlineOffset: '-2px', transition: 'background-color .25s ease, opacity .35s ease', opacity: seBrise ? 0.25 : 1, pointerEvents: seBrise ? 'none' : undefined }}
                                   onMouseEnter={e => { if (!jeArmiranoZaZamjenu && !jePomjerena) e.currentTarget.style.background = hoverBg }}
                                   onMouseLeave={e => { e.currentTarget.style.background = osnovnaBoja }}>
-                                  <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px' }}>
+                                  <td style={{ padding: '6px 8px', color: '#1A1A18', fontWeight: 700, fontSize: 13, width: 28, verticalAlign: 'top', borderRadius: imadjece ? '6px 0 0 0' : '6px 0 0 6px', borderLeft: jeAktivanRed ? `4px solid ${BOJA_AKTIVNE_CELIJE}` : '4px solid transparent' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1A1A18' }}>{i + 1}</span>
+                                      <span style={{ fontSize: 13, fontWeight: 700, color: jeAktivanRed ? '#fff' : '#1A1A18', background: jeAktivanRed ? BOJA_AKTIVNE_CELIJE : 'transparent', borderRadius: 3, padding: jeAktivanRed ? '1px 5px' : 0 }}>{i + 1}</span>
                                       <span className="drag-rucka" onMouseDown={() => { dragRuckaAktivna.current = true }} style={{ color: '#ccc', fontSize: 12, lineHeight: 1, userSelect: 'none' }} title="Prevuci da promijeniš redoslijed">⠿</span>
                                     </div>
                                   </td>
-                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                  <td onClick={() => oznaciCeliju(p.id, 'sifra')} style={stilCelije({ padding: '6px 8px', verticalAlign: 'top', width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }, p.id, 'sifra')}>
                                     <input
                                       type="text"
                                       spellCheck={false}
@@ -3474,12 +3506,12 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       defaultValue={p.sifra || ''}
                                       placeholder="šifra"
                                       onBlur={e => azurirajPoziciju(p.id, 'sifra', e.target.value.trim())}
-                                      onClick={e => e.stopPropagation()}
+                                      onClick={e => { e.stopPropagation(); oznaciCeliju(p.id, 'sifra') }}
                                       style={{ width: '100%', border: '1px solid transparent', background: 'transparent', fontSize: 11, fontStyle: 'italic', fontWeight: 600, color: '#6B7480', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', padding: '2px 4px', borderRadius: 4 }}
-                                      onFocus={e => { e.target.style.border = '1px solid #C2CDD8'; e.target.style.background = '#fff' }}
+                                      onFocus={e => { oznaciCeliju(p.id, 'sifra'); e.target.style.border = '1px solid #C2CDD8'; e.target.style.background = '#fff' }}
                                       title="Šifra pozicije" />
                                   </td>
-                                  <td style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                  <td onClick={() => oznaciCeliju(p.id, 'naziv')} style={stilCelije({ padding: '6px 8px', verticalAlign: 'top', minWidth: 280, position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }, p.id, 'naziv')}>
                                     <textarea
                                       key={`naz-${p.id}-${revizija}`}
                                       spellCheck={false}
@@ -3529,7 +3561,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       }}
                                       title="Ćelija se automatski širi dok kucate; dvoklik ponovo namješta visinu tekstu"
                                       style={{ width: '100%', border: '1px solid transparent', borderRadius: 4, padding: '3px 6px', fontSize: 12, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.6, wordBreak: 'break-word', whiteSpace: 'pre-wrap', minHeight: 40, height: p.opis_visina ? `${p.opis_visina}px` : undefined, maxHeight: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 78 : 'none', overflow: (jeDugOpis(p) && !prosireniOpisi.has(p.id)) ? 'hidden' : undefined, /* Kad se preko polja prikazuje formatiran tekst, tekst u samom polju mora biti proziran — inače se vide oba i preklapaju se. Karet (kursor) ostaje vidljiv. */ color: '#2B2B26' }}
-                                      onFocus={e => { prosiriOpis(p.id); setOpisUFokusu(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
+                                      onFocus={e => { oznaciCeliju(p.id, 'naziv'); prosiriOpis(p.id); setOpisUFokusu(p.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F8FAF8' }}
                                       onKeyDown={e => {
                                         // Ctrl+B = podebljano (**tekst**), Ctrl+I = kurziv (*tekst*).
                                         // Ponovni pritisak nad istim izborom uklanja oznake.
@@ -3576,13 +3608,13 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       </div>
                                     )}
                                   </td>
-                                  <td style={{ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', textAlign: 'center', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                  <td onClick={() => oznaciCeliju(p.id, 'jedinica')} style={stilCelije({ padding: '6px 8px', color: '#888', whiteSpace: 'nowrap', verticalAlign: 'top', textAlign: 'center', borderLeft: '1px solid rgba(27,47,67,0.18)' }, p.id, 'jedinica')}>
                                     {!imadjece && <select
                                       key={`jed-${p.id}-${revizija}`}
                                       defaultValue={fmtJmj(p.jedinica)||'m²'}
                                       onChange={e => azurirajPoziciju(p.id, 'jedinica', e.target.value)}
                                       style={{ width: 58, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer', textAlign: 'center', textAlignLast: 'center' }}
-                                      onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
+                                      onFocus={e => { oznaciCeliju(p.id, 'jedinica'); e.target.style.border = '1px solid #D8D5CC' }}
                                       onBlur={e => e.target.style.border = '1px solid transparent'}>
                                       {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
                                         <option key={j} value={j}>{j}</option>
@@ -3590,13 +3622,13 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                     </select>}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888' }}>{fmtJmj(p.jedinica)}</span>}
                                   </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.cijena ? Number(p.cijena).toFixed(2).replace('.', ',') : ''} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = p.cijena ? Number(p.cijena).toFixed(2).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); /* Cijene se uvijek prikazuju sa DVIJE decimale (9 -> 9,00), kao i u PDF/Excel izvozu. */ e.target.value = v ? v.toFixed(2).replace('.', ',') : ''; azurirajPoziciju(p.id, 'cijena', v) }}
+                                  <td onClick={() => oznaciCeliju(p.id, 'cijena')} style={stilCelije({ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }, p.id, 'cijena')}>
+                                    {!imadjece && <input key={`cij-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.cijena ? Number(p.cijena).toFixed(2).replace('.', ',') : ''} onFocus={() => oznaciCeliju(p.id, 'cijena')} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = p.cijena ? Number(p.cijena).toFixed(2).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); /* Cijene se uvijek prikazuju sa DVIJE decimale (9 -> 9,00), kao i u PDF/Excel izvozu. */ e.target.value = v ? v.toFixed(2).replace('.', ',') : ''; azurirajPoziciju(p.id, 'cijena', v) }}
                                       style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                     {imadjece && <span style={{ fontSize: 11, color: '#888', fontStyle: 'italic' }}>zbir podstavki</span>}
                                   </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.kolicina ? String(p.kolicina).replace('.', ',') : ''} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = p.kolicina ? String(p.kolicina).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(p.id, 'kolicina', v) }}
+                                  <td onClick={() => oznaciCeliju(p.id, 'kolicina')} style={stilCelije({ padding: '6px 8px', textAlign: 'right', verticalAlign: 'top', borderLeft: '1px solid rgba(27,47,67,0.18)' }, p.id, 'kolicina')}>
+                                    {!imadjece && <input key={`kol-${p.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={p.kolicina ? String(p.kolicina).replace('.', ',') : ''} onFocus={() => oznaciCeliju(p.id, 'kolicina')} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = p.kolicina ? String(p.kolicina).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(p.id, 'kolicina', v) }}
                                       placeholder="0"
                                       style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '3px 5px', fontSize: 12, fontFamily: 'inherit', background: '#F5F4F0' }} />}
                                   </td>
@@ -3646,15 +3678,18 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                 {/* PODSTAVKE */}
                                 {djeca.map((d, di) => {
                                   const du = calcRowSimple(d)
+                                  const jeAktivnaPod = aktivnaCelija?.id === d.id
                                   return (
                                     <tr key={d.id}
                                       data-poz-id={d.id}
                                       onMouseEnter={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = '#FFFBEA' }}
                                       onMouseLeave={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = BOJA_PODSTAVKE }}
                                       style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : (pomjerenaId === d.id ? '#D6F0DE' : BOJA_PODSTAVKE), transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
-                                      <td style={{ padding: '4px 8px', color: '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28 }}>{i+1}.{di+1}</td>
+                                      <td style={{ padding: '4px 8px', color: jeAktivnaPod ? '#fff' : '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28, borderLeft: jeAktivnaPod ? `4px solid ${BOJA_AKTIVNE_CELIJE}` : '4px solid transparent' }}>
+                                        <span style={{ background: jeAktivnaPod ? BOJA_AKTIVNE_CELIJE : 'transparent', borderRadius: 3, padding: jeAktivnaPod ? '1px 4px' : 0 }}>{i+1}.{di+1}</span>
+                                      </td>
                                       <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
-                                      <td style={{ padding: '4px 8px', verticalAlign: 'top', position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td onClick={() => oznaciCeliju(d.id, 'naziv')} style={stilCelije({ padding: '4px 8px', verticalAlign: 'top', position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }, d.id, 'naziv')}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                           
                                           <textarea
@@ -3715,7 +3750,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                             title="Dvoklik razvlači ćeliju na cijeli tekst; ponovni dvoklik je skuplja"
                                             placeholder="Npr: Prizemlje, Sprat 1, Zona A..."
                                             style={{ flex: 1, border: '1px solid transparent', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: 'transparent', resize: 'vertical', lineHeight: 1.4, color: '#444', minHeight: 22, height: d.opis_visina ? `${d.opis_visina}px` : undefined, maxHeight: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 60 : 'none', overflow: (jeDugOpis(d) && !prosireniOpisi.has(d.id)) ? 'hidden' : undefined }}
-                                            onFocus={e => { prosiriOpis(d.id); setOpisUFokusu(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
+                                            onFocus={e => { oznaciCeliju(d.id, 'naziv'); prosiriOpis(d.id); setOpisUFokusu(d.id); e.target.style.border = '1px solid #4A637C'; e.target.style.background = '#F0F2F5' }}
                                           />
                                           {jeDugOpis(d) && (
                                             <button onClick={e => { e.stopPropagation(); toggleOpis(d.id) }} title={prosireniOpisi.has(d.id) ? 'Skrati' : 'Prikaži cijelo'}
@@ -3746,25 +3781,25 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                           )}
                                          </div>
                                        </td>
-                                      <td style={{ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
+                                      <td onClick={() => oznaciCeliju(d.id, 'jedinica')} style={stilCelije({ padding: '4px 8px', color: '#888', textAlign: 'center', fontSize: 11, borderLeft: '1px solid rgba(27,47,67,0.18)' }, d.id, 'jedinica')}>
                                         <select
                                           key={`jed-${d.id}-${revizija}`}
                                           defaultValue={fmtJmj(d.jedinica)||'m²'}
                                           onChange={e => azurirajPoziciju(d.id, 'jedinica', e.target.value)}
                                           style={{ width: 52, border: '1px solid transparent', borderRadius: 4, padding: '2px 2px', fontSize: 10, fontFamily: 'inherit', background: 'transparent', cursor: 'pointer', textAlign: 'center', textAlignLast: 'center' }}
-                                          onFocus={e => e.target.style.border = '1px solid #D8D5CC'}
+                                          onFocus={e => { oznaciCeliju(d.id, 'jedinica'); e.target.style.border = '1px solid #D8D5CC' }}
                                           onBlur={e => e.target.style.border = '1px solid transparent'}>
                                           {['m²','m³','m','kom.','pau.','kg','t','l','h','dan','voz','m²/dan'].map(j => (
                                             <option key={j} value={j}>{j}</option>
                                           ))}
                                         </select>
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena ? Number(d.cijena).toFixed(2).replace('.', ',') : ''} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = d.cijena ? Number(d.cijena).toFixed(2).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); /* Cijene se uvijek prikazuju sa DVIJE decimale (9 -> 9,00), kao i u PDF/Excel izvozu. */ e.target.value = v ? v.toFixed(2).replace('.', ',') : ''; azurirajPoziciju(d.id, 'cijena', v) }}
+                                      <td onClick={() => oznaciCeliju(d.id, 'cijena')} style={stilCelije({ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }, d.id, 'cijena')}>
+                                        <input key={`cij-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.cijena ? Number(d.cijena).toFixed(2).replace('.', ',') : ''} onFocus={() => oznaciCeliju(d.id, 'cijena')} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = d.cijena ? Number(d.cijena).toFixed(2).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); /* Cijene se uvijek prikazuju sa DVIJE decimale (9 -> 9,00), kao i u PDF/Excel izvozu. */ e.target.value = v ? v.toFixed(2).replace('.', ',') : ''; azurirajPoziciju(d.id, 'cijena', v) }}
                                           style={{ width: 75, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
-                                      <td style={{ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }}>
-                                        <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina ? String(d.kolicina).replace('.', ',') : ''} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = d.kolicina ? String(d.kolicina).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(d.id, 'kolicina', v) }}
+                                      <td onClick={() => oznaciCeliju(d.id, 'kolicina')} style={stilCelije({ padding: '4px 8px', textAlign: 'right', borderLeft: '1px solid rgba(27,47,67,0.18)' }, d.id, 'kolicina')}>
+                                        <input key={`kol-${d.id}-${revizija}`} type="text" inputMode="decimal" defaultValue={d.kolicina ? String(d.kolicina).replace('.', ',') : ''} onFocus={() => oznaciCeliju(d.id, 'kolicina')} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } if (e.key === 'Escape') { e.target.value = d.kolicina ? String(d.kolicina).replace('.', ',') : ''; e.target.blur() } }} onBlur={e => { const v = parsiBroj(e.target.value); e.target.value = v ? String(v).replace('.', ',') : ''; azurirajPoziciju(d.id, 'kolicina', v) }}
                                           placeholder="0"
                                           style={{ width: 68, textAlign: 'right', border: '1px solid #D8D5CC', borderRadius: 4, padding: '2px 4px', fontSize: 11, fontFamily: 'inherit', background: '#F5F4F0' }} />
                                       </td>
