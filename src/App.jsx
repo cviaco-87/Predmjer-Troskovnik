@@ -1346,7 +1346,11 @@ export default function App() {
         cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju vlastite stavke: ' + error.message, 'greska'); return }
-      if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id, true) }
+      // Kod VLASTITE stavke traka umetanja se gasi odmah po dodavanju: korisnik u tom trenutku
+      // kuca opis u novom polju, pa mu traka ispod te stavke samo smeta (morao bi je ručno
+      // zatvarati sa „× otkaži"). Kod stavki iz baze i AI-ja sidro se i dalje pomjera na novu
+      // stavku, jer se tamo često dodaje više stavki zaredom.
+      if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(null); istakniNovuStavku(data.id, true) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
