@@ -2484,7 +2484,10 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
       sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
     }).select().single()
     if (error) { obavijesti('Greška pri dodavanju stavke iz AI asistenta: ' + error.message, 'greska'); return }
-    if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id) }
+    // Kao i kod vlastite stavke, traka umetanja se gasi odmah po dodavanju. AI stavka se dodaje
+    // jednim klikom po stavci („+ Dodaj u predmjer"), pa nema serije koju bi traka morala pratiti,
+    // a ostajala bi ispod nove stavke dok se ručno ne zatvori sa „× otkaži".
+    if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(null); istakniNovuStavku(data.id) }
   }
 
 
