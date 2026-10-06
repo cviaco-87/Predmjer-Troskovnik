@@ -738,6 +738,15 @@ export default function App() {
   // Promjenom grupe radova (ili projekta) prikazuje se druga lista pozicija — stara oznaka nema smisla.
   useEffect(() => { setAktivnaCelija(null) }, [aktivnaFaza?.id])
   const oznaciCeliju = (id, polje) => setAktivnaCelija(prev => (prev && prev.id === id && prev.polje === polje) ? prev : { id, polje })
+
+  // ── MJESTO UMETANJA NOVE STAVKE ──
+  // Ranije je svaka nova stavka išla na DNO grupe radova, pa je korisnik morao da je prevlači
+  // ručicom ⠿ do željenog mjesta (npr. između 4. i 5. stavke od 20). Ovdje se pamti „sidro" —
+  // stavka POSLIJE koje se umeću nove. Dok je sidro postavljeno, SVI izvori (baza pozicija,
+  // Moja baza, vlastita stavka, AI asistent) umeću tu, a sidro se pomjera na tek umetnutu
+  // stavku, pa se više njih doda jedna za drugom u ispravnom redu. Bez sidra sve radi kao prije.
+  const [mjestoUmetanjaId, setMjestoUmetanjaId] = useState(null)
+  useEffect(() => { setMjestoUmetanjaId(null) }, [aktivnaFaza?.id])
   // Spaja osnovni stil <td>-a sa okvirom, ako je ta ćelija aktivna.
   const stilCelije = (osnovni, id, polje) =>
     (aktivnaCelija && aktivnaCelija.id === id && aktivnaCelija.polje === polje)
@@ -1220,6 +1229,31 @@ export default function App() {
     return Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
   }
 
+  // Određuje redoslijed za novu stavku i, ako je postavljeno sidro (mjesto umetanja), fizički
+  // „pravi mjesto" — pomjera sve stavke od tog mjesta nadalje za jedno unaprijed, i u bazi i u
+  // prikazu. Vraća { red, sidro }. Ako sidro ne postoji ili pomjeranje ne uspije, pada na
+  // dodavanje NA DNO — nikad ne upisuje stavku na redoslijed koji već neko zauzima.
+  const pripremiMjestoZaNovuStavku = async () => {
+    const roditelji = pozicije.filter(p => !p.parent_id)
+    const naDno = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+    const sidro = mjestoUmetanjaId ? roditelji.find(p => p.id === mjestoUmetanjaId) : null
+    if (!sidro) return { red: naDno, sidro: null }
+    let red = (sidro.redoslijed ?? 0) + 1
+    try {
+      // Redoslijed sidra se čita IZ BAZE, ne iz stanja u memoriji. Pri dodavanju više stavki
+      // jedne za drugom (npr. AI asistent) stanje u memoriji može kasnuti za jedan korak, pa bi
+      // dvije stavke dobile isti broj redoslijeda i poredak bi postao nepredvidiv.
+      const { data: svjezeSidro } = await supabase.from('pozicije').select('redoslijed').eq('id', sidro.id).single()
+      if (svjezeSidro) red = (svjezeSidro.redoslijed ?? 0) + 1
+      await napraviMjestoZaUmetanje(aktivnaFaza.id, null, red)
+    } catch (e) {
+      obavijesti('Nije bilo moguće napraviti mjesto za umetanje — stavka je dodata na kraj. ' + (e?.message || ''), 'greska')
+      return { red: naDno, sidro: null }
+    }
+    setPozicije(prev => prev.map(p => (!p.parent_id && (p.redoslijed ?? 0) >= red) ? { ...p, redoslijed: (p.redoslijed ?? 0) + 1 } : p))
+    return { red, sidro }
+  }
+
   const dodajPoziciju = useCallback(async (idx) => {
     const item = baza[idx]
     if (!item) return
@@ -1237,8 +1271,7 @@ export default function App() {
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
     dodavanjeUTokuRef.current = true
     try {
-      const roditelji = pozicije.filter(p => !p.parent_id)
-      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      const { red, sidro } = await pripremiMjestoZaNovuStavku()
       // Baza je uvijek u EUR — konvertuj u trenutno izabranu valutu prije upisa
       const cijenaUValuti = valuta === 'EUR' ? item.c : Math.round(konvertujCijenu(item.c, 'EUR', valuta) * 100) / 100
       const { data, error } = await supabase.from('pozicije').insert({
@@ -1246,7 +1279,7 @@ export default function App() {
         cijena: cijenaUValuti, kategorija: item.k, redoslijed: red, sifra: item.s || null
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju stavke: ' + error.message, 'greska'); return }
-      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
+      if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -1268,14 +1301,13 @@ export default function App() {
     if (!aktivnaFaza || dodavanjeUTokuRef.current) return
     dodavanjeUTokuRef.current = true
     try {
-      const roditelji = pozicije.filter(p => !p.parent_id)
-      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
+      const { red, sidro } = await pripremiMjestoZaNovuStavku()
       const { data, error } = await supabase.from('pozicije').insert({
         faza_id: aktivnaFaza.id, naziv: item.n, jedinica: fmtJmj(item.m),
         cijena: cijenaUProjektu, kategorija: item.k || 'Moje stavke', redoslijed: red
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju stavke iz moje baze: ' + error.message, 'greska'); return }
-      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
+      if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -1302,16 +1334,19 @@ export default function App() {
     dodavanjeUTokuRef.current = true
     try {
       const roditelji = pozicije.filter(p => !p.parent_id)
-      // Kategorija prati GRUPU RADOVA; ako je grupa prilagođena, uzmi kategoriju zadnje stavke.
+      const { red, sidro } = await pripremiMjestoZaNovuStavku()
+      // Kategorija prati GRUPU RADOVA; ako je grupa prilagođena, uzmi kategoriju stavke POSLIJE
+      // koje se umeće (sidro) — inače bi umetnuta stavka odletjela u drugu kategoriju i ne bi se
+      // pojavila tamo gdje je korisnik tražio. Bez sidra: kategorija zadnje stavke, kao i prije.
       const zadnjaKat = aktivnaFaza?.kategorija
+        || sidro?.kategorija
         || (roditelji.length > 0 ? roditelji[roditelji.length - 1].kategorija : 'Ostalo')
-      const red = roditelji.length === 0 ? 0 : Math.max(...roditelji.map(p => p.redoslijed ?? 0)) + 1
       const { data, error } = await supabase.from('pozicije').insert({
         faza_id: aktivnaFaza.id, naziv: '', jedinica: 'm²',
         cijena: 0, kategorija: zadnjaKat, redoslijed: red, sifra: autoSifraPrilagodjena(aktivnaFaza, roditelji)
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju vlastite stavke: ' + error.message, 'greska'); return }
-      if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id, true) }
+      if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id, true) }
     } finally {
       dodavanjeUTokuRef.current = false
     }
@@ -2423,7 +2458,8 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
     const jedinicaZaUpis = prepoznajJedinicu(cleanNaziv) || fmtJmj(stavka.jedinica || 'm²')
 
     const rod = pozicije.filter(p => !p.parent_id)
-    const red = rod.length === 0 ? 0 : Math.max(...rod.map(p => p.redoslijed ?? 0)) + 1
+    // Poštuje mjesto umetanja (⤓) ako je postavljeno — isto kao kod stavki iz baze i vlastitih.
+    const { red, sidro } = await pripremiMjestoZaNovuStavku()
 
     // AI vraća i valutu u kojoj je cijenu izrazio. Ako se razlikuje od valute projekta (npr.
     // korisnik je tražio KM dok je projekat u EUR), cijena se preračunava po tekućem kursu —
@@ -2444,7 +2480,7 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
       sifra: autoSifraPrilagodjena(aktivnaFaza, rod)
     }).select().single()
     if (error) { obavijesti('Greška pri dodavanju stavke iz AI asistenta: ' + error.message, 'greska'); return }
-    if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id) }
+    if (data) { setPozicije(prev => [...prev, data]); if (sidro) setMjestoUmetanjaId(data.id); istakniNovuStavku(data.id) }
   }
 
 
@@ -3642,6 +3678,11 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                         + Podstavka
                                       </button>
                                       <div className="red-akcije" style={{ display: 'flex', gap: 2 }}>
+                                        <button onClick={() => setMjestoUmetanjaId(prev => prev === p.id ? null : p.id)}
+                                          title={mjestoUmetanjaId === p.id ? 'Isključi umetanje — nove stavke idu na kraj grupe' : 'Umetni nove stavke ODMAH ISPOD ove (iz baze, Moje baze, „+ Vlastita stavka" ili AI)'}
+                                          style={{ background: mjestoUmetanjaId === p.id ? BOJA_AKTIVNE_CELIJE : 'none', color: mjestoUmetanjaId === p.id ? '#fff' : '#1B2F43', border: mjestoUmetanjaId === p.id ? `1px solid ${BOJA_AKTIVNE_CELIJE}` : 'none', cursor: 'pointer', fontSize: 12, padding: '1px 3px', borderRadius: 3, opacity: mjestoUmetanjaId === p.id ? 1 : 0.6, fontWeight: 700 }}
+                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                                          onMouseLeave={e => { if (mjestoUmetanjaId !== p.id) e.currentTarget.style.opacity = '0.6' }}>⤓</button>
                                         <button onClick={() => setZamjenaPozicijaId(prev => prev === p.id ? null : p.id)}
                                           title={zamjenaPozicijaId === p.id ? 'Otkaži zamjenu' : (imadjece ? 'Zamijeni ovu stavku novom iz baze (briše postojeće podstavke)' : 'Zamijeni ovu stavku novom iz baze')}
                                           style={{ background: zamjenaPozicijaId === p.id ? '#F4B740' : 'none', border: zamjenaPozicijaId === p.id ? '1px solid #C9954E' : 'none', cursor: 'pointer', fontSize: 13, padding: '1px 2px', borderRadius: 3, opacity: zamjenaPozicijaId === p.id ? 1 : 0.6 }}
@@ -3828,6 +3869,25 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                       {fmt(u)} {valutaZnak}
                                     </td>
                                     <td style={{ borderRadius: '0 0 6px 0' }}></td>
+                                  </tr>
+                                )}
+
+                                {/* LINIJA MJESTA UMETANJA — tanka plava traka koja jasno pokazuje
+                                    gdje će sletjeti sljedeća nova stavka, bez obzira odakle dolazi
+                                    (baza, Moja baza, „+ Vlastita stavka", AI asistent). */}
+                                {mjestoUmetanjaId === p.id && (
+                                  <tr style={{ background: '#E8EEF5' }}>
+                                    <td colSpan={8} style={{ padding: 0, borderTop: `2px solid ${BOJA_AKTIVNE_CELIJE}`, borderBottom: `2px solid ${BOJA_AKTIVNE_CELIJE}` }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px' }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: BOJA_AKTIVNE_CELIJE, letterSpacing: '.03em' }}>⤓ NOVE STAVKE SE UMEĆU OVDJE</span>
+                                        <span style={{ fontSize: 10.5, color: '#4A637C' }}>— iz baze, Moje baze, „+ Vlastita stavka" ili AI asistenta</span>
+                                        <button onClick={() => setMjestoUmetanjaId(null)}
+                                          title="Isključi umetanje — nove stavke idu na kraj grupe"
+                                          style={{ marginLeft: 'auto', background: '#fff', border: `1px solid ${BOJA_AKTIVNE_CELIJE}`, color: BOJA_AKTIVNE_CELIJE, cursor: 'pointer', fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 3, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                          × otkaži
+                                        </button>
+                                      </div>
+                                    </td>
                                   </tr>
                                 )}
                               </React.Fragment>
