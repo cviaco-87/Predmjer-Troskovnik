@@ -343,6 +343,75 @@ const autoSifraPrilagodjena = (faza, trenutnePozicije) => {
 const calcFaza = f => (f.pozicije || []).reduce((s, p) => s + calcRow(p, pozicije), 0)
 
 // ── SEARCH PANEL ──────────────────────────────────
+// ── IZBORNIK GRUPA RADOVA U TRACI (sa kantom za brisanje uz svaku grupu) ──
+// Zamjena za običan <select>: native <option> ne može sadržavati dugmad, pa se kanta za brisanje
+// (ista crvena kao u lijevom meniju „Grupe radova") ne bi mogla prikazati. Ovdje je lista
+// iscrtana sama: klik na naziv prebacuje grupu, klik na kantu briše tu grupu (uz potvrdu u
+// onObrisi). Zatvara se klikom van liste i tasterom Escape; strelice gore/dolje + Enter rade
+// kao u običnom izborniku.
+function IzbornikGrupe({ grupe, aktivnaId, prefiks, onIzaberi, onObrisi, onPreimenuj }) {
+  const [otvoren, setOtvoren] = useState(false)
+  const korijen = React.useRef(null)
+  useEffect(() => {
+    if (!otvoren) return
+    const klikVan = e => { if (korijen.current && !korijen.current.contains(e.target)) setOtvoren(false) }
+    const tipka = e => { if (e.key === 'Escape') setOtvoren(false) }
+    document.addEventListener('mousedown', klikVan)
+    document.addEventListener('keydown', tipka)
+    return () => { document.removeEventListener('mousedown', klikVan); document.removeEventListener('keydown', tipka) }
+  }, [otvoren])
+  // Pri otvaranju fokus ide na aktivnu grupu, da strelice odmah rade od pravog mjesta.
+  useEffect(() => {
+    if (!otvoren) return
+    const el = korijen.current?.querySelector('[data-grupa-aktivna="1"]') || korijen.current?.querySelector('[data-grupa]')
+    el?.focus()
+  }, [otvoren])
+  const aktivna = grupe.find(g => g.id === aktivnaId)
+  const pomjeriFokus = (e, smjer) => {
+    e.preventDefault()
+    const redovi = Array.from(korijen.current?.querySelectorAll('[data-grupa]') || [])
+    const i = redovi.indexOf(document.activeElement)
+    const sljedeci = redovi[Math.max(0, Math.min(redovi.length - 1, (i === -1 ? 0 : i + smjer)))]
+    sljedeci?.focus()
+  }
+  return (
+    <div ref={korijen} style={{ position: 'relative', maxWidth: 340 }}>
+      <button type="button" onClick={() => setOtvoren(o => !o)} onDoubleClick={onPreimenuj}
+        title="Promijeni aktivnu grupu radova (dvoklik za preimenovanje)"
+        aria-haspopup="listbox" aria-expanded={otvoren}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', fontWeight: 700, fontSize: 15, color: '#fff', background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.35)', borderRadius: 6, padding: '3px 8px', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{aktivna ? prefiks(aktivna) + aktivna.naziv : '—'}</span>
+        <span style={{ fontSize: 10, opacity: .8 }}>▼</span>
+      </button>
+      {otvoren && (
+        <div role="listbox"
+          onKeyDown={e => { if (e.key === 'ArrowDown') pomjeriFokus(e, 1); else if (e.key === 'ArrowUp') pomjeriFokus(e, -1) }}
+          style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, minWidth: '100%', width: 'max-content', maxWidth: 440, maxHeight: 'min(380px, 60vh)', overflowY: 'auto', background: '#fff', border: '1px solid #C7CDD3', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,.28)', zIndex: 60, padding: '3px 0' }}>
+          {grupe.map(g => {
+            const jeAktivna = g.id === aktivnaId
+            return (
+              <div key={g.id} role="option" aria-selected={jeAktivna} tabIndex={-1}
+                data-grupa="1" data-grupa-aktivna={jeAktivna ? '1' : '0'}
+                onClick={() => { setOtvoren(false); if (!jeAktivna) onIzaberi(g) }}
+                onKeyDown={e => { if (e.key === 'Enter') { setOtvoren(false); if (!jeAktivna) onIzaberi(g) } }}
+                onMouseEnter={e => { if (!jeAktivna) e.currentTarget.style.background = '#EEF0F2' }}
+                onMouseLeave={e => { if (!jeAktivna) e.currentTarget.style.background = '#fff' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px 6px 12px', cursor: 'pointer', background: jeAktivna ? '#1B2F43' : '#fff', color: jeAktivna ? '#fff' : '#1B2F43', fontWeight: jeAktivna ? 700 : 600, fontSize: 14, outline: 'none' }}>
+                <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prefiks(g)}{g.naziv}</span>
+                <button type="button" tabIndex={-1} aria-label={`Obriši grupu radova ${g.naziv}`} title="Obriši ovu grupu radova"
+                  onClick={e => { e.stopPropagation(); setOtvoren(false); onObrisi(g) }}
+                  style={{ background: '#FBE4E1', border: '1px solid #E8A5A0', borderRadius: 6, color: '#C0392B', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '4px 8px', fontFamily: 'inherit', flexShrink: 0 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#C0392B'; e.currentTarget.style.color = '#fff' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#FBE4E1'; e.currentTarget.style.color = '#C0392B' }}>🗑</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BazaPanel({ onAdd, onAddFromMojaBaza, mojeBazaStavke, aktivnaStruka, strukaNaziv, baza, bazaUcitavanje, onDodajVlastitu, zamjenaNaziv, onOtkaziZamjenu, zakljucanaKategorija, valuta = 'EUR', valutaZnak = '€', konvertuj, vertikalno = false }) {
   const [q, setQ] = useState('')
   const [kat, setKat] = useState('')
@@ -1028,8 +1097,18 @@ export default function App() {
     if (data) { setNovaFaza(''); setFaze(prev => sortirajFaze([...prev, data])); setAktivnaFaza(data) }
   }
 
-  const obrisiFeazu = async (id) => {
-    if (!confirm('Obrisati grupu radova i sve pozicije?')) return
+  // opcije.bezPrebacivanja — koristi je brisanje cijele faze (obrisiStruku), koje briše sve grupe u
+  // petlji: tamo nema smisla prebacivati se s grupe na grupu koja će se i sama obrisati.
+  const obrisiFeazu = async (id, opcije = {}) => {
+    const naziv = faze.find(f => f.id === id)?.naziv
+    if (!confirm(naziv ? `Obrisati grupu radova „${naziv}" i sve njene pozicije?` : 'Obrisati grupu radova i sve pozicije?')) return
+    // Zapamti sljedeću grupu PRIJE brisanja, dok je lista još cijela: nakon brisanja aktivne grupe
+    // prikaz prelazi na sljedeću u istom redoslijedu kao u izborniku (ili na prethodnu, ako je
+    // obrisana bila zadnja). Ranije je ostajao prazan ekran dok se grupa ne izabere iz lijevog menija.
+    const obrisana = faze.find(f => f.id === id)
+    const uStruci = sortirajFaze(faze.filter(f => (f.struka_kod || 'gradjevinski') === (obrisana?.struka_kod || 'gradjevinski')))
+    const idx = uStruci.findIndex(f => f.id === id)
+    const sljedeca = idx === -1 ? null : (uStruci[idx + 1] || uStruci[idx - 1] || null)
     try {
       // Eksplicitno brišemo pozicije PRIJE same faze — isti razlog kao kod obrisiProjekat gore.
       const { error: ePoz } = await supabase.from('pozicije').delete().eq('faza_id', id)
@@ -1038,7 +1117,14 @@ export default function App() {
       if (eFaza) throw eFaza
 
       setFaze(prev => prev.filter(f => f.id !== id))
-      if (aktivnaFaza?.id === id) { setAktivnaFaza(null); setPozicije([]) }
+      if (aktivnaFaza?.id === id) {
+        if (sljedeca && !opcije.bezPrebacivanja) {
+          // Efekat na [aktivnaFaza] sam učitava pozicije nove grupe.
+          setAktivnaFaza(sljedeca)
+        } else {
+          setAktivnaFaza(null); setPozicije([])
+        }
+      }
     } catch (e) {
       obavijesti('Greška pri brisanju grupe radova: ' + e.message, 'greska')
     }
@@ -1213,7 +1299,7 @@ export default function App() {
     const fazeUStruci = faze.filter(f => (f.struka_kod || 'gradjevinski') === kod)
     if (fazeUStruci.length > 0) {
       if (!confirm(`Ova faza sadrži ${fazeUStruci.length} grupa radova. Obrisati fazu i sve njene grupe radova i pozicije?`)) return
-      for (const f of fazeUStruci) await obrisiFeazu(f.id)
+      for (const f of fazeUStruci) await obrisiFeazu(f.id, { bezPrebacivanja: true })
     }
     const nove = struke.filter(s => s.kod !== kod)
     await azurirajStruke(nove)
@@ -3316,17 +3402,10 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                   const fazeUToolbaru = sortirajFaze(faze.filter(f => (f.struka_kod || 'gradjevinski') === aktivnaStruka))
                   const prefiksT = f => (f.kategorija && SIFRA_KATEGORIJE_MAP.get(f.kategorija)) ? SIFRA_KATEGORIJE_MAP.get(f.kategorija) + ' · ' : ''
                   return (
-                    <select value={aktivnaFaza.id}
-                      onChange={e => { const f = fazeUToolbaru.find(x => x.id === e.target.value); if (f) setAktivnaFaza(f) }}
-                      onDoubleClick={() => setEditFazaNazivMjesto('toolbar')}
-                      title="Promijeni aktivnu grupu radova (dvoklik za preimenovanje)"
-                      style={{ fontWeight: 700, fontSize: 15, color: '#fff', background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.35)', borderRadius: 6, padding: '3px 8px', fontFamily: 'inherit', cursor: 'pointer', maxWidth: 340, textOverflow: 'ellipsis' }}>
-                      {fazeUToolbaru.map(f => (
-                        <option key={f.id} value={f.id} style={{ color: '#1B2F43', background: '#fff', fontWeight: 600 }}>
-                          {prefiksT(f)}{f.naziv}
-                        </option>
-                      ))}
-                    </select>
+                    <IzbornikGrupe grupe={fazeUToolbaru} aktivnaId={aktivnaFaza.id} prefiks={prefiksT}
+                      onIzaberi={f => setAktivnaFaza(f)}
+                      onObrisi={f => obrisiFeazu(f.id)}
+                      onPreimenuj={() => setEditFazaNazivMjesto('toolbar')} />
                   )
                 })()}
                 <button onClick={opozoviZadnjuIzmjenu} disabled={istorijaIzmjena.length === 0}
