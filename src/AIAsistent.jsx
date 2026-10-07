@@ -166,16 +166,40 @@ Budi konkretan, profesionalan i koristi standardnu građevinsku terminologiju.`
 function parseStavka(text) {
   const match = text.match(/---STAVKA---([\s\S]*?)---KRAJ---/)
   if (!match) return null
-  const blok = match[1]
-  const naziv = blok.match(/NAZIV:\s*(.+)/)?.[1]?.trim()
-  const opis = blok.match(/OPIS:\s*([\s\S]+?)(?=JMJ:|$)/)?.[1]?.trim()
-  const jmj = blok.match(/JMJ:\s*(.+)/)?.[1]?.trim()
-  const cijenaStr = blok.match(/CIJENA:\s*(.+)/)?.[1]?.trim()
-  const valutaStr = blok.match(/VALUTA:\s*([A-Za-z]{3})/)?.[1]?.trim().toUpperCase()
-  const kategorija = blok.match(/KATEGORIJA:\s*(.+)/)?.[1]?.trim()
-  const cijena = parseFloat(cijenaStr?.replace(',', '.')) || 0
-  if (!naziv || !opis) return null
-  return { naziv, opis, jmj: jmj || 'kom.', cijena, valuta: valutaStr || null, kategorija: kategorija || 'Ostalo' }
+  // Model ponekad polja napiše malo drugačije od zadatog formata — "**NAZIV:**", "- NAZIV:",
+  // "Naziv stavke:", "OPIS POZICIJE:", "JEDINICA:". Ranije je i najmanje odstupanje značilo da
+  // se kartica sa dugmetom „+ Dodaj u predmjer" uopšte ne prikaže, a blok se tiho izbrisao iz
+  // teksta — korisnik je vidio samo objašnjenje bez ikakve stavke. Zato se oznake prije čitanja
+  // normalizuju, a polja traže tolerantno (bez obzira na velika/mala slova i dodatne riječi).
+  const blok = match[1].replace(/\*\*|__|`/g, '').replace(/^[ \t]*[-•*]\s+/gm, '').trim()
+  if (!blok) return null
+  const OZNAKE = 'NAZIV|OPIS|JMJ|JEDINICA|CIJENA|VALUTA|KATEGORIJA'
+  const uzmi = imena => {
+    const re = new RegExp('(?:^|\\n)[ \\t]*(?:' + imena + ')\\b[^\\n:]{0,20}:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*(?:' + OZNAKE + ')\\b[^\\n:]{0,20}:|\\s*$)', 'i')
+    return blok.match(re)?.[1]?.trim() || null
+  }
+  let naziv = uzmi('NAZIV')
+  let opis = uzmi('OPIS')
+  const jmj = uzmi('JMJ|JEDINICA|JED')
+  const cijenaStr = uzmi('CIJENA')
+  const valutaStr = uzmi('VALUTA')?.match(/[A-Za-z]{2,3}/)?.[0]?.toUpperCase() || null
+  const kategorija = uzmi('KATEGORIJA')
+  // Ako je samo jedno od ključnih polja prepoznato, drugo se izvodi iz njega umjesto da se
+  // cijela stavka odbaci. Ako nijedno nije prepoznato, cio blok postaje opis.
+  if (!opis && naziv) opis = naziv
+  if (!naziv && opis) naziv = opis.split(/(?<=[.!?])\s/)[0].slice(0, 90)
+  if (!naziv && !opis) { opis = blok; naziv = blok.split(/(?<=[.!?])\s|\n/)[0].slice(0, 90) }
+  // Broj iz teksta cijene: "1.250,50", "1250.5", "35 KM" → 1250.5 / 35. Ako postoje i tačka i
+  // zarez, tačka je separator hiljada.
+  let cijena = 0
+  const brojStr = cijenaStr?.match(/\d[\d.,\s]*/)?.[0]?.replace(/\s/g, '')
+  if (brojStr) {
+    const n = (brojStr.includes('.') && brojStr.includes(','))
+      ? brojStr.replace(/\./g, '').replace(',', '.')
+      : brojStr.replace(',', '.')
+    cijena = parseFloat(n) || 0
+  }
+  return { naziv, opis, jmj: jmj || 'kom.', cijena, valuta: valutaStr, kategorija: kategorija || 'Ostalo' }
 }
 
 function parseCijene(text) {
@@ -857,7 +881,17 @@ Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu, sa cijenom za svaki navedeni I
     // upućuje na masovnu/skupu radnju nad postojećim stavkama (a ne na kreiranje nove stavke od
     // nule), radije priloži skraćeni kontekst pozicija nego da asistent ostane bez uvida u dokument.
     const spominjeMasovnost = /\bsve\b|\bsva\b|\bsvih\b|\bkompletn|\bcijel|\bcel\w*\b|\bfaz[ue]\b|\bgrup[ue]\b|\bdokument|\bpredmjer/i.test(tekst)
-    const trazeNovuStavku = /napravi\s+(novu|jednu)\s+stavk|dodaj\s+(novu|jednu)\s+stavk|kreiraj\s+(novu|jednu)\s+stavk/i.test(tekst)
+    // Zahtjev za JEDNU novu stavku. Ranije se prepoznavalo samo „napravi/dodaj/kreiraj novu|jednu
+    // stavku", pa je npr. „generiši stavku za garažna vrata sa kompletnom automatikom" pogađalo
+    // riječ „kompletn" iz spominjeMasovnost, tretiralo se kao grupna radnja (uz priložen sadržaj
+    // cijele grupe i web pretragu), a model je odgovarao običnim tekstom — bez kartice stavke i
+    // dugmeta „+ Dodaj u predmjer". Sada se prepoznaje širi skup glagola i oblika riječi „stavka",
+    // osim ako se izričito traži obrada SVIH stavki.
+    // Riječ „stavka" mora doći ODMAH iza glagola (uz eventualne dodatke poput „mi", „novu",
+    // „jednu", „još") — tako „generiši stavku za vrata" jeste zahtjev za novu stavku, a „dodaj
+    // armaturu u opis ove stavke" nije (to je izmjena postojeće).
+    const trazeNovuStavku = /\b(napravi|napraviti|dodaj|dodati|kreiraj|kreirati|generi[sš]i|generi[sš]ite|generisati|izradi|izraditi|sastavi|sastaviti|napi[sš]i|napisati|ubaci|ubaciti|unesi|predlo[zž]i)\s+(?:(?:mi|nam|još|jednu|novu|neku|nekakvu|dodatnu|sljedeću|slijedeću)\s+)*(?:stavk\w*|pozicij\w*)\b/i.test(tekst)
+      && !/\b(sve|svih|sva)\s+(postoje\w*\s+)?(stavk|pozicij)/i.test(tekst)
     const trazeMasovnuRadnju = !trazeCijene && !trazeIzmjene && spominjeMasovnost && !trazeNovuStavku
 
     // Oznaka tipa radnje koja se šalje serveru radi logovanja potrošnje (vidi ai_potrosnja
@@ -873,7 +907,7 @@ ${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove 
 ${getStavkeKontekst()}
 
 Vrati odgovor ISKLJUČIVO u ---CIJENE--- formatu za sve stavke.`
-    } else if (trazeIzmjene && pozicije && pozicije.length > 0) {
+    } else if (trazeIzmjene && !trazeNovuStavku && pozicije && pozicije.length > 0) {
       userContent = `${tekst}
 
 ${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove — obradi isključivo njih, ostale stavke u grupi NE diraj):` : 'POSTOJEĆE STAVKE U PREDMJERU (pregledaj svaku i predloži poboljšanja gdje je potrebno):'}
@@ -890,6 +924,13 @@ ${oznacenePozicije.length > 0 ? `OZNAČENE STAVKE (korisnik je izabrao SAMO ove 
 ${getStavkeKontekstPuni()}
 
 Na osnovu onoga što korisnik traži, odgovori u odgovarajućem formatu: ---CIJENE--- ako se traži ažuriranje/procjena cijena, ili ---IZMJENE--- ako se traži poboljšanje/dopuna opisa. Obuhvati sve GORE NAVEDENE stavke, ne samo dio${oznacenePozicije.length > 0 ? ' — a to su isključivo označene stavke' : ''}.`
+    } else if (trazeNovuStavku) {
+      // Nova stavka: eksplicitno podsjeti model na format sa karticom. Označene stavke (✨) se
+      // ovdje namjerno NE prilažu — zahtjev je za novu stavku, a ne obrada označenih; inače bi
+      // model odgovorio „radim samo nad označenim" običnim tekstom, bez kartice i dugmeta.
+      userContent = `${tekst}
+
+(Korisnik traži NOVU stavku za predmjer — odgovori u ---STAVKA--- formatu, a objašnjenje dodaj tek poslije ---KRAJ---.)`
     } else if (oznacenePozicije.length > 0) {
       // KLJUČNO: korisnik je označio stavke (ikona ✨), ali poruka ne pogađa nijedan od gornjih
       // obrazaca — npr. „skrati ovu stavku", „dodaj armaturu u opis", „je li ova cijena realna?".
@@ -941,6 +982,14 @@ Ako tražena radnja mijenja opise stavki, odgovori u ---IZMJENE--- formatu; ako 
       const izmjeneData = parseIzmjene(odgovorTekst)
       const usloviData = parseUslove(odgovorTekst)
       let prikazTekst = formatOdgovor(odgovorTekst)
+      // Sigurnosna mreža: ako je odgovor sadržavao blok ---STAVKA--- a kartica se ipak nije mogla
+      // sastaviti (npr. odgovor odsječen prije ---KRAJ---), formatOdgovor bi blok tiho obrisao i
+      // korisnik bi vidio samo objašnjenje, bez stavke. Zato se tada prikaže sirov tekst bloka,
+      // da se stavka barem može pročitati i ručno prekopirati, uz jasno upozorenje.
+      if (!stavka && /---STAVKA---/.test(odgovorTekst) && !cijeneData && !izmjeneData && !usloviData) {
+        const sirovo = odgovorTekst.replace(/---(?:STAVKA|KRAJ)---/g, '').trim()
+        prikazTekst = sirovo + '\n\n⚠️ Nisam uspio da sastavim karticu sa dugmetom „+ Dodaj u predmjer" (odgovor je vjerovatno prekinut). Zatražite stavku ponovo ili kopirajte tekst iznad.'
+      }
       // Ako je odgovor bio odsječen, spasili smo stavke koje su stigle — recimo to korisniku,
       // da zna zašto možda nisu obuhvaćene baš sve pozicije i da može ponoviti za ostatak.
       if (izmjeneData?.nepotpuno) {
