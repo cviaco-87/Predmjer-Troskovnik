@@ -998,7 +998,9 @@ export default function App() {
         cijena: roditeljPoz.cijena || 0,
         kolicina: 0,
         kategorija: roditeljPoz.kategorija || 'Ostalo',
-        redoslijed: pozicije.filter(p => p.parent_id === roditeljPoz.id).length
+        // Najveći postojeći redoslijed + 1 (a ne broj podstavki): poslije brisanja ili prevlačenja
+        // brojevi nisu uzastopni, pa bi „broj podstavki" mogao dati redoslijed koji neka već ima.
+        redoslijed: Math.max(-1, ...pozicije.filter(p => p.parent_id === roditeljPoz.id).map(p => p.redoslijed ?? 0)) + 1
       }).select().single()
       if (error) { obavijesti('Greška pri dodavanju podstavke: ' + error.message, 'greska'); return }
       if (data) { setPozicije(prev => [...prev, data]); istakniNovuStavku(data.id, true) }
@@ -1461,6 +1463,9 @@ export default function App() {
   const dragPoz = React.useRef(null)
   const [pomjerenaId, setPomjerenaId] = useState(null) // ID stavke koja je upravo prevučena (zeleni trag)
   const dragOverPoz = React.useRef(null)
+  // Meta prevlačenja PODSTAVKE: { id, iznad } — id podstavke iznad/ispod koje će se spustiti
+  // vučena (plava linija). `iznad` je true kad se vuče prema gore (linija iznad mete).
+  const [ciljPodstavke, setCiljPodstavke] = useState(null)
   // Prati da li je korisnik zaista kliknuo na ⠿ ručku prije nego što dozvolimo prevlačenje
   // cijelog reda. Bez ovoga, HTML5 "draggable" na cijelom <tr> hvata SVAKI klik-i-povuci u
   // redu (uključujući prazan prostor pored teksta u ćeliji opisa) kao pokušaj premještanja
@@ -1488,6 +1493,11 @@ export default function App() {
     dragRuckaAktivna.current = false
     e.currentTarget.style.opacity = '1'
     document.body.classList.remove('vuce-stavku')
+    // Očisti i stanje prevlačenja: ako se stavka ispusti van valjane mete (ili se prekine sa Esc),
+    // onDrop se ne izvrši, pa bi dragPoz ostao „zaglavljen" i auto-skrol bi reagovao i poslije.
+    dragPoz.current = null
+    dragOverPoz.current = null
+    setCiljPodstavke(null)
   }
 
   // ── AUTO-SKROL PRI PREVLAČENJU STAVKE ──
@@ -1564,24 +1574,89 @@ export default function App() {
   }, [])
 
   const onDragOver = (e, poz) => {
+    // Vučena PODSTAVKA se ne može spustiti na glavnu stavku (samo među podstavke istog roditelja),
+    // pa se drop ne dozvoljava — kursor tako odmah pokazuje da tu spuštanje nije moguće.
+    if (dragPoz.current?.parent_id) { azurirajAutoSkrol(e.clientY); return }
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     dragOverPoz.current = poz
     azurirajAutoSkrol(e.clientY)
   }
 
+  // Podstavke jedne glavne stavke, u prikazanom redoslijedu (isto sortiranje kao u `podstavke`).
+  const podstavkeRoditelja = parentId => pozicije
+    .filter(p => p.parent_id === parentId)
+    .sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
+
+  // Prelazak preko podstavke u toku prevlačenja. Valjana meta je SAMO druga podstavka ISTOG
+  // roditelja; za sve ostalo se drop ne dozvoljava. Postavlja plavu liniju: vuče li se prema dolje,
+  // stavka sjeda ISPOD mete, a prema gore IZNAD nje — isto kao što će se stvarno spustiti.
+  const onDragOverPodstavka = (e, d) => {
+    azurirajAutoSkrol(e.clientY)
+    const vuceno = dragPoz.current
+    if (!vuceno || !vuceno.parent_id || vuceno.parent_id !== d.parent_id || vuceno.id === d.id) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    dragOverPoz.current = d
+    const djeca = podstavkeRoditelja(d.parent_id)
+    const iznad = djeca.findIndex(x => x.id === vuceno.id) > djeca.findIndex(x => x.id === d.id)
+    setCiljPodstavke(prev => (prev && prev.id === d.id && prev.iznad === iznad) ? prev : { id: d.id, iznad })
+  }
+
+  // Premješta podstavku na mjesto mete unutar iste glavne stavke i čuva novi redoslijed.
+  // Upisuju se samo podstavke kojima se redni broj zaista promijenio.
+  const premjestiPodstavku = async (vuceno, meta) => {
+    const djeca = podstavkeRoditelja(vuceno.parent_id)
+    const od = djeca.findIndex(x => x.id === vuceno.id)
+    const do_ = djeca.findIndex(x => x.id === meta.id)
+    if (od === -1 || do_ === -1 || od === do_) return
+    const novi = [...djeca]
+    const [premjestena] = novi.splice(od, 1)
+    novi.splice(do_, 0, premjestena)
+    // Ako su postojeći brojevi uzastopni i bez ponavljanja, upisuju se samo promijenjeni; inače
+    // (npr. rupe poslije brisanja ili isti broj kod dvije podstavke) upisuju se svi, čime se
+    // brojevi ujedno normalizuju na 0, 1, 2…
+    const imaNepravilnosti = djeca.some((x, i) => (x.redoslijed ?? 0) !== i)
+    const promjene = novi
+      .map((x, i) => ({ id: x.id, redoslijed: i }))
+      .filter(u => imaNepravilnosti || (djeca.find(x => x.id === u.id)?.redoslijed ?? 0) !== u.redoslijed)
+    setPozicije(prev => prev.map(p => {
+      const idx = novi.findIndex(x => x.id === p.id)
+      return idx === -1 ? p : { ...p, redoslijed: idx }
+    }))
+    // Zeleni trag na premještenoj podstavci (kao kod glavnih stavki).
+    setPomjerenaId(premjestena.id)
+    setTimeout(() => setPomjerenaId(prev => prev === premjestena.id ? null : prev), 2000)
+    let greske = 0
+    for (const u of promjene) {
+      const { error } = await supabase.from('pozicije').update({ redoslijed: u.redoslijed }).eq('id', u.id)
+      if (error) { greske++; console.error('Greška pri čuvanju redoslijeda podstavke', u.id, error) }
+    }
+    if (greske > 0) {
+      obavijesti('Redoslijed podstavki nije u potpunosti sačuvan — učitavam stanje iz baze.', 'greska')
+      if (aktivnaFaza) ucitajPozicije(aktivnaFaza.id)
+    }
+  }
+
   const onDrop = async (e, targetPoz) => {
     e.preventDefault()
     zaustaviAutoSkrol()
     document.body.classList.remove('vuce-stavku')  // vrati normalan kursor odmah po ispuštanju
-    if (!dragPoz.current || dragPoz.current.id === targetPoz.id) return
-    if (dragPoz.current.parent_id || targetPoz.parent_id) return
+    const vuceno = dragPoz.current
+    setCiljPodstavke(null)
+    if (!vuceno || vuceno.id === targetPoz.id) return
+    if (vuceno.parent_id || targetPoz.parent_id) {
+      // Podstavka se smije spustiti samo na podstavku ISTOG roditelja; glavna stavka se ne
+      // spušta među podstavke. Sve ostalo se ignoriše.
+      if (vuceno.parent_id && vuceno.parent_id === targetPoz.parent_id) await premjestiPodstavku(vuceno, targetPoz)
+      return
+    }
 
     const roditelji = pozicije
       .filter(p => !p.parent_id)
       .sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
 
-    const fromIdx = roditelji.findIndex(p => p.id === dragPoz.current.id)
+    const fromIdx = roditelji.findIndex(p => p.id === vuceno.id)
     const toIdx   = roditelji.findIndex(p => p.id === targetPoz.id)
     if (fromIdx === -1 || toIdx === -1) return
 
@@ -2042,6 +2117,9 @@ export default function App() {
         m[p.parent_id].push(p)
       }
     }
+    // Podstavke se prikazuju po `redoslijed` (ne po redu u nizu), da prevlačenje mijenja prikaz.
+    // sort je stabilan, pa podstavke sa istim brojem zadržavaju raniji međusobni poredak.
+    for (const k of Object.keys(m)) m[k].sort((a, b) => (a.redoslijed ?? 0) - (b.redoslijed ?? 0))
     return m
   }, [pozicije])
 
@@ -3824,11 +3902,19 @@ ${prikaziGlobalnuRekapitulaciju ? potpisHtml : ''}
                                   return (
                                     <tr key={d.id}
                                       data-poz-id={d.id}
+                                      draggable
+                                      onDragStart={e => onDragStart(e, d)}
+                                      onDragEnd={onDragEnd}
+                                      onDragOver={e => onDragOverPodstavka(e, d)}
+                                      onDrop={e => onDrop(e, d)}
                                       onMouseEnter={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = '#FFFBEA' }}
                                       onMouseLeave={e => { if (!brisuSe.has(d.id) && pomjerenaId !== d.id) e.currentTarget.style.background = BOJA_PODSTAVKE }}
-                                      style={{ borderBottom: '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : (pomjerenaId === d.id ? '#D6F0DE' : BOJA_PODSTAVKE), transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
+                                      style={{ borderTop: ciljPodstavke?.id === d.id && ciljPodstavke.iznad ? `3px solid ${BOJA_AKTIVNE_CELIJE}` : undefined, borderBottom: ciljPodstavke?.id === d.id && !ciljPodstavke.iznad ? `3px solid ${BOJA_AKTIVNE_CELIJE}` : '1px solid #EDEAE1', background: brisuSe.has(d.id) ? '#F8D7D3' : (pomjerenaId === d.id ? '#D6F0DE' : BOJA_PODSTAVKE), transition: 'background-color .25s ease, opacity .35s ease', opacity: brisuSe.has(d.id) ? 0.25 : 1, pointerEvents: brisuSe.has(d.id) ? 'none' : undefined }}>
                                       <td style={{ padding: '4px 8px', color: jeAktivnaPod ? '#fff' : '#333', fontWeight: 600, textAlign: 'center', fontSize: 12, width: 28, borderLeft: jeAktivnaPod ? `4px solid ${BOJA_AKTIVNE_CELIJE}` : '4px solid transparent' }}>
-                                        <span style={{ background: jeAktivnaPod ? BOJA_AKTIVNE_CELIJE : 'transparent', borderRadius: 3, padding: jeAktivnaPod ? '1px 4px' : 0 }}>{i+1}.{di+1}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+                                          <span style={{ background: jeAktivnaPod ? BOJA_AKTIVNE_CELIJE : 'transparent', borderRadius: 3, padding: jeAktivnaPod ? '1px 4px' : 0 }}>{i+1}.{di+1}</span>
+                                          <span className="drag-rucka" onMouseDown={() => { dragRuckaAktivna.current = true }} style={{ color: jeAktivnaPod ? '#fff' : '#bbb', fontSize: 12, lineHeight: 1, userSelect: 'none', cursor: 'grab' }} title="Prevuci da promijeniš redoslijed podstavke">⠿</span>
+                                        </div>
                                       </td>
                                       <td style={{ width: 82, borderLeft: '1px solid rgba(27,47,67,0.18)' }}></td>
                                       <td onClick={() => oznaciCeliju(d.id, 'naziv')} style={stilCelije({ padding: '4px 8px', verticalAlign: 'top', position: 'relative', borderLeft: '1px solid rgba(27,47,67,0.18)' }, d.id, 'naziv')}>
